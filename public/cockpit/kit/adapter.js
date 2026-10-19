@@ -1,0 +1,604 @@
+// adapter.js — Live data adapter (K2)
+// brand='mentolder' hardcoded per E16
+// Replaces K1 fixture implementation entirely.
+//
+// K4 (T002463): Per-Endpunkt-Host-Aufloesung statt Basis-Konstante (Auth-Schnitt).
+// Ein globaler Umschalter ist unzulaessig — die Website bedient heute nur einen
+// Teil der Endpunkte, ein Umschalten stellte die uebrigen auf 404.
+
+const data = (() => {
+  // Port 39152, nicht 49152: der alte Wert lag im Bereich, den Windows/Hyper-V
+  // auf WSL2-Hosts und nativen Windows-Installationen reserviert [T002708].
+  // Muss mit dem Default in .lavish/kit/daemon/server.ts uebereinstimmen.
+  const DAEMON_BASE = 'http://127.0.0.1:39152';
+  const brand = 'mentolder';
+
+  // ---- Endpunkt-Karte: pro Endpunkt, welche Quelle ihn bedient ----
+  // `website: true`  → der Endpunkt existiert auf der Website und wird im
+  //                    Admin-Kontext von der eigenen Origin geladen.
+  // `website: false` → Quelle ist (bis auf weiteres) der lokale Daemon.
+  //                    `daemonOnly` kennzeichnet Endpunkte, die dauerhaft nur
+  //                    daemon-gestuetzt sind (lesen lokalen Zustand).
+  const ENDPOINT_MAP = {
+    'portfolio':        { path: '/sdlc/api/cockpit/portfolio', website: true },
+    'pods-list':        { path: '/sdlc/api/cluster/pods-list', website: true },
+    'ticket-status':    { path: '/sdlc/api/cockpit/ticket-status', website: true },
+    'audit':            { path: '/sdlc/api/cockpit/audit', website: true },
+    // T003277 — Dispatch-Mitschnitt. 'dispatches' liefert NUR Kopfdaten; die
+    // Bodies kommen ueber 'dispatch-detail' mit angehaengter id, damit ein
+    // Listenaufruf nicht zweistellige MB zieht.
+    'dispatches':       { path: '/sdlc/api/llm-proxy/requests', website: true },
+    'dispatch-detail':  { path: '/sdlc/api/llm-proxy/requests/', website: true },
+    'cockpit-stream':   { path: '/sdlc/api/cockpit/stream', website: true },
+    'epics':            { path: '/api/cockpit/epics', website: false },
+    'styles':           { path: '/api/cockpit/styles', website: false },
+    'ci':               { path: '/api/cockpit/ci', website: false },
+    'agents':           { path: '/api/cockpit/agents', website: false, daemonOnly: true },
+    'models':           { path: '/api/cockpit/models', website: false, daemonOnly: true },
+    'agents-stream':    { path: '/api/cockpit/stream/agents', website: false, daemonOnly: true },
+  };
+
+  // Kontext wird EINMAL beim Laden bestimmt. Standalone = die Seite wird nicht
+  // von der Admin-Flaeche ausgeliefert (file:// oder der Daemon-Port selbst).
+  const isStandalone = typeof location !== 'undefined'
+    && (location.protocol === 'file:' || Number(location.port) === 39152);
+  const HOST = isStandalone ? DAEMON_BASE : '';
+  const UNAVAILABLE_MSG = 'Quelle in diesem Kontext nicht verfügbar';
+
+  // ---- Endpunkt-Aufloesung (K4) ----
+  // Liefert { host, path, available }. `host` ist im Admin-Kontext die eigene
+  // Origin (leerer Praefix), im Standalone-Kontext die Daemon-Basis. Ein
+  // daemon-gestuetzter Endpunkt ist im Admin-Kontext nicht verfügbar.
+  function resolveEndpoint(key) {
+    const entry = ENDPOINT_MAP[key];
+    if (!entry) return { host: HOST, path: '', available: false };
+    const available = isStandalone || entry.website;
+    return { host: HOST, path: entry.path, available };
+  }
+
+  // Poll registry: maps handle → { intervalId, paused, refreshMs }
+  const polls = new Map();
+  // Push registry (T002643): maps handle → { domain, reload, controller }
+  const pushHandles = new Map();
+  let nextHandle = 1;
+  let visibilityPaused = false;
+
+  // ---- D11: visibility-based pause ----
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        visibilityPaused = true;
+        // Pause all polls (don't clear — resume with immediate fetch on return)
+        for (const poll of polls.values()) {
+          if (poll.intervalId) {
+            clearInterval(poll.intervalId);
+            poll.intervalId = null;
+          }
+        }
+      } else {
+        visibilityPaused = false;
+        // Resume all polls with immediate fetch
+        for (const poll of polls.values()) {
+          poll.controller.fetchNow();
+          if (!poll.intervalId) {
+            poll.intervalId = setInterval(() => {
+              if (!visibilityPaused) poll.controller.fetchNow();
+            }, poll.refreshMs);
+          }
+        }
+      }
+    });
+  }
+
+  // ---- Core fetch helper (D12, D13) ----
+  // Reuse from K2: hält D12/D13 bereits ein (fetchedAt immer gesetzt, Fehler
+  // als error-Feld statt null). Bekommt lediglich den aufgelösten Host und
+  // die Verfügbarkeitsprüfung vorangestellt.
+  async function fetchEndpoint(key, opts = {}) {
+    const resolved = resolveEndpoint(key);
+    const pathSuffix = opts.path || '';
+    if (!resolved.available) {
+      // D13 im Admin-Kontext: ein daemon-only-Endpunkt kommt nicht still leer
+      // zurueck, sondern benennt, dass die Quelle hier fehlt.
+      return { error: UNAVAILABLE_MSG, fetchedAt: new Date().toISOString() };
+    }
+    const q = opts.query ? (opts.query.startsWith('?') ? opts.query : `?${opts.query}`) : '';
+    const sep = q ? '&' : '?';
+    const url = `${resolved.host}${resolved.path}${pathSuffix}${q}${sep}_t=${Date.now()}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        return { error: `HTTP ${res.status}: ${res.statusText}`, fetchedAt: new Date().toISOString() };
+      }
+      const payload = await res.json();
+      // D12: Ensure fetchedAt is present
+      if (!payload.fetchedAt) {
+        payload.fetchedAt = new Date().toISOString();
+      }
+      return payload;
+    } catch (e) {
+      // D13: Never return null/empty array silently
+      return { error: `Quelle nicht erreichbar: ${e.message}`, fetchedAt: new Date().toISOString() };
+    }
+  }
+
+  // ---- Poll (D10, D11) ----
+  function createPoll(key, defaultRefreshMs, query = '') {
+    let lastData = null;
+    let lastFetchedAt = null;
+    let error = null;
+    let staleSince = null;
+    let listeners = [];
+
+    const controller = {
+      fetchNow: async () => {
+        try {
+          const result = await fetchEndpoint(key, { query });
+          lastFetchedAt = result.fetchedAt;
+
+          if (result.error) {
+            error = result.error;
+            if (!staleSince) staleSince = lastFetchedAt;
+            // D13: Keep last valid data, mark as stale
+            if (lastData) {
+              lastData = { ...lastData, error, staleSince, fetchedAt: lastFetchedAt };
+            } else {
+              lastData = { error, staleSince, fetchedAt: lastFetchedAt };
+            }
+          } else {
+            error = null;
+            staleSince = null;
+            lastData = { ...result, fetchedAt: lastFetchedAt };
+          }
+        } catch (e) {
+          error = `Poll failed: ${e.message}`;
+          if (!staleSince) staleSince = new Date().toISOString();
+        }
+
+        // Notify listeners
+        for (const fn of listeners) {
+          try { fn(lastData); } catch {}
+        }
+      },
+
+      subscribe: (fn) => {
+        listeners.push(fn);
+        if (lastData) fn(lastData);
+        return () => {
+          listeners = listeners.filter(l => l !== fn);
+        };
+      },
+
+      getLastData: () => lastData,
+    };
+
+    return function startPoll(refreshMs) {
+      const ms = refreshMs || defaultRefreshMs;
+      const handle = nextHandle++;
+
+      // Immediate first fetch
+      controller.fetchNow();
+
+      // Start interval (unless visibility is paused)
+      let intervalId = null;
+      if (!visibilityPaused) {
+        intervalId = setInterval(() => {
+          if (!visibilityPaused) controller.fetchNow();
+        }, ms);
+      }
+
+      polls.set(handle, { intervalId, paused: visibilityPaused, refreshMs: ms, controller });
+
+      // Return handle with last data + unsubscribe
+      return {
+        _handle: handle,
+        get data() { return controller.getLastData(); },
+        subscribe: controller.subscribe,
+      };
+    };
+  }
+
+  // ---- Push handler (T002643 Task 6) ----
+  // Genau EIN EventSource für alle push-versorgten Quellen — Browser begrenzen
+  // die gleichzeitigen Verbindungen pro Ursprung, und das Cockpit zeigt sechs
+  // Panels. Die Referenzzählung teilt die Verbindung und baut sie ab, wenn
+  // keine Quelle sie mehr hält.
+  let pushEventSource = null;
+  let pushEventSourceState = 'polling'; // 'polling' | 'live' | 'error'
+  let pushReconnectTimer = null;
+  const pushDomainReloaders = {}; // domain -> Set<() => void>
+  const pushDomainListeners = {}; // domain -> () => void
+
+  function dispatchDomain(domain) {
+    for (const fn of pushDomainReloaders[domain] || []) {
+      try { fn(); } catch {}
+    }
+  }
+
+  // Registrierte Domain-Listener an einem (neuen) EventSource nachtragen —
+  // beim Reconnect entsteht ein frisches EventSource, das die alten
+  // addEventListener-Bindungen nicht mehr kennt.
+  function attachDomainListeners() {
+    if (!pushEventSource) return;
+    for (const domain of Object.keys(pushDomainListeners)) {
+      pushEventSource.addEventListener(domain, pushDomainListeners[domain]);
+    }
+  }
+
+  function ensurePushStream() {
+    if (pushEventSource) return;
+    pushEventSource = new EventSource('/sdlc/api/cockpit/stream');
+    pushEventSourceState = 'polling';
+
+    pushEventSource.addEventListener('reconnect', () => {
+      for (const domain of Object.keys(pushDomainReloaders)) {
+        dispatchDomain(domain);
+      }
+    });
+
+    pushEventSource.onopen = () => { pushEventSourceState = 'live'; };
+    pushEventSource.onerror = () => {
+      // Netzwerkfehler: Stream schliessen und nach 5s neu aufbauen (analog
+      // zur createStream-Logik unten). Ohne Reconnect bliebe der Push-Stream
+      // dauerhaft auf 'error' haengen — erst ein Page-Reload wuerde ihn
+      // reparieren.
+      pushEventSourceState = 'error';
+      if (pushEventSource) {
+        pushEventSource.close();
+        pushEventSource = null;
+      }
+      if (!pushReconnectTimer) {
+        pushReconnectTimer = setTimeout(() => {
+          pushReconnectTimer = null;
+          ensurePushStream();
+        }, 5000);
+      }
+    };
+
+    attachDomainListeners();
+  }
+
+  function registerDomainReload(domain, reload) {
+    if (!pushDomainReloaders[domain]) {
+      pushDomainReloaders[domain] = new Set();
+      // Ein EventSource-Listener pro Domain, der alle Reloader im Set
+      // benachrichtigt — verhindert O(N²)-Dispatching bei N Panels derselben
+      // Quelle (ein addEventListener pro Panel wuerde jedes Event N-mal ueber
+      // das Set iterieren lassen). Der Listener wird zentral gemerkt, damit
+      // er bei einem Reconnect auf das neue EventSource nachgezogen werden
+      // kann.
+      const listener = () => dispatchDomain(domain);
+      pushDomainListeners[domain] = listener;
+      if (pushEventSource) {
+        pushEventSource.addEventListener(domain, listener);
+      }
+    }
+    pushDomainReloaders[domain].add(reload);
+  }
+
+  function releaseDomainReload(domain, reload) {
+    if (!pushDomainReloaders[domain]) return;
+    pushDomainReloaders[domain].delete(reload);
+    if (pushDomainReloaders[domain].size === 0) {
+      delete pushDomainReloaders[domain];
+      if (pushEventSource && pushDomainListeners[domain]) {
+        pushEventSource.removeEventListener(domain, pushDomainListeners[domain]);
+      }
+      delete pushDomainListeners[domain];
+    }
+  }
+
+  function createPush(key, domain, query = '') {
+    let lastData = null;
+    let lastFetchedAt = null;
+    let error = null;
+    let staleSince = null;
+    let listeners = [];
+
+    const handle = nextHandle++;
+
+    const reload = async () => {
+      try {
+        const result = await fetchEndpoint(key, { query });
+        lastFetchedAt = result.fetchedAt;
+
+        if (result.error) {
+          error = result.error;
+          if (!staleSince) staleSince = lastFetchedAt;
+          if (lastData) {
+            lastData = { ...lastData, error, staleSince, fetchedAt: lastFetchedAt };
+          } else {
+            lastData = { error, staleSince, fetchedAt: lastFetchedAt };
+          }
+        } else {
+          error = null;
+          staleSince = null;
+          lastData = { ...result, fetchedAt: lastFetchedAt };
+        }
+      } catch (e) {
+        error = `Push reload failed: ${e.message}`;
+        if (!staleSince) staleSince = new Date().toISOString();
+      }
+
+      for (const fn of listeners) {
+        try { fn(lastData); } catch {}
+      }
+    };
+
+    // Initial load
+    reload();
+
+    // Register for domain events
+    ensurePushStream();
+    registerDomainReload(domain, reload);
+
+    pushHandles.set(handle, { domain, reload, controller: { fetchNow: reload, getLastData: () => lastData } });
+
+    return {
+      _handle: handle,
+      pushed: true,
+      get data() { return lastData; },
+      subscribe: (fn) => {
+        listeners.push(fn);
+        if (lastData) fn(lastData);
+        return () => {
+          listeners = listeners.filter(l => l !== fn);
+        };
+      },
+    };
+  }
+
+  function streamState() {
+    return pushEventSourceState;
+  }
+
+  // ---- Unsubscribe ----
+  function unsubscribe(handleObj) {
+    if (!handleObj || !handleObj._handle) return;
+    // Push handle
+    const pushH = pushHandles.get(handleObj._handle);
+    if (pushH) {
+      releaseDomainReload(pushH.domain, pushH.reload);
+      pushHandles.delete(handleObj._handle);
+      return;
+    }
+    // Poll handle
+    const poll = polls.get(handleObj._handle);
+    if (poll) {
+      if (poll.intervalId) clearInterval(poll.intervalId);
+      polls.delete(handleObj._handle);
+    }
+  }
+
+  // ---- SSE stream helper ----
+  function createStream(key) {
+    return function startStream(onEvent) {
+      const resolved = resolveEndpoint(key);
+      if (!resolved.available) {
+        onEvent({ type: 'connection_error', data: { error: UNAVAILABLE_MSG }, ts: new Date().toISOString() });
+        return () => {};
+      }
+      let eventSource = null;
+      let reconnectTimer = null;
+      let closed = false;
+
+      function connect() {
+        if (closed) return;
+
+        eventSource = new EventSource(`${resolved.host}${resolved.path}`);
+
+        eventSource.onmessage = (event) => {
+          try {
+            const d = JSON.parse(event.data);
+            onEvent({ type: event.type || 'message', data: d, ts: new Date().toISOString() });
+          } catch {
+            onEvent({ type: 'parse_error', data: event.data, ts: new Date().toISOString() });
+          }
+        };
+
+        // Named events
+        // 'dispatch' (T003277): der Website-Stream sendet `event: <domain>`
+        // (sdlc/api/cockpit/stream.ts), und der NOTIFY-Trigger des
+        // Mitschnitts traegt die Domaene 'dispatch'.
+        const namedEvents = ['agent_update', 'agent_started', 'agent_heartbeat', 'agent_done',
+          'dispatch', 'gap', 'heartbeat', 'error'];
+        for (const evt of namedEvents) {
+          eventSource.addEventListener(evt, (event) => {
+            try {
+              const d = JSON.parse(event.data);
+              onEvent({ type: evt, data: d, ts: new Date().toISOString() });
+            } catch {
+              onEvent({ type: evt, data: event.data, ts: new Date().toISOString() });
+            }
+          });
+        }
+
+        eventSource.onerror = () => {
+          onEvent({ type: 'connection_error', data: {}, ts: new Date().toISOString() });
+          eventSource.close();
+          // Auto-reconnect after 5s
+          if (!closed) {
+            reconnectTimer = setTimeout(connect, 5000);
+          }
+        };
+      }
+
+      connect();
+
+      // Return close function
+      return () => {
+        closed = true;
+        if (eventSource) eventSource.close();
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+      };
+    };
+  }
+
+  // ---- Public API (identical to K1 signatures) ----
+
+  /** @param {{ refreshMs?: number }} [opts] */
+  function tickets(opts) {
+    // refreshMs accepted and ignored — push delivers on notification, not on timer (D10).
+    return createPush('portfolio', 'tickets', `brand=${brand}`)(opts?.refreshMs);
+  }
+
+  /** @param {{ refreshMs?: number }} [opts] */
+  function agents(opts) {
+    return createPoll('agents', 15000)(opts?.refreshMs);
+  }
+
+  /** @param {{ refreshMs?: number }} [opts] */
+  function ci(opts) {
+    // Bleibt gepollt — CI-Läufe kommen von GitHub, haben keine Postgres-Quelle.
+    // Kein NOTIFY möglich.
+    return createPoll('ci', 120000)(opts?.refreshMs);
+  }
+
+  /** @param {{ refreshMs?: number }} [opts] */
+  function cluster(opts) {
+    // Bleibt gepollt — Pod-Zustände kommen von kubectl, haben keine Postgres-Quelle.
+    // Kein NOTIFY möglich.
+    return createPoll('pods-list', 30000, 'namespace=workspace')(opts?.refreshMs);
+  }
+
+  /** @param {{ refreshMs?: number }} [opts] */
+  function models(opts) {
+    // Bleibt gepollt — Modell-Gesundheit kommt von Ollama, hat keine Postgres-Quelle.
+    // Kein NOTIFY möglich.
+    return createPoll('models', 30000)(opts?.refreshMs);
+  }
+
+  /**
+   * K5 Epic-Canvas (T002464). Poll wie die uebrigen Listen-Endpunkte.
+   * @param {{ refreshMs?: number }} [opts]
+   */
+  function epics(opts) {
+    return createPoll('epics', 60000)(opts?.refreshMs);
+  }
+
+  /**
+   * K9 Stil-Datenbank (T002468) — die Gestaltungsquelle für die Modelle.
+   *
+   * Einmalabruf statt Poll: die Sammlung ändert sich nur, wenn jemand einen
+   * Eintrag beiträgt, nicht im Sekundentakt. Ein Poll hätte hier nichts zu tun.
+   *
+   * Der Zugriff liegt im Adapter, damit kein Panel selbst fetch() ruft (E1) —
+   * die Kit-Seiten laufen von file://, ein relativer Pfad erreichte den Daemon
+   * gar nicht.
+   *
+   * @returns {Promise<{entries?: Array, warnings?: string[], error?: string, fetchedAt: string}>}
+   */
+  // ---- Dispatch-Mitschnitt (T003277) ----
+
+  /** Kopfdaten der letzten Mitschnitte. Traegt bewusst keine Bodies. */
+  async function dispatches(opts = {}) {
+    const params = new URLSearchParams();
+    if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.ticket) params.set('ticket', opts.ticket);
+    const query = params.toString();
+    return fetchEndpoint('dispatches', query ? { query } : {});
+  }
+
+  /** Ein Mitschnitt mit vollem Prompt und voller Antwort. */
+  async function dispatchDetail(id) {
+    return fetchEndpoint('dispatch-detail', { path: String(id) });
+  }
+
+  /** Live-Strom des Cockpits; das Panel filtert auf die Domaene 'dispatch'. */
+  const dispatchStream = createStream('cockpit-stream');
+
+  async function styles() {
+    // fetchEndpoint hält D12/D13 bereits ein: fetchedAt ist immer gesetzt, und
+    // ein Fehler kommt als error-Feld zurück statt als null.
+    return fetchEndpoint('styles');
+  }
+
+  /** @param {function} onEvent */
+  function agentStream(onEvent) {
+    return createStream('agents-stream')(onEvent);
+  }
+
+  // ---- Write methods (K4: Website-API statt Daemon-Stubs) ----
+  //
+  // K4 entfernt den browser-seitigen Zugriff auf die Daemon-Schreib-Stubs
+  // (/api/cockpit/ticket-action, /api/cockpit/agent-action) samt des
+  // Token-Abrufs. Der Daemon hat keinen unauthentifizierten Schreibpfad; die
+  // Website-API setzt auf die Admin-Session (Cookie) statt auf ein
+  // Browser-Token.
+  //
+  // Die einzige Klasse-A-Schreibaktion aus E5 ist das Setzen des Ticket-Status.
+  //
+  // @param {string} ticketId
+  // @param {string} status  Zielstatus aus der TicketStatus-Union
+  async function ticketAction(ticketId, status) {
+    const resolved = resolveEndpoint('ticket-status');
+    if (!resolved.available) return { ok: false, error: UNAVAILABLE_MSG };
+    try {
+      const res = await fetch(`${resolved.host}${resolved.path}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticketId, status }),
+      });
+      return res.json();
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+
+  /**
+   * K4 Audit-Log (Task 8, Strom-Panel). Poll auf den neuen Lese-Endpunkt.
+   * @param {{ refreshMs?: number }} [opts]
+   */
+  function audit(opts) {
+    return createPush('audit', 'audit')(opts?.refreshMs);
+  }
+
+  /**
+   * T002643 Task 9: unified action dispatch.
+   *
+   * POSTs to the bundled actions endpoint under the current origin (the
+   * Cockpit runs in the Admin-Kontext, so credentials: 'include' sends the
+   * session cookie). The action-policy confirmation runs *before* calling
+   * this — the caller is responsible for respecting the policy.
+   *
+   * @param {string} action  action name (see Task 8 table)
+   * @param {object} [body]  extra fields merged into the POST body
+   * @returns {Promise<object>} the JSON response from the actions endpoint
+   */
+  async function performAction(action, body = {}) {
+    try {
+      const res = await fetch('/sdlc/api/cockpit/actions', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...body }),
+      });
+      return res.json();
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+
+  return {
+    tickets,
+    agents,
+    ci,
+    cluster,
+    models,
+    epics,
+    styles,
+    dispatches,
+    dispatchDetail,
+    dispatchStream,
+    agentStream,
+    ticketAction,
+    audit,
+    performAction,
+    resolveEndpoint,
+    unsubscribe,
+    streamState,
+  };
+})();
+
+window.data = data;

@@ -1,0 +1,238 @@
+import type { APIRoute } from 'astro';
+import { getSession, isAdmin } from '../../../../../lib/auth';
+import { finalizeInvoice, getCustomerById } from '../../../../../lib/native-billing';
+import { generateInvoicePdf, type InvoicePdfSeller } from '../../../../../lib/invoice-pdf';
+import { generateFacturX } from '../../../../../lib/einvoice/factur-x';
+import { sendEmail } from '../../../../../lib/email';
+import { pool, getSiteSetting, initBillingTables } from '../../../../../lib/website-db';
+import { errorResponse } from '../../../_errors';
+
+function interpolate(t: string, vars: Record<string, string>) {
+  return t.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '');
+}
+
+export const POST: APIRoute = async ({ request, params , locals }) => {
+  const session = await getSession(request.headers.get('cookie'));
+  if (!session || !isAdmin(session)) return new Response('Unauthorized', { status: 401 });
+  await initBillingTables();
+  const id = params.id as string;
+  const brand = process.env.BRAND || 'mentolder';
+
+  // Load invoice (must be draft)
+  const draftCheck = await pool.query(
+    `SELECT * FROM billing_invoices WHERE id=$1 AND brand=$2 AND status='draft'`, [id, brand]
+  );
+  if (!draftCheck.rows[0]) return new Response('Not found or not draft', { status: 404 });
+
+  // Load seller settings
+  const settingKeys = ['invoice_sender_name','invoice_sender_street','invoice_sender_city',
+    'invoice_bank_iban','invoice_bank_bic','invoice_bank_name','invoice_vat_id',
+    'invoice_sender_phone'] as const;
+  const [settingVals, customer] = await Promise.all([
+    Promise.all(settingKeys.map(k => getSiteSetting(brand, k))),
+    getCustomerById(brand, draftCheck.rows[0].customer_id),
+  ]);
+  const s = Object.fromEntries(settingKeys.map((k,i) => [k, settingVals[i] ?? '']));
+  if (!customer) return new Response('Customer not found', { status: 404 });
+
+  const cityParts = (s.invoice_sender_city ?? '').trim();
+  if (!cityParts) {
+    locals.requestLogger.warn({ brand }, '[billing/send] invoice_sender_city not configured');
+  }
+  const seller: InvoicePdfSeller = {
+    name:       s.invoice_sender_name,
+    address:    s.invoice_sender_street,
+    postalCode: cityParts.split(' ')[0] ?? '',
+    city:       cityParts.split(' ').slice(1).join(' '),
+    country:    'DE',
+    vatId:      s.invoice_vat_id,
+    taxNumber:  '',
+    iban:       s.invoice_bank_iban,
+    bic:        s.invoice_bank_bic,
+    bankName:   s.invoice_bank_name,
+    email:      process.env.CONTACT_EMAIL || '',
+    phone:      s.invoice_sender_phone || '',
+    website:    process.env.LEGAL_WEBSITE || process.env.PROD_DOMAIN || '',
+  };
+
+  // Load email/pdf templates from site_settings
+  const tmplKeys = ['invoice_email_subject','invoice_email_body','invoice_intro_text',
+                    'invoice_kleinunternehmer_notice','invoice_outro_text'] as const;
+  const tmplVals = await Promise.all(tmplKeys.map(k => getSiteSetting(brand, k)));
+  const tmpl = Object.fromEntries(tmplKeys.map((k,i) => [k, tmplVals[i] ?? '']));
+
+  // Load line items
+  const linesR = await pool.query(
+    `SELECT * FROM billing_invoice_line_items WHERE invoice_id=$1 ORDER BY id`, [id]
+  );
+  const lines = linesR.rows.map((l: Record<string, unknown>) => ({
+    description: l.description as string,
+    quantity: Number(l.quantity),
+    unitPrice: Number(l.unit_price),
+    netAmount: Number(l.net_amount),
+    unit: l.unit as string | undefined,
+  }));
+
+  // Use a temporary invoice object for generation (same data as draft row)
+  const draftRow = draftCheck.rows[0];
+  const tempInvoice = {
+    id: draftRow.id, brand: draftRow.brand, number: draftRow.number,
+    status: 'open', customerId: draftRow.customer_id,
+    issueDate: (draftRow.issue_date as Date).toISOString().split('T')[0],
+    dueDate: (draftRow.due_date as Date).toISOString().split('T')[0],
+    taxMode: draftRow.tax_mode, netAmount: Number(draftRow.net_amount),
+    taxRate: Number(draftRow.tax_rate), taxAmount: Number(draftRow.tax_amount),
+    grossAmount: Number(draftRow.gross_amount),
+    notes: draftRow.notes ?? undefined,
+    paymentReference: draftRow.payment_reference ?? undefined,
+    locked: true,
+    servicePeriodStart: draftRow.service_period_start
+      ? (draftRow.service_period_start as Date).toISOString().split('T')[0] : undefined,
+    servicePeriodEnd: draftRow.service_period_end
+      ? (draftRow.service_period_end as Date).toISOString().split('T')[0] : undefined,
+    leitwegId: draftRow.leitweg_id ?? undefined,
+    currency: (draftRow.currency as string) ?? 'EUR',
+    currencyRate: draftRow.currency_rate != null ? Number(draftRow.currency_rate) : null,
+    netAmountEur: draftRow.net_amount_eur != null ? Number(draftRow.net_amount_eur) : Number(draftRow.net_amount),
+    grossAmountEur: draftRow.gross_amount_eur != null ? Number(draftRow.gross_amount_eur) : Number(draftRow.gross_amount),
+    supplyType: (draftRow.supply_type as string) ?? undefined,
+    kind: ((draftRow.kind as string) ?? 'regular') as 'regular' | 'prepayment' | 'final' | 'gutschrift',
+    parentInvoiceId: (draftRow.parent_invoice_id as string) ?? undefined,
+  };
+
+  const invoiceInput = {
+    number: tempInvoice.number,
+    issueDate: tempInvoice.issueDate,
+    dueDate: tempInvoice.dueDate,
+    currency: 'EUR',
+    taxMode: tempInvoice.taxMode as 'kleinunternehmer' | 'regelbesteuerung',
+    servicePeriodStart: tempInvoice.servicePeriodStart,
+    servicePeriodEnd: tempInvoice.servicePeriodEnd,
+    paymentReference: tempInvoice.paymentReference,
+    notes: tempInvoice.notes,
+    lines: lines.map(l => ({
+      description: l.description,
+      quantity: l.quantity,
+      unit: l.unit || 'C62',
+      unitPrice: l.unitPrice,
+      netAmount: l.netAmount,
+      taxRate: tempInvoice.taxMode === 'kleinunternehmer' ? 0 : tempInvoice.taxRate,
+      taxCategory: (tempInvoice.taxMode === 'kleinunternehmer' ? 'E' : 'S') as 'E' | 'S',
+    })),
+    netTotal: tempInvoice.netAmount,
+    taxTotal: tempInvoice.taxAmount,
+    grossTotal: tempInvoice.grossAmount,
+    seller: {
+      name: seller.name,
+      address: seller.address,
+      postalCode: seller.postalCode,
+      city: seller.city,
+      country: seller.country,
+      vatId: seller.vatId || undefined,
+      taxNumber: seller.taxNumber || undefined,
+      contactEmail: seller.email || 'noreply@mentolder.de',
+      iban: seller.iban,
+      bic: seller.bic || undefined,
+    },
+    buyer: {
+      name: customer.name || customer.company || 'Unbekannt',
+      email: customer.email,
+      address: customer.addressLine1 || undefined,
+      postalCode: customer.postalCode || undefined,
+      city: customer.city || undefined,
+      country: customer.landIso || 'DE',
+      vatId: customer.vatNumber || undefined,
+      leitwegId: draftRow.leitweg_id || customer.defaultLeitwegId || undefined,
+    },
+  };
+
+  let xml: string;
+  let pdf: Buffer;
+  try {
+    xml = generateFacturX(invoiceInput);
+    const pdfCustomer = {
+      name: customer.name,
+      email: customer.email,
+      company: customer.company,
+      addressLine1: customer.addressLine1,
+      city: customer.city,
+      postalCode: customer.postalCode,
+      country: customer.landIso ?? 'DE',
+      vatNumber: customer.vatNumber,
+    };
+    pdf = await generateInvoicePdf({
+      invoice: tempInvoice, lines, customer: pdfCustomer, seller,
+      templateTexts: {
+        introText: tmpl.invoice_intro_text || undefined,
+        kleinunternehmerNotice: tmpl.invoice_kleinunternehmer_notice || undefined,
+        outroText: tmpl.invoice_outro_text || undefined,
+      },
+    });
+  } catch (err) {
+    locals.requestLogger.error({ err }, '[billing/send] PDF/XML generation failed');
+    return new Response('PDF generation failed', { status: 500 });
+  }
+
+  // Finalize (transitions to open+locked — do this after generation).
+  // Persists hash, PDF blob, and audit row in one go.
+  const finalized = await finalizeInvoice(id, {
+    actor: { userId: session.sub, email: session.email },
+    pdfBlob: pdf,
+    pdfMime: 'application/pdf',
+    invoiceInput,
+  });
+  if (!finalized) return new Response('Failed to finalize invoice', { status: 409 });
+
+  await pool.query(
+    `INSERT INTO billing_invoice_documents (invoice_id, format, content)
+     VALUES ($1, 'zugferd', $2::bytea)
+     ON CONFLICT (invoice_id, format) DO UPDATE SET content = EXCLUDED.content`,
+    [id, Buffer.from(xml, 'utf8')]
+  );
+
+  // Interpolate and send email
+  const vars = {
+    number: finalized.number,
+    gross_amount: finalized.grossAmount.toFixed(2).replace('.', ',') + ' €',
+    due_date: finalized.dueDate.split('-').reverse().join('.'),
+    payment_reference: finalized.paymentReference ?? finalized.number,
+    customer_name: customer.name,
+    seller_name: seller.name,
+  };
+  const subject = interpolate(tmpl.invoice_email_subject || 'Rechnung {{number}}', vars);
+  const body = interpolate(
+    tmpl.invoice_email_body ||
+    'Sehr geehrte/r {{customer_name}},\n\nanbei Rechnung {{number}} über {{gross_amount}}.\n\nMit freundlichen Grüßen\n{{seller_name}}',
+    vars
+  );
+
+  const attachments: { filename: string; content: Buffer; contentType?: string }[] = [
+    { filename: `${finalized.number}.pdf`, content: pdf },
+  ];
+  if (finalized.leitwegId) {
+    const r = await pool.query<{ content: Buffer | null }>(`SELECT content FROM billing_invoice_documents WHERE invoice_id=$1 AND format='xrechnung'`, [id]);
+    if (r.rows[0]?.content) {
+      attachments.push({
+        filename: `xrechnung-${finalized.number}.xml`,
+        content: r.rows[0].content,
+        contentType: 'application/xml',
+      });
+    }
+  }
+
+  const sent = await sendEmail({
+    to: customer.email,
+    subject,
+    text: body,
+    attachments,
+  });
+
+  if (!sent) {
+    locals.requestLogger.error({ invoiceNumber: finalized.number }, '[billing/send] Email delivery failed for invoice');
+    return errorResponse('EMAIL_DELIVERY_FAILED', locals.requestId, 502);
+  }
+
+  return new Response(JSON.stringify({ ok: true, number: finalized.number }), {
+    headers: { 'Content-Type': 'application/json' }
+  });
+};

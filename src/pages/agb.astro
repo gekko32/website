@@ -1,0 +1,49 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getLegalPage } from '../lib/website-db';
+import { getDefaultAgb } from '../lib/legal-defaults';
+import { resolveTokens } from '../lib/legal-tokens';
+import { getEffectiveStammdaten } from '../lib/content';
+import type { Stammdaten } from '../lib/website-db';
+
+const BRAND = process.env.BRAND || 'mentolder';
+const BRAND_ID = process.env.BRAND_ID ?? BRAND;
+const isKore = BRAND_ID === 'korczewski';
+const sd = await getEffectiveStammdaten().catch(() => ({} as Stammdaten));
+const stored = await getLegalPage(BRAND, 'agb').catch(() => null);
+const contentHtml = resolveTokens(stored?.trim() ? stored : getDefaultAgb(), sd);
+---
+
+{isKore ? (
+  <Layout title="AGB" brand="korczewski-kore">
+    <article class="kore-legal">
+      <div set:html={contentHtml} />
+      <div class="kore-legal-actions">
+        <button onclick="window.print()" class="kore-print-btn">Drucken / PDF</button>
+      </div>
+    </article>
+  </Layout>
+) : (
+  <Layout title="AGB">
+    <section class="pt-28 pb-20">
+      <div class="max-w-3xl mx-auto px-6 prose prose-lg prose-slate">
+        <div set:html={contentHtml} />
+        <div class="not-prose mt-10 pt-6 border-t border-slate-700 flex justify-end">
+          <button onclick="window.print()" class="text-xs px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors">Drucken / PDF</button>
+        </div>
+      </div>
+    </section>
+  </Layout>
+)}
+
+<style>
+  .kore-legal { max-width: 720px; margin: 0 auto; padding: 80px 28px 120px; }
+  .kore-legal h1 { font-family: var(--serif); font-size: clamp(36px,5vw,56px); font-weight: 400; letter-spacing: -0.02em; margin: 0 0 56px; line-height: 1.05; }
+  .kore-legal h2 { font-family: var(--serif); font-size: 22px; font-weight: 400; margin: 48px 0 12px; color: var(--fg); }
+  .kore-legal h2:first-of-type { margin-top: 0; }
+  .kore-legal p { font-family: var(--sans); font-size: 15px; line-height: 1.7; color: var(--fg-soft); margin: 0 0 12px; }
+  .kore-legal a { color: var(--copper); text-decoration: none; }
+  .kore-legal a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .kore-legal-actions { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; }
+  .kore-print-btn { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; background: var(--ink-800); border: 1px solid var(--line-2); border-radius: 8px; color: var(--mute); padding: 8px 16px; cursor: pointer; }
+</style>

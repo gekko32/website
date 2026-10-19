@@ -1,0 +1,134 @@
+---
+import { getMeetingsForClient } from '../../lib/meetings-db';
+import type { Meeting } from '../../lib/website-db';
+import { getCustomerByEmail, listProjects } from '../../lib/projects-db';
+import type { Project } from '../../lib/projects-db';
+
+interface Props {
+  clientEmail: string;
+}
+const { clientEmail } = Astro.props;
+
+const brand = process.env.BRAND_NAME || 'mentolder';
+
+let meetings: Meeting[] = [];
+let projects: Project[] = [];
+try {
+  meetings = await getMeetingsForClient(clientEmail, false); // all meetings
+  const customer = await getCustomerByEmail(clientEmail);
+  if (customer) {
+    projects = await listProjects({ brand, customerId: customer.id });
+  }
+} catch {
+  // DB unavailable
+}
+---
+
+<div data-testid="meetings-admin-tab">
+  <h3 class="text-lg font-semibold text-light mb-4">Besprechungen</h3>
+  {meetings.length === 0 ? (
+    <p class="text-muted">Keine Besprechungen vorhanden.</p>
+  ) : (
+    <ul class="space-y-4">
+      {meetings.map(meeting => (
+        <li class="p-4 bg-dark rounded-xl border border-dark-lighter" data-testid="meeting-admin-item">
+          <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <span class="text-sm text-muted">ID: {meeting.id}</span>
+              <span class="ml-3 text-xs text-muted capitalize">{meeting.status}</span>
+              {meeting.released_at ? (
+                <span class="ml-3 text-xs text-green-400">
+                  Freigegeben: {new Date(meeting.released_at).toLocaleDateString('de-DE')}
+                </span>
+              ) : (
+                <span class="ml-3 text-xs text-gold">Nicht freigegeben</span>
+              )}
+            </div>
+            <div class="flex items-center gap-3 shrink-0 flex-wrap">
+              {projects.length > 0 && (
+                <select
+                  class="project-select text-xs bg-dark border border-dark-lighter rounded-lg px-2 py-1 text-light focus:border-gold focus:ring-1 focus:ring-gold/20 outline-none cursor-pointer"
+                  data-meeting-id={meeting.id}
+                >
+                  <option value="">— Kein Projekt —</option>
+                  {projects.map(p => (
+                    <option value={p.id} selected={p.id === meeting.projectId}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {!meeting.released_at && (
+                <button
+                  type="button"
+                  data-testid="release-button"
+                  data-meeting-id={meeting.id}
+                  class="release-btn px-3 py-1 text-xs bg-gold text-dark rounded-full font-medium hover:bg-gold/80 transition-colors"
+                >
+                  Freigeben
+                </button>
+              )}
+            </div>
+          </div>
+        </li>
+      ))}
+    </ul>
+  )}
+</div>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('.release-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const meetingId = btn.dataset.meetingId;
+      if (!meetingId) return;
+
+      btn.disabled = true;
+      btn.textContent = '...';
+
+      try {
+        const res = await fetch('/api/meeting/release', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ meetingId }),
+        });
+
+        if (res.ok) {
+          window.location.reload();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert('Fehler: ' + (data.error || res.statusText));
+          btn.disabled = false;
+          btn.textContent = 'Freigeben';
+        }
+      } catch {
+        alert('Netzwerkfehler beim Freigeben.');
+        btn.disabled = false;
+        btn.textContent = 'Freigeben';
+      }
+    });
+  });
+
+  document.querySelectorAll<HTMLSelectElement>('.project-select').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      const meetingId = sel.dataset.meetingId;
+      if (!meetingId) return;
+      sel.disabled = true;
+      try {
+        const res = await fetch(`/api/meetings/${meetingId}/project`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId: sel.value || null }),
+        });
+        if (!res.ok) {
+          alert('Fehler beim Speichern der Projektzuordnung.');
+          window.location.reload();
+        }
+      } catch {
+        alert('Netzwerkfehler beim Speichern.');
+        window.location.reload();
+      } finally {
+        sel.disabled = false;
+      }
+    });
+  });
+</script>

@@ -1,0 +1,12 @@
+---
+// BR-4b91: /termin redirects to /kontakt?mode=termin, preserving ?date, ?start, ?end params
+const params = new URLSearchParams();
+params.set('mode', 'termin');
+const date = Astro.url.searchParams.get('date');
+const start = Astro.url.searchParams.get('start');
+const end = Astro.url.searchParams.get('end');
+if (date) params.set('date', date);
+if (start) params.set('start', start);
+if (end) params.set('end', end);
+return Astro.redirect(`/kontakt?${params.toString()}`, 301);
+---

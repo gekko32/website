@@ -1,0 +1,341 @@
+import type { Pool } from 'pg';
+
+/**
+ * Idempotent bootstrap for the system-test failure-loop schema.
+ *
+ * Creates evidence/seed-registry/fixture/outbox tables, adds back-ref
+ * columns to questionnaire_test_status and tickets.tickets, installs the
+ * v_systemtest_failure_board view, and the retest trigger on tickets.tickets.
+ *
+ * Designed to be called from existing schema bootstrap paths
+ * (see questionnaire-db.ts initDb()). All statements use IF NOT EXISTS /
+ * OR REPLACE / DO-block guards so repeated invocations are safe.
+ */
+export async function ensureSystemtestSchema(pool: Pool): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS questionnaire_test_evidence (
+      id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      assignment_id   UUID NOT NULL REFERENCES questionnaire_assignments(id) ON DELETE CASCADE,
+      question_id     UUID NOT NULL REFERENCES questionnaire_questions(id),
+      attempt         INT NOT NULL DEFAULT 0,
+      replay_path     TEXT,
+      partial         BOOLEAN NOT NULL DEFAULT false,
+      console_log     JSONB,
+      network_log     JSONB,
+      recorded_from   TIMESTAMPTZ,
+      recorded_to     TIMESTAMPTZ,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS ix_evidence_assignment_question
+      ON questionnaire_test_evidence(assignment_id, question_id, attempt);
+
+    CREATE TABLE IF NOT EXISTS questionnaire_test_seed_registry (
+      id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      template_id  UUID NOT NULL REFERENCES questionnaire_templates(id) ON DELETE CASCADE,
+      question_id  UUID REFERENCES questionnaire_questions(id) ON DELETE CASCADE,
+      seed_module  TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_seed_registry_scope
+      ON questionnaire_test_seed_registry
+         (template_id, COALESCE(question_id, '00000000-0000-0000-0000-000000000000'::uuid));
+
+    CREATE TABLE IF NOT EXISTS questionnaire_test_fixtures (
+      id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      assignment_id UUID NOT NULL REFERENCES questionnaire_assignments(id) ON DELETE CASCADE,
+      question_id   UUID NOT NULL REFERENCES questionnaire_questions(id),
+      attempt       INT NOT NULL,
+      table_name    TEXT NOT NULL,
+      row_id        UUID NOT NULL,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      purged_at     TIMESTAMPTZ,
+      purge_error   TEXT
+    );
+    CREATE INDEX IF NOT EXISTS ix_fixtures_unpurged
+      ON questionnaire_test_fixtures(assignment_id) WHERE purged_at IS NULL;
+
+    CREATE TABLE IF NOT EXISTS systemtest_failure_outbox (
+      id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      assignment_id UUID NOT NULL,
+      question_id   UUID NOT NULL,
+      attempt       INT NOT NULL,
+      last_error    TEXT,
+      retry_count   INT NOT NULL DEFAULT 0,
+      retry_after   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    -- Magic-link table for system-test seeded sessions. We keep this table in
+    -- the public schema (the dedicated auth schema does not exist in this
+    -- codebase -- Keycloak owns user accounts). The cleanup CronJob (Task 8)
+    -- prunes expired/used rows on a schedule independent of fixture purging.
+    -- Note: column is "session_payload" (not "session_user"). PostgreSQL
+    -- treats SESSION_USER as a reserved-word function, so an unquoted column
+    -- with that name fails parsing. Renamed during Task 5 to keep the
+    -- schema bootstrap idempotent on a fresh DB.
+    CREATE TABLE IF NOT EXISTS systemtest_magic_tokens (
+      token         TEXT PRIMARY KEY,
+      keycloak_user_id UUID NOT NULL,
+      session_payload JSONB NOT NULL,
+      redirect_uri  TEXT NOT NULL,
+      expires_at    TIMESTAMPTZ NOT NULL,
+      used_at       TIMESTAMPTZ,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS ix_magic_tokens_unused
+      ON systemtest_magic_tokens(expires_at) WHERE used_at IS NULL;
+  `);
+
+  // Idempotent column additions on existing tables. Done in a separate
+  // statement so column adds are safe even on a fresh DB where the
+  // referenced tables (questionnaire_test_evidence, tickets.tickets) may
+  // not yet have all FK targets in place.
+  // questionnaire_test_status is guarded by an existence check because it is
+  // created by questionnaire-db.ts initDb(), which may not have run yet on
+  // fresh or partially-initialised prod DBs. Without the guard the whole
+  // statement fails and block 3 (source_kind column) never runs.
+  await pool.query(`
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.tables
+                 WHERE table_schema = 'public'
+                   AND table_name   = 'questionnaire_test_status') THEN
+        ALTER TABLE questionnaire_test_status
+          ADD COLUMN IF NOT EXISTS evidence_id            UUID,
+          ADD COLUMN IF NOT EXISTS last_failure_ticket_id UUID,
+          ADD COLUMN IF NOT EXISTS retest_pending_at      TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS retest_attempt         INT NOT NULL DEFAULT 0;
+      END IF;
+    END$$;
+
+    ALTER TABLE tickets.tickets
+      ADD COLUMN IF NOT EXISTS source_test_assignment_id UUID,
+      ADD COLUMN IF NOT EXISTS source_test_question_id   UUID,
+      ADD COLUMN IF NOT EXISTS source_test_run_id        TEXT,
+      ADD COLUMN IF NOT EXISTS source_test_result_id     BIGINT,
+      ADD COLUMN IF NOT EXISTS source_test_id            TEXT;
+  `);
+
+  // Test-run failure outbox extensions. The same outbox table now serves
+  // BOTH paths (questionnaire failures + Playwright/runner.sh failures).
+  // For test-run rows, assignment_id/question_id stay NULL and the new
+  // run_id/test_id/result_id columns identify the dropped insert.
+  await pool.query(`
+    ALTER TABLE systemtest_failure_outbox
+      ADD COLUMN IF NOT EXISTS source_kind     TEXT NOT NULL DEFAULT 'questionnaire'
+                                CHECK (source_kind IN ('questionnaire','test_run')),
+      ADD COLUMN IF NOT EXISTS run_id          TEXT,
+      ADD COLUMN IF NOT EXISTS test_result_id  BIGINT,
+      ADD COLUMN IF NOT EXISTS test_id         TEXT,
+      ADD COLUMN IF NOT EXISTS test_name       TEXT,
+      ADD COLUMN IF NOT EXISTS error_message   TEXT,
+      ADD COLUMN IF NOT EXISTS file_path       TEXT;
+
+    -- Existing rows are questionnaire failures; the legacy NOT NULL
+    -- constraints on assignment_id/question_id stay enforced for those.
+    -- For test_run rows we relax them via partial check (source_kind gates
+    -- which key set must be populated).
+    ALTER TABLE systemtest_failure_outbox
+      ALTER COLUMN assignment_id DROP NOT NULL,
+      ALTER COLUMN question_id   DROP NOT NULL;
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'outbox_keys_by_kind') THEN
+        ALTER TABLE systemtest_failure_outbox
+          ADD CONSTRAINT outbox_keys_by_kind CHECK (
+            (source_kind = 'questionnaire'
+              AND assignment_id IS NOT NULL AND question_id IS NOT NULL)
+            OR
+            (source_kind = 'test_run'
+              AND run_id IS NOT NULL AND test_id IS NOT NULL)
+          );
+      END IF;
+    END$$;
+  `);
+
+  // is_test_data columns: defense-in-depth marker for seeded fixtures so
+  // they never leak into customer-facing reads. auth.users / bookings.bookings
+  // are guarded with DO blocks because those schemas may not exist in every
+  // environment (e.g. fresh CI DB). tickets.tickets and questionnaire_assignments
+  // are unconditional — Task 1 already required them.
+  await pool.query(`
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='auth' AND table_name='users') THEN
+        ALTER TABLE auth.users
+          ADD COLUMN IF NOT EXISTS is_test_data BOOLEAN NOT NULL DEFAULT false;
+        CREATE INDEX IF NOT EXISTS ix_auth_users_test_data
+          ON auth.users(is_test_data) WHERE is_test_data = true;
+      END IF;
+      IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='bookings' AND table_name='bookings') THEN
+        ALTER TABLE bookings.bookings
+          ADD COLUMN IF NOT EXISTS is_test_data BOOLEAN NOT NULL DEFAULT false;
+        CREATE INDEX IF NOT EXISTS ix_bookings_test_data
+          ON bookings.bookings(is_test_data) WHERE is_test_data = true;
+      END IF;
+    END$$;
+
+    ALTER TABLE tickets.tickets
+      ADD COLUMN IF NOT EXISTS is_test_data BOOLEAN NOT NULL DEFAULT false;
+    CREATE INDEX IF NOT EXISTS ix_tickets_test_data
+      ON tickets.tickets(is_test_data) WHERE is_test_data = true;
+
+    ALTER TABLE questionnaire_assignments
+      ADD COLUMN IF NOT EXISTS is_test_data BOOLEAN NOT NULL DEFAULT false;
+  `);
+
+  // Foreign keys added separately, guarded by pg_constraint look-up so
+  // repeated calls don't error.
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'qts_evidence_id_fk') THEN
+        ALTER TABLE questionnaire_test_status
+          ADD CONSTRAINT qts_evidence_id_fk
+          FOREIGN KEY (evidence_id) REFERENCES questionnaire_test_evidence(id);
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'qts_failure_ticket_fk') THEN
+        ALTER TABLE questionnaire_test_status
+          ADD CONSTRAINT qts_failure_ticket_fk
+          FOREIGN KEY (last_failure_ticket_id) REFERENCES tickets.tickets(id);
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tickets_source_assignment_fk') THEN
+        ALTER TABLE tickets.tickets
+          ADD CONSTRAINT tickets_source_assignment_fk
+          FOREIGN KEY (source_test_assignment_id) REFERENCES questionnaire_assignments(id);
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tickets_source_question_fk') THEN
+        ALTER TABLE tickets.tickets
+          ADD CONSTRAINT tickets_source_question_fk
+          FOREIGN KEY (source_test_question_id) REFERENCES questionnaire_questions(id);
+      END IF;
+      -- test_runs / test_results FKs: nullable, NO CASCADE — keep the ticket
+      -- around if the run/result row gets pruned by a future retention sweep.
+      -- ON DELETE SET NULL keeps the ticket discoverable but breaks the link.
+      -- Guarded on the referenced table existing: test_runs/test_results are
+      -- created by the DB-boot schema hook (ensure-meetings-schema.sh), which on
+      -- a freshly-cut brand (e.g. korczewski) may not have run them yet. Without
+      -- the guard the FK ALTER throws "relation test_runs does not exist" and
+      -- aborts the whole ensure (T000406) even though the systemtest tables were
+      -- already created; the constraint is re-attempted on the next call once the
+      -- table exists. Mirrors the auth.users/bookings guards above.
+      IF to_regclass('public.test_runs') IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tickets_source_test_run_fk') THEN
+        ALTER TABLE tickets.tickets
+          ADD CONSTRAINT tickets_source_test_run_fk
+          FOREIGN KEY (source_test_run_id) REFERENCES test_runs(id) ON DELETE SET NULL;
+      END IF;
+      IF to_regclass('public.test_results') IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tickets_source_test_result_fk') THEN
+        ALTER TABLE tickets.tickets
+          ADD CONSTRAINT tickets_source_test_result_fk
+          FOREIGN KEY (source_test_result_id) REFERENCES test_results(id) ON DELETE SET NULL;
+      END IF;
+    END$$;
+  `);
+
+  // Defense-in-depth dedup race guard: at most one OPEN ticket per
+  // (run_id, test_id) pair. The bridge looks up an existing open ticket
+  // first; this partial unique index makes a concurrent insert race deterministic.
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS tickets_one_open_per_test_run_test_uq
+      ON tickets.tickets (source_test_run_id, source_test_id)
+      WHERE source_test_run_id IS NOT NULL
+        AND source_test_id     IS NOT NULL
+        AND status NOT IN ('done','archived');
+
+    CREATE INDEX IF NOT EXISTS tickets_source_test_run_idx
+      ON tickets.tickets (source_test_run_id)
+      WHERE source_test_run_id IS NOT NULL;
+  `);
+
+  await pool.query(`
+    CREATE OR REPLACE VIEW v_systemtest_failure_board AS
+    SELECT
+      qts.last_assignment_id AS assignment_id,
+      qts.question_id,
+      qts.last_result,
+      qts.last_result_at,
+      qts.retest_pending_at,
+      qts.retest_attempt,
+      qts.evidence_id,
+      qts.last_failure_ticket_id,
+      t.id              AS ticket_id,
+      t.external_id     AS ticket_external_id,
+      t.status          AS ticket_status,
+      t.resolution      AS ticket_resolution,
+      fix_links.pr_number,
+      pr.merged_at      AS pr_merged_at,
+      CASE
+        WHEN qts.last_result = 'erfüllt'
+             AND qts.last_result_at >= now() - INTERVAL '7 days'
+             THEN 'green'
+        WHEN qts.retest_pending_at IS NOT NULL
+             THEN 'retest_pending'
+        WHEN fix_links.pr_number IS NOT NULL AND pr.merged_at IS NULL
+             THEN 'fix_in_pr'
+        WHEN t.id IS NOT NULL
+             THEN 'open'
+        ELSE NULL
+      END AS column_key
+    FROM questionnaire_test_status qts
+    LEFT JOIN tickets.tickets t ON t.id = qts.last_failure_ticket_id
+    LEFT JOIN LATERAL (
+      SELECT pr_number FROM tickets.ticket_links
+      WHERE from_id = t.id AND kind IN ('fixes','fixed_by') AND pr_number IS NOT NULL
+      ORDER BY pr_number DESC LIMIT 1
+    ) fix_links ON true
+    LEFT JOIN tickets.pr_events pr ON pr.pr_number = fix_links.pr_number
+    WHERE qts.last_failure_ticket_id IS NOT NULL;
+  `);
+
+  await pool.query(`
+    CREATE OR REPLACE FUNCTION trg_systemtest_retest() RETURNS trigger AS $fn$
+    BEGIN
+      IF NEW.resolution = 'fixed'
+         AND (OLD.resolution IS DISTINCT FROM 'fixed')
+         AND NEW.source_test_assignment_id IS NOT NULL THEN
+        UPDATE questionnaire_test_status
+           SET retest_pending_at = now(),
+               retest_attempt    = retest_attempt + 1
+         WHERE last_assignment_id = NEW.source_test_assignment_id
+           AND question_id        = NEW.source_test_question_id;
+      END IF;
+      RETURN NEW;
+    END;
+    $fn$ LANGUAGE plpgsql;
+
+    DROP TRIGGER IF EXISTS tickets_resolution_retest ON tickets.tickets;
+    CREATE TRIGGER tickets_resolution_retest
+      AFTER UPDATE OF resolution ON tickets.tickets
+      FOR EACH ROW EXECUTE FUNCTION trg_systemtest_retest();
+  `);
+
+  await pool.query(`
+    CREATE OR REPLACE FUNCTION trg_systemtest_epic_auto_close() RETURNS trigger AS $fn$
+    BEGIN
+      IF NEW.parent_id IS NOT NULL
+         AND NEW.status IN ('done', 'archived')
+         AND (OLD.status IS DISTINCT FROM NEW.status) THEN
+        IF NOT EXISTS (
+          SELECT 1 FROM tickets.tickets
+           WHERE parent_id = NEW.parent_id
+             AND id        <> NEW.id
+             AND status    NOT IN ('done', 'archived')
+        ) THEN
+          UPDATE tickets.tickets
+             SET status     = 'done',
+                 resolution = 'shipped',
+                 updated_at = now()
+           WHERE id     = NEW.parent_id
+             AND status NOT IN ('done', 'archived');
+        END IF;
+      END IF;
+      RETURN NEW;
+    END;
+    $fn$ LANGUAGE plpgsql;
+
+    DROP TRIGGER IF EXISTS tickets_epic_auto_close ON tickets.tickets;
+    CREATE TRIGGER tickets_epic_auto_close
+      AFTER UPDATE OF status ON tickets.tickets
+      FOR EACH ROW EXECUTE FUNCTION trg_systemtest_epic_auto_close();
+  `);
+}

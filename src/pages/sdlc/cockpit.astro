@@ -1,0 +1,156 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getSession, isAdmin } from '../../lib/auth';
+import { buildLoginRedirect } from '../../lib/login-redirect';
+import { STATIONS } from '../../components/sdlc/CockpitFloor.svelte';
+import LeitstandStatusband from '../../components/leitstand/LeitstandStatusband.svelte';
+import HelpOverlay from '../../components/leitstand/HelpOverlay.svelte';
+import Kontextzone from '../../components/leitstand/Kontextzone.svelte';
+import DeckLeiste from '../../components/leitstand/DeckLeiste.svelte';
+import AttentionStrip from '../../components/sdlc/cockpit/AttentionStrip.svelte';
+import ServingStrip from '../../components/sdlc/cockpit/ServingStrip.svelte';
+import ConveyorBelt from '../../components/sdlc/cockpit/ConveyorBelt.svelte';
+import { getFloor } from '../../lib/sdlc/cockpit-floor.ts';
+import { parseLeitstandQuery } from '../../lib/sdlc/leitstand-url.ts';
+import '../../styles/sdlc-leitstand.css';
+
+export const prerender = false;
+
+const BRAND = (): string => process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session || !isAdmin(session)) return Astro.redirect(buildLoginRedirect(Astro.url));
+
+const brand = BRAND();
+const slotsCap = parseInt(process.env.WORKSPACE_GLOBAL_CAP ?? '3', 10);
+
+// E5 (T008017): Print-Light. ?report=1 setzt die .report-Klasse am Shell-Root
+// und rendert damit die helle Export-/Druck-Ansicht (sdlc-leitstand.css teilt
+// eine Regelmenge mit @media print — kein zweites interaktives Theme).
+const reportMode = Astro.url.searchParams.get('report') === '1';
+
+// Kontrakt B (T007957/E3): die alten CockpitMode/Phase/ALLOWED_MODES/ALLOWED_PHASES-
+// Deklarationen sind vollstaendig durch die Leitstand-Selektion ersetzt.
+const initialSelection = parseLeitstandQuery(Astro.url.searchParams);
+
+let initial = null;
+try { initial = await getFloor(slotsCap); } catch { initial = null; }
+---
+
+<AdminLayout title="SDLC Leitstand">
+  <link rel="stylesheet" href="/cockpit/kit/tokens.css">
+  <link rel="stylesheet" href="/cockpit/kit/panel.css">
+  <link rel="stylesheet" href="/cockpit/kit/layout.css">
+  <script is:inline src="/cockpit/kit/action-policy.js"></script>
+  <script is:inline src="/cockpit/kit/panel.js"></script>
+  <script is:inline src="/cockpit/kit/layout.js"></script>
+  <script is:inline src="/cockpit/kit/adapter.js"></script>
+
+  <!-- E3-Zonen-Shell: Z1 Statusband, Z2 AttentionStrip, Z3 Achse,
+       Z4 Kontextzone + Z5 DeckLeiste als CSS-Grid nebeneinander. E5:
+       .report (Print-Light-Export) und HelpOverlay-Layer am Shell-Ende. -->
+  <div class:list={['ls-shell', { report: reportMode }]} id="cockpit-root">
+    <LeitstandStatusband client:load {brand} />
+    <AttentionStrip client:load />
+    <ServingStrip client:load />
+    <ConveyorBelt client:load compact stations={STATIONS} hallItems={[]} mobileColIndex={0} onSelect={() => {}} selectedStation={initialSelection.station} />
+
+    <div class="ls-main">
+      <Kontextzone client:load {brand} {initial} initialSelection={initialSelection} />
+      <DeckLeiste client:load initialDeck={initialSelection.deck} />
+    </div>
+
+    <!-- E5: Help-Overlay-Layer, eigene Insel — togglet ueber den
+         helpOverlayActive-Store aus dem Statusband. -->
+    <HelpOverlay client:load />
+  </div>
+
+  <script>
+    import { browserLogger } from '$lib/browser-logger';
+
+    // `window.data`, `window.actionPolicy` und `window.cockpitAct` sind in
+    // src/env.d.ts global deklariert (SSOT fuer die Kit-Skripte unter
+    // /cockpit/kit/). Hier NICHT erneut deklarieren: ein zweites Interface
+    // gleichen Namens kollidiert mit der globalen Deklaration (ts(2430)) —
+    // ein Fehler, den nur `astro check` sieht, nicht `pnpm lint`/`build`.
+    // Das optional chaining bleibt trotz nicht-optionaler Typen: laedt ein
+    // Kit-Skript nicht, ist der Wert zur Laufzeit dennoch undefined.
+
+    // T007957/E3: der cockpit-modechange-Listener mit window.location.reload()
+    // ist entfernt — die Zonen aktualisieren sich via leitstand-selectionchange
+    // (Kontrakt B) ohne Voll-Reload.
+
+    function cockpitAct(action: string, target?: string) {
+      try {
+        const prompt = window.actionPolicy?.confirmationFor(action, target);
+        if (prompt != null) {
+          const msg = prompt.level === 'named'
+            ? `${action} auf ${prompt.target} ausführen?`
+            : `${action} ausführen?`;
+          if (!window.confirm(msg)) return;
+        }
+      } catch (e) {
+        browserLogger.error('[cockpit] action blocked: ' + (e as Error).message);
+        return;
+      }
+
+      window.data?.performAction(action, target ? { target } : {}).then((r) => {
+        if (!r.ok && r.error) browserLogger.error('[cockpit] ' + action + ' failed: ' + r.error);
+      }).catch((e: unknown) => {
+        browserLogger.error({ err: e }, '[cockpit] ' + action + ' error');
+      });
+    }
+
+    window.cockpitAct = cockpitAct;
+
+    // Stream state indicator — Ziel-Element wandert mit Z1 nach
+    // #leitstand-stream-state (vorher: tote ID im alten Header).
+    (function updateHeader() {
+      const el = document.getElementById('leitstand-stream-state');
+      if (!el || !window.data?.streamState) return;
+      const state = window.data.streamState();
+      if (state === 'live') {
+        el.textContent = '● live';
+        el.style.color = 'var(--color-status-ok)';
+      } else if (state === 'polling') {
+        el.textContent = '● Poll';
+        el.style.color = 'var(--color-status-warning)';
+      } else {
+        el.textContent = '● getrennt';
+        el.style.color = 'var(--color-status-error)';
+      }
+      setTimeout(updateHeader, 5000);
+    })();
+  </script>
+</AdminLayout>
+
+<style>
+  .ls-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: var(--ls-bg);
+    color: var(--ls-text-primary);
+    font-family: var(--ls-font-sans);
+  }
+
+  /* Z4 (Kontextzone) + Z5 (DeckLeiste) nebeneinander; mobil gestapelt. */
+  .ls-main {
+    display: grid;
+    grid-template-columns: 1fr clamp(240px, var(--ls-deck-width, 320px), 640px);
+    gap: 0;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .ls-main > :global(*) {
+    min-width: 0;
+    min-height: 0;
+  }
+
+  @media (max-width: 767px) {
+    .ls-main {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

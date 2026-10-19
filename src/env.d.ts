@@ -1,0 +1,84 @@
+/// <reference types="astro/client" />
+/// <reference types="node" />
+
+declare namespace App {
+  interface Locals {
+    locale?: 'de' | 'en';
+    requestId: string;
+    requestLogger: import('pino').Logger;
+  }
+}
+
+interface ImportMetaEnv {
+  // Keycloak
+  readonly KEYCLOAK_URL: string;
+  readonly KEYCLOAK_REALM: string;
+  readonly KEYCLOAK_ADMIN_USER: string;
+  readonly PORTAL_ADMIN_USERNAME: string;
+  readonly KEYCLOAK_ADMIN_PASSWORD: string;
+  // OIDC client
+  readonly WEBSITE_OIDC_SECRET: string;
+  readonly POCKET_ID_WEBSITE_SECRET: string;
+  // SMTP
+  readonly SMTP_HOST: string;
+  readonly SMTP_PORT: string;
+  readonly SMTP_SECURE: string;
+  readonly SMTP_USER: string;
+  readonly SMTP_PASS: string;
+  readonly FROM_EMAIL: string;
+  readonly FROM_NAME: string;
+  // Nextcloud
+  readonly NEXTCLOUD_ADMIN_USER?: string;
+  readonly NEXTCLOUD_ADMIN_PASS?: string;
+  readonly NEXTCLOUD_EXTERNAL_URL?: string;
+  readonly BRAND_NAME?: string;
+  readonly CONTACT_NAME?: string;
+  readonly CONTACT_EMAIL?: string;
+  readonly CONTACT_PHONE?: string;
+  readonly CONTACT_CITY?: string;
+  readonly LEGAL_STREET?: string;
+  readonly LEGAL_ZIP?: string;
+  readonly LEGAL_JOBTITLE?: string;
+  readonly LEGAL_UST_ID?: string;
+  readonly LEGAL_WEBSITE?: string;
+  readonly AUTH_EXTERNAL_URL?: string;
+  readonly VAULT_EXTERNAL_URL?: string;
+  readonly WHITEBOARD_EXTERNAL_URL?: string;
+  readonly TRACKING_EXTERNAL_URL?: string;
+  // Nextcloud CalDAV
+  readonly NEXTCLOUD_URL: string;
+  readonly NEXTCLOUD_CALDAV_USER: string;
+  readonly NEXTCLOUD_CALDAV_PASSWORD: string;
+  readonly CALENDAR_NAME: string;
+  readonly WORK_START_HOUR: string;
+  readonly WORK_END_HOUR: string;
+  readonly SLOT_DURATION_MIN: string;
+  readonly WORK_DAYS: string;
+  readonly BOOKING_HORIZON_DAYS: string;
+  readonly MIN_ADVANCE_HOURS: string;
+  // Site
+  readonly SITE_URL: string;
+  // Stripe
+  readonly STRIPE_SECRET_KEY: string;
+  readonly STRIPE_PUBLISHABLE_KEY: string;
+  readonly STRIPE_WEBHOOK_SECRET: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+
+// Globals from the .lavish/kit scripts (SSOT .lavish/kit/adapter.js,
+// .lavish/kit/action-policy.js), served statically under /cockpit/kit/.
+// Ambient script file — merged into the global Window scope.
+interface Window {
+  data: {
+    performAction: (action: string, body?: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>;
+    streamState: () => 'live' | 'polling' | 'error';
+  };
+  actionPolicy: {
+    confirmationFor: (action: string, target?: string) => { level: 'simple' | 'named'; target?: string } | null;
+  };
+  cockpitAct: (action: string, target?: string) => void;
+}
+

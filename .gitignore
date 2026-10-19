@@ -1,0 +1,24 @@
+
+# design-sync (claude.ai/design) — regenerated output + machine state
+/ds-bundle/
+/.design-sync/.cache/
+/.ds-sync/.entry.jsx
+
+# Vitest coverage output
+/coverage/
+/test-results/
+
+# ESLint --cache (tests/py/spec/native_ported/spec/test_ci_cd_part1.py runs eslint --cache)
+/.eslintcache
+
+# Lockfiles
+/package-lock.json
+
+
+# Eigenes Repo (Gerald, 19.10.2026) – vorher in der Monorepo-.gitignore
+node_modules/
+dist/
+.astro/
+.env
+.env.*
+!.env.example

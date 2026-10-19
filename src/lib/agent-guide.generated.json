@@ -1,0 +1,1849 @@
+{
+  "$schema": "agent-guide.generated/v1",
+  "generatedFrom": "docs/agent-guide/registry",
+  "taxonomy": [
+    {
+      "id": "safe",
+      "label_de": "🟢 Sicher",
+      "emoji": "🟢",
+      "meaning_de": "Selbst machen, keine Gefahr.",
+      "color": "#3fb37f"
+    },
+    {
+      "id": "caution",
+      "label_de": "🟡 Vorsicht",
+      "emoji": "🟡",
+      "meaning_de": "Checkliste abarbeiten, Agent bestätigt.",
+      "color": "#e8c870"
+    },
+    {
+      "id": "assisted",
+      "label_de": "🟠 Nur mit Hilfe",
+      "emoji": "🟠",
+      "meaning_de": "Mit erfahrener Person.",
+      "color": "#e08a3c"
+    },
+    {
+      "id": "forbidden",
+      "label_de": "🔴 Niemals allein",
+      "emoji": "🔴",
+      "meaning_de": "Von Enforcement blockiert.",
+      "color": "#d65a5a"
+    }
+  ],
+  "themes": [
+    {
+      "id": "website",
+      "label_de": "Website",
+      "emoji": "🌐",
+      "order": 1,
+      "accent": "#4a9eff",
+      "blurb_de": "Inhalte und Aussehen der Webseite."
+    },
+    {
+      "id": "betrieb",
+      "label_de": "Betrieb & Status",
+      "emoji": "🛠",
+      "order": 2,
+      "accent": "#7e9aa6",
+      "blurb_de": "Läuft alles? Logs und Status ansehen."
+    },
+    {
+      "id": "entwickeln",
+      "label_de": "Entwickeln (Dev-Flow)",
+      "emoji": "⚙",
+      "order": 3,
+      "accent": "#b89bff",
+      "blurb_de": "Planen, bauen, umsetzen — der Dev-Flow."
+    },
+    {
+      "id": "testen",
+      "label_de": "Testen",
+      "emoji": "🧪",
+      "order": 4,
+      "accent": "#00bcd4",
+      "blurb_de": "Automatische Tests schreiben und ausführen."
+    },
+    {
+      "id": "ausrollen",
+      "label_de": "Ausrollen & Infrastruktur",
+      "emoji": "🚀",
+      "order": 5,
+      "accent": "#5ad1c4",
+      "blurb_de": "Änderungen live bringen, Cluster verwalten."
+    },
+    {
+      "id": "datenbank",
+      "label_de": "Datenbank",
+      "emoji": "🗄",
+      "order": 6,
+      "accent": "#6c8cff",
+      "blurb_de": "Schema, Migrationen und Daten."
+    },
+    {
+      "id": "sicherheit",
+      "label_de": "Sicherheit & Geheimnisse",
+      "emoji": "🔒",
+      "order": 7,
+      "accent": "#c77dff",
+      "blurb_de": "Secrets, Keycloak, Zertifikate."
+    }
+  ],
+  "glossary": [
+    {
+      "term": "Skill",
+      "def_de": "Eine vordefinierte Anleitung, die der Agent Schritt für Schritt abarbeitet."
+    },
+    {
+      "term": "Agent",
+      "def_de": "Ein spezialisierter KI-Helfer für ein Themengebiet (z. B. Website, Datenbank)."
+    },
+    {
+      "term": "Task",
+      "def_de": "Ein benannter Befehl aus der Taskfile, z. B. zum Deployen oder Testen."
+    },
+    {
+      "term": "PR",
+      "def_de": "Pull Request — ein Änderungsvorschlag, der vor dem Zusammenführen geprüft wird."
+    },
+    {
+      "term": "Branch",
+      "def_de": "Eine abgetrennte Arbeitskopie des Codes, auf der gefahrlos entwickelt wird."
+    },
+    {
+      "term": "Merge",
+      "def_de": "Das Zusammenführen eines geprüften Branches in den Hauptstand (main)."
+    },
+    {
+      "term": "Deploy",
+      "def_de": "Das Ausrollen einer Änderung in eine laufende Umgebung."
+    },
+    {
+      "term": "Cluster",
+      "def_de": "Der Verbund von Servern, auf dem alle Dienste laufen (Kubernetes)."
+    },
+    {
+      "term": "Secret",
+      "def_de": "Ein Geheimnis wie Passwort oder Schlüssel; verschlüsselt gespeichert."
+    },
+    {
+      "term": "ENV",
+      "def_de": "Die Ziel-Umgebung eines Befehls, z. B. ENV=mentolder oder ENV=dev."
+    },
+    {
+      "term": "Guardrail",
+      "def_de": "Eine Schutzregel, die gefährliche Aktionen bremst oder blockiert."
+    },
+    {
+      "term": "CI",
+      "def_de": "Continuous Integration — automatische Tests bei jedem Pull Request."
+    }
+  ],
+  "goals": [
+    {
+      "id": "website-text-aendern",
+      "title_de": "Ich will einen Text auf der Website ändern",
+      "when_de": "Ein Inhalt, Preis oder Beschreibungstext auf der Website ist falsch oder veraltet.",
+      "danger": "safe",
+      "flow": [
+        {
+          "tool": "agent-website",
+          "tool_name_de": "Website-Agent",
+          "note_de": "Beschreibe, welchen Text du ändern willst und was der neue Inhalt sein soll."
+        }
+      ],
+      "example_prompt_de": "Bitte ändere den Begrüßungstext auf der Startseite auf: 'Herzlich willkommen bei ...'.",
+      "guardrails": [
+        {
+          "id": "G-PULL-FIRST",
+          "name_de": "Erst ziehen, dann arbeiten",
+          "rule_de": "Immer 'git pull --rebase origin main' bevor du etwas änderst.",
+          "why_de": "Sonst arbeitest du auf einem veralteten Stand und bekommst Konflikte."
+        },
+        {
+          "id": "G-PR-NOT-MAIN",
+          "name_de": "Nie direkt auf main",
+          "rule_de": "Änderungen immer über einen Branch + Pull Request, niemals direkt nach main pushen.",
+          "why_de": "main ist geschützt; direktes Pushen umgeht Review und CI."
+        }
+      ],
+      "related": [
+        "feature-bauen"
+      ],
+      "links": [],
+      "theme": "website",
+      "one_liner_de": "Inhalt oder Preis auf der Website korrigieren.",
+      "aliases_de": [
+        "text",
+        "inhalt",
+        "preis",
+        "startseite",
+        "webseite",
+        "aendern"
+      ],
+      "common": true,
+      "order": 1,
+      "stages": [
+        "code"
+      ],
+      "concept_de": "Konzept: Inhalte ändert man über einen Branch + PR, nicht direkt auf main."
+    },
+    {
+      "id": "dienst-status-pruefen",
+      "title_de": "Ich will prüfen, ob alle Dienste laufen",
+      "when_de": "Du möchtest wissen, ob die Plattform gesund ist oder ein Dienst rot leuchtet.",
+      "danger": "safe",
+      "flow": [
+        {
+          "tool": "agent-ops",
+          "tool_name_de": "Betriebs-Agent (ops)",
+          "note_de": "Frag nach dem Status oder warum ein bestimmter Dienst nicht läuft."
+        }
+      ],
+      "example_prompt_de": "Bitte prüfe, ob alle Pods laufen und zeig mir den Plattform-Status.",
+      "guardrails": [],
+      "related": [
+        "bug-beheben"
+      ],
+      "links": [],
+      "theme": "betrieb",
+      "one_liner_de": "Nachsehen, ob alle Dienste laufen.",
+      "aliases_de": [
+        "status",
+        "laeuft",
+        "gesund",
+        "pods",
+        "health",
+        "uebersicht"
+      ],
+      "common": true,
+      "order": 2,
+      "stages": [
+        "live"
+      ],
+      "concept_de": "Konzept: Status/Logs lesen ist 🟢 — es verändert nichts."
+    },
+    {
+      "id": "bug-beheben",
+      "title_de": "Ich will einen Fehler beheben",
+      "when_de": "Etwas funktioniert nicht so, wie es soll.",
+      "danger": "caution",
+      "flow": [
+        {
+          "tool": "dev-flow-plan",
+          "tool_name_de": "Planungs-Skill (dev-flow-plan)",
+          "note_de": "Beschreibe den Fehler; der Skill legt einen Fix-Branch an und schreibt zuerst einen Test, der den Fehler zeigt."
+        },
+        {
+          "tool": "dev-flow-execute",
+          "tool_name_de": "Umsetzungs-Skill (dev-flow-execute)",
+          "note_de": "Setzt den Plan um, öffnet einen Pull Request und bringt die Korrektur live."
+        }
+      ],
+      "example_prompt_de": "Auf web.mentolder.de tut der Login-Knopf nichts. Bitte finde die Ursache und behebe sie.",
+      "guardrails": [
+        {
+          "id": "G-PULL-FIRST",
+          "name_de": "Erst ziehen, dann arbeiten",
+          "rule_de": "Immer 'git pull --rebase origin main' bevor du etwas änderst.",
+          "why_de": "Sonst arbeitest du auf einem veralteten Stand und bekommst Konflikte."
+        },
+        {
+          "id": "G-PR-NOT-MAIN",
+          "name_de": "Nie direkt auf main",
+          "rule_de": "Änderungen immer über einen Branch + Pull Request, niemals direkt nach main pushen.",
+          "why_de": "main ist geschützt; direktes Pushen umgeht Review und CI."
+        }
+      ],
+      "related": [
+        "feature-bauen"
+      ],
+      "links": [],
+      "theme": "entwickeln",
+      "one_liner_de": "Etwas funktioniert nicht — finden und reparieren.",
+      "aliases_de": [
+        "fehler",
+        "bug",
+        "kaputt",
+        "geht nicht",
+        "reparieren",
+        "fix"
+      ],
+      "common": true,
+      "order": 3,
+      "stages": [
+        "plan",
+        "code",
+        "pr-ci",
+        "deploy"
+      ],
+      "concept_de": "Konzept: erst ein Test, der den Fehler zeigt (TDD), dann der Fix."
+    },
+    {
+      "id": "feature-bauen",
+      "title_de": "Ich will eine neue Funktion bauen",
+      "when_de": "Eine neue Funktion oder Seite soll zur Plattform hinzugefügt werden.",
+      "danger": "caution",
+      "flow": [
+        {
+          "tool": "dev-flow-plan",
+          "tool_name_de": "Planungs-Skill (dev-flow-plan)",
+          "note_de": "Beschreibe das gewünschte Feature; der Skill wählt den Pfad (Feature-Branch) und erstellt den Plan."
+        },
+        {
+          "tool": "dev-flow-execute",
+          "tool_name_de": "Umsetzungs-Skill (dev-flow-execute)",
+          "note_de": "Implementiert das Feature, testet und öffnet einen Pull Request."
+        }
+      ],
+      "example_prompt_de": "Ich hätte gerne eine Seite, die alle aktiven Tickets anzeigt.",
+      "guardrails": [
+        {
+          "id": "G-PULL-FIRST",
+          "name_de": "Erst ziehen, dann arbeiten",
+          "rule_de": "Immer 'git pull --rebase origin main' bevor du etwas änderst.",
+          "why_de": "Sonst arbeitest du auf einem veralteten Stand und bekommst Konflikte."
+        },
+        {
+          "id": "G-PR-NOT-MAIN",
+          "name_de": "Nie direkt auf main",
+          "rule_de": "Änderungen immer über einen Branch + Pull Request, niemals direkt nach main pushen.",
+          "why_de": "main ist geschützt; direktes Pushen umgeht Review und CI."
+        }
+      ],
+      "related": [
+        "bug-beheben",
+        "aenderung-ausrollen"
+      ],
+      "links": [],
+      "theme": "entwickeln",
+      "one_liner_de": "Eine neue Funktion oder Seite hinzufügen.",
+      "aliases_de": [
+        "funktion",
+        "feature",
+        "neu",
+        "seite",
+        "bauen"
+      ],
+      "common": false,
+      "order": 999,
+      "stages": [
+        "plan",
+        "code",
+        "pr-ci",
+        "deploy"
+      ],
+      "concept_de": "Konzept: jede neue Funktion durchläuft Plan → Code → PR → Deploy."
+    },
+    {
+      "id": "aenderung-ausrollen",
+      "title_de": "Ich will eine Änderung in der Produktion ausrollen",
+      "when_de": "Ein gemergter Pull Request soll in der echten Umgebung aktiviert werden.",
+      "danger": "assisted",
+      "flow": [
+        {
+          "tool": "agent-infra",
+          "tool_name_de": "Infrastruktur-Agent (infra)",
+          "note_de": "Sage, welche Umgebung (mentolder / korczewski) betroffen ist und welche Änderung ausgerollt werden soll."
+        },
+        {
+          "tool": "dev-flow-e2e",
+          "tool_name_de": "E2E-Test-Skill (dev-flow-e2e)",
+          "note_de": "Verifiziere nach dem Deploy mit E2E-Tests, dass alles funktioniert."
+        }
+      ],
+      "example_prompt_de": "Bitte rolle den letzten Merge für mentolder aus und prüfe, ob die Website läuft.",
+      "guardrails": [
+        {
+          "id": "G-ENV-EXPLICIT",
+          "name_de": "ENV immer explizit setzen",
+          "rule_de": "Bei jedem Deploy/Cluster-Befehl ENV= ausdrücklich angeben (z. B. ENV=mentolder).",
+          "why_de": "Ohne ENV= wird 'dev' angenommen und der Befehl trifft heimlich die falsche Umgebung."
+        },
+        {
+          "id": "G-VALIDATE-FIRST",
+          "name_de": "Erst prüfen, dann anwenden",
+          "rule_de": "Manifeste vor dem Anwenden validieren (task workspace:validate) / dry-run nutzen.",
+          "why_de": "Fängt kaputte Konfiguration ab, bevor sie den Cluster erreicht."
+        }
+      ],
+      "related": [
+        "feature-bauen"
+      ],
+      "links": [],
+      "theme": "ausrollen",
+      "one_liner_de": "Einen gemergten Stand live schalten.",
+      "aliases_de": [
+        "deploy",
+        "ausrollen",
+        "live",
+        "produktion",
+        "release"
+      ],
+      "common": false,
+      "order": 999,
+      "stages": [
+        "deploy",
+        "live"
+      ],
+      "concept_de": "Konzept: Deploy heißt einen gemergten Stand in einer Umgebung (ENV) aktivieren."
+    },
+    {
+      "id": "datenbank-aendern",
+      "title_de": "Ich will das Datenbankschema ändern",
+      "when_de": "Eine neue Tabelle, Spalte oder ein Index soll zur Datenbank hinzugefügt werden.",
+      "danger": "assisted",
+      "flow": [
+        {
+          "tool": "dev-flow-plan",
+          "tool_name_de": "Planungs-Skill (dev-flow-plan)",
+          "note_de": "Erkläre die gewünschte Schema-Änderung; der Skill erstellt eine Migration."
+        },
+        {
+          "tool": "agent-db",
+          "tool_name_de": "Datenbank-Agent (db)",
+          "note_de": "Der DB-Agent prüft, ob die Migration beide Marken betrifft und sicher ist."
+        },
+        {
+          "tool": "dev-flow-execute",
+          "tool_name_de": "Umsetzungs-Skill (dev-flow-execute)",
+          "note_de": "Setzt die Migration um und testet sie."
+        }
+      ],
+      "example_prompt_de": "Bitte füge eine Spalte 'invoice_number' zur Tabelle 'orders' hinzu.",
+      "guardrails": [
+        {
+          "id": "G-ENV-EXPLICIT",
+          "name_de": "ENV immer explizit setzen",
+          "rule_de": "Bei jedem Deploy/Cluster-Befehl ENV= ausdrücklich angeben (z. B. ENV=mentolder).",
+          "why_de": "Ohne ENV= wird 'dev' angenommen und der Befehl trifft heimlich die falsche Umgebung."
+        },
+        {
+          "id": "G-ASK-EXPERT",
+          "name_de": "Bei Rot: stoppen und fragen",
+          "rule_de": "Bei 🔴-Aktionen nicht selbst handeln — Patrick fragen.",
+          "why_de": "Diese Aktionen können die Plattform für alle lahmlegen."
+        }
+      ],
+      "related": [
+        "feature-bauen"
+      ],
+      "links": [],
+      "theme": "datenbank",
+      "one_liner_de": "Tabelle, Spalte oder Index ergänzen.",
+      "aliases_de": [
+        "datenbank",
+        "schema",
+        "migration",
+        "tabelle",
+        "spalte",
+        "sql"
+      ],
+      "common": false,
+      "order": 999,
+      "stages": [
+        "plan",
+        "code",
+        "deploy"
+      ],
+      "concept_de": "Konzept: Schema-Änderungen treffen beide Marken — immer als Migration."
+    },
+    {
+      "id": "secret-aendern",
+      "title_de": "Ich will ein Passwort oder Geheimnis ändern",
+      "when_de": "Ein Datenbank-Passwort, API-Schlüssel oder Zertifikat muss rotiert werden.",
+      "danger": "forbidden",
+      "flow": [
+        {
+          "tool": "agent-security",
+          "tool_name_de": "Sicherheits-Agent (security)",
+          "note_de": "🔴 Diese Aufgabe hat eine strenge Reihenfolge. Falsch gemacht, werden Produktiv-Zugangsdaten überschrieben."
+        }
+      ],
+      "example_prompt_de": "Bitte NICHT allein ausführen – zuerst Patrick fragen. (Rotation des shared-db-Passworts.)",
+      "guardrails": [
+        {
+          "id": "G-SECRET-ORDER",
+          "name_de": "Geheimnis-Reihenfolge einhalten",
+          "rule_de": "Sealed-Secrets-Schritte in der vorgegebenen Reihenfolge ausführen (install → fetch-cert → seal → deploy).",
+          "why_de": "Falsche Reihenfolge überschreibt Produktiv-Zugangsdaten mit Platzhaltern."
+        },
+        {
+          "id": "G-ASK-EXPERT",
+          "name_de": "Bei Rot: stoppen und fragen",
+          "rule_de": "Bei 🔴-Aktionen nicht selbst handeln — Patrick fragen.",
+          "why_de": "Diese Aktionen können die Plattform für alle lahmlegen."
+        }
+      ],
+      "related": [],
+      "links": [],
+      "theme": "sicherheit",
+      "one_liner_de": "Passwort, Schlüssel oder Zertifikat rotieren.",
+      "aliases_de": [
+        "passwort",
+        "geheimnis",
+        "api-schluessel",
+        "zertifikat",
+        "rotieren",
+        "credentials",
+        "secret"
+      ],
+      "common": false,
+      "order": 999,
+      "stages": [],
+      "concept_de": "",
+      "escalate_to_de": "Patrick"
+    },
+    {
+      "id": "cluster-neu-aufsetzen",
+      "title_de": "Ich will den Cluster neu aufsetzen",
+      "when_de": "Der Cluster muss nach einem Ausfall oder einem kompletten Reset neu eingerichtet werden.",
+      "danger": "forbidden",
+      "flow": [
+        {
+          "tool": "agent-infra",
+          "tool_name_de": "Infrastruktur-Agent (infra)",
+          "note_de": "🔴 Nur mit Patrick zusammen ausführen. Die SealedSecrets-Reihenfolge ist zwingend."
+        },
+        {
+          "tool": "agent-security",
+          "tool_name_de": "Sicherheits-Agent (security)",
+          "note_de": "Stellt sicher, dass Secrets korrekt versiegelt und angewendet werden."
+        }
+      ],
+      "example_prompt_de": "Bitte NICHT allein ausführen – zuerst Patrick fragen.",
+      "guardrails": [
+        {
+          "id": "G-SECRET-ORDER",
+          "name_de": "Geheimnis-Reihenfolge einhalten",
+          "rule_de": "Sealed-Secrets-Schritte in der vorgegebenen Reihenfolge ausführen (install → fetch-cert → seal → deploy).",
+          "why_de": "Falsche Reihenfolge überschreibt Produktiv-Zugangsdaten mit Platzhaltern."
+        },
+        {
+          "id": "G-ENV-EXPLICIT",
+          "name_de": "ENV immer explizit setzen",
+          "rule_de": "Bei jedem Deploy/Cluster-Befehl ENV= ausdrücklich angeben (z. B. ENV=mentolder).",
+          "why_de": "Ohne ENV= wird 'dev' angenommen und der Befehl trifft heimlich die falsche Umgebung."
+        },
+        {
+          "id": "G-ASK-EXPERT",
+          "name_de": "Bei Rot: stoppen und fragen",
+          "rule_de": "Bei 🔴-Aktionen nicht selbst handeln — Patrick fragen.",
+          "why_de": "Diese Aktionen können die Plattform für alle lahmlegen."
+        }
+      ],
+      "related": [
+        "aenderung-ausrollen"
+      ],
+      "links": [],
+      "theme": "ausrollen",
+      "one_liner_de": "Cluster nach einem Ausfall neu aufbauen.",
+      "aliases_de": [
+        "cluster",
+        "reset",
+        "neuaufbau",
+        "sealedsecrets",
+        "ausfall"
+      ],
+      "common": false,
+      "order": 999,
+      "stages": [],
+      "concept_de": "",
+      "escalate_to_de": "Patrick"
+    },
+    {
+      "id": "idee-starten",
+      "title_de": "Ich habe eine Idee — wie fange ich an?",
+      "when_de": "Du willst etwas verändern, weißt aber noch nicht, wie der Weg aussieht.",
+      "danger": "safe",
+      "flow": [
+        {
+          "tool": "brainstorming",
+          "tool_name_de": "Brainstorming (/brainstorming)",
+          "note_de": "Beschreibe die Idee; der Brainstorming-Skill schärft sie zu einem Design."
+        },
+        {
+          "tool": "dev-flow-plan",
+          "tool_name_de": "Planungs-Skill (dev-flow-plan)",
+          "note_de": "Danach schreibt der Planungs-Skill einen Schritt-für-Schritt-Plan."
+        }
+      ],
+      "example_prompt_de": "Ich habe eine Idee für die Plattform und möchte sie erst gemeinsam durchdenken.",
+      "guardrails": [
+        {
+          "id": "G-PULL-FIRST",
+          "name_de": "Erst ziehen, dann arbeiten",
+          "rule_de": "Immer 'git pull --rebase origin main' bevor du etwas änderst.",
+          "why_de": "Sonst arbeitest du auf einem veralteten Stand und bekommst Konflikte."
+        }
+      ],
+      "related": [
+        "feature-bauen",
+        "bug-beheben"
+      ],
+      "links": [],
+      "theme": "entwickeln",
+      "one_liner_de": "Von der Idee zum Plan — der erste Schritt.",
+      "aliases_de": [
+        "idee",
+        "anfangen",
+        "start",
+        "neu",
+        "wie"
+      ],
+      "common": true,
+      "order": 6,
+      "stages": [
+        "idee",
+        "brainstorm"
+      ],
+      "concept_de": "Konzept: jede Änderung beginnt mit Brainstorm → Plan, bevor Code entsteht."
+    },
+    {
+      "id": "pr-oeffnen",
+      "title_de": "Ich will einen Pull Request öffnen und CI grün bekommen",
+      "when_de": "Der Code ist fertig und soll als Pull Request geprüft und gemergt werden.",
+      "danger": "assisted",
+      "flow": [
+        {
+          "tool": "dev-flow-execute",
+          "tool_name_de": "Umsetzungs-Skill (dev-flow-execute)",
+          "note_de": "Pusht den Branch, öffnet den PR und wartet, bis die CI-Checks grün sind."
+        }
+      ],
+      "example_prompt_de": "Bitte öffne einen Pull Request für diesen Branch und sag mir, ob die CI grün ist.",
+      "guardrails": [
+        {
+          "id": "G-PR-NOT-MAIN",
+          "name_de": "Nie direkt auf main",
+          "rule_de": "Änderungen immer über einen Branch + Pull Request, niemals direkt nach main pushen.",
+          "why_de": "main ist geschützt; direktes Pushen umgeht Review und CI."
+        }
+      ],
+      "related": [
+        "feature-bauen",
+        "aenderung-ausrollen"
+      ],
+      "links": [],
+      "theme": "entwickeln",
+      "one_liner_de": "Branch als PR einreichen und CI abwarten.",
+      "aliases_de": [
+        "pr",
+        "pull request",
+        "ci",
+        "merge",
+        "review"
+      ],
+      "common": false,
+      "order": 999,
+      "stages": [
+        "pr-ci"
+      ],
+      "concept_de": "Konzept: nichts kommt nach main ohne PR + grüne CI (Squash-Merge)."
+    },
+    {
+      "id": "deploy-pruefen",
+      "title_de": "Ich will prüfen, ob mein Deploy wirklich live ist",
+      "when_de": "Nach einem Deploy willst du sehen, ob die Änderung in der echten Umgebung angekommen ist.",
+      "danger": "safe",
+      "flow": [
+        {
+          "tool": "agent-ops",
+          "tool_name_de": "Betriebs-Agent (ops)",
+          "note_de": "Lässt Pod-Status und Logs prüfen, ob der neue Stand läuft."
+        },
+        {
+          "tool": "dev-flow-e2e",
+          "tool_name_de": "E2E-Test-Skill (dev-flow-e2e)",
+          "note_de": "Verifiziert per E2E-Test gegen die Live-URL, dass das Feature funktioniert."
+        }
+      ],
+      "example_prompt_de": "Ist der letzte Deploy für mentolder live? Prüfe Status, Logs und mach einen E2E-Check.",
+      "guardrails": [
+        {
+          "id": "G-ENV-EXPLICIT",
+          "name_de": "ENV immer explizit setzen",
+          "rule_de": "Bei jedem Deploy/Cluster-Befehl ENV= ausdrücklich angeben (z. B. ENV=mentolder).",
+          "why_de": "Ohne ENV= wird 'dev' angenommen und der Befehl trifft heimlich die falsche Umgebung."
+        }
+      ],
+      "related": [
+        "aenderung-ausrollen",
+        "dienst-status-pruefen"
+      ],
+      "links": [],
+      "theme": "betrieb",
+      "one_liner_de": "Nach dem Deploy prüfen, ob alles läuft.",
+      "aliases_de": [
+        "deploy",
+        "live",
+        "pruefen",
+        "status",
+        "ist es da"
+      ],
+      "common": true,
+      "order": 7,
+      "stages": [
+        "live"
+      ],
+      "concept_de": "Konzept: Deploy ≠ live — erst Status, Logs und ein E2E-Check bestätigen es."
+    }
+  ],
+  "tools": [
+    {
+      "id": "superpowers",
+      "name_de": "Superpowers (/superpowers)",
+      "kind": "skill",
+      "kind_de": "Fertigkeit",
+      "summary_de": "Aktiviert die Skill-Bibliothek: zeigt, wie Claude Skills findet und nutzt.",
+      "what_for_de": "Der Einstieg in alle Skills. Erklärt Claude, welche Fertigkeiten es hat und wann es sie einsetzen muss.",
+      "how_to_start_de": "Tippe '/superpowers' in Claude Code – der Skill lädt sich selbst.",
+      "what_could_go_wrong_de": "Kaum etwas: er lädt nur Wissen, ändert nichts am Code.",
+      "danger": "safe",
+      "guardrails": [],
+      "related": [
+        "dev-flow-plan"
+      ],
+      "links": [],
+      "theme": "entwickeln",
+      "aliases_de": [
+        "superpowers",
+        "skills",
+        "fertigkeiten"
+      ],
+      "common": false,
+      "order": 999,
+      "harness": "claude",
+      "stages": [
+        "brainstorm"
+      ],
+      "init_prompt_de": "/superpowers"
+    },
+    {
+      "id": "brainstorming",
+      "name_de": "Brainstorming (/brainstorming)",
+      "kind": "skill",
+      "kind_de": "Fertigkeit",
+      "summary_de": "Denkt ein Vorhaben mit dir durch, bevor Code entsteht – Intention, Anforderungen, Design.",
+      "what_for_de": "Vor jeder kreativen Arbeit: klärt, was du wirklich willst, und hält Entscheidungen fest.",
+      "how_to_start_de": "Sage '/brainstorming' oder beschreibe das Vorhaben – der Skill startet von selbst.",
+      "what_could_go_wrong_de": "Wenig: er stoppt bewusst vor der Umsetzung. Du bestätigst das Design.",
+      "danger": "safe",
+      "guardrails": [],
+      "related": [
+        "dev-flow-plan",
+        "superpowers"
+      ],
+      "links": [],
+      "theme": "entwickeln",
+      "aliases_de": [
+        "brainstorm",
+        "brainstorming",
+        "idee",
+        "design",
+        "konzept"
+      ],
+      "common": false,
+      "order": 999,
+      "harness": "claude",
+      "stages": [
+        "idee",
+        "brainstorm"
+      ],
+      "init_prompt_de": "/brainstorming – ich möchte etwas Neues bauen und will es erst durchdenken."
+    },
+    {
+      "id": "dev-flow-plan",
+      "name_de": "Planungs-Skill (dev-flow-plan)",
+      "kind": "skill",
+      "kind_de": "Fertigkeit",
+      "summary_de": "Der Startpunkt für jede Änderung: wählt den Pfad und schreibt einen Plan.",
+      "what_for_de": "Hilft dir zu entscheiden, ob etwas ein Feature, ein Fix oder eine Wartung (Chore) ist, denkt das Vorhaben mit dir durch und schreibt einen Plan. Setzt nichts um.",
+      "how_to_start_de": "Beschreibe einfach in eigenen Worten, was du ändern willst – der Skill startet von selbst.",
+      "what_could_go_wrong_de": "Wenig: er stoppt bewusst, bevor Code geschrieben wird. Du bestätigst Design und Plan.",
+      "danger": "caution",
+      "guardrails": [
+        {
+          "id": "G-PULL-FIRST",
+          "name_de": "Erst ziehen, dann arbeiten",
+          "rule_de": "Immer 'git pull --rebase origin main' bevor du etwas änderst.",
+          "why_de": "Sonst arbeitest du auf einem veralteten Stand und bekommst Konflikte."
+        }
+      ],
+      "related": [
+        "dev-flow-execute",
+        "dev-flow-chore"
+      ],
+      "links": [],
+      "theme": "entwickeln",
+      "aliases_de": [
+        "plan",
+        "planen",
+        "brainstorm",
+        "spec"
+      ],
+      "common": false,
+      "order": 999,
+      "harness": "both",
+      "stages": [
+        "plan"
+      ],
+      "init_prompt_de": "Ich will etwas ändern – starte die Planung (dev-flow-plan)."
+    },
+    {
+      "id": "dev-flow-chore",
+      "name_de": "Wartungs-Skill (dev-flow-chore)",
+      "kind": "skill",
+      "kind_de": "Fertigkeit",
+      "summary_de": "Erledigt Wartung ohne Verhaltensänderung in einem Rutsch und mergt sie.",
+      "what_for_de": "Für Doku, Dependency-Bumps, Config/Umbenennungen, CI-Tweaks und Aufräumen — direkt ausgeführt und gemergt, ohne Plan und ohne dev-flow-execute. Für Features/Fixes stattdessen dev-flow-plan.",
+      "how_to_start_de": "Sage z.B. 'bump die Abhängigkeiten' oder 'räum die Doku auf' – der Skill startet von selbst, oder dev-flow-plan leitet Chores hierher.",
+      "what_could_go_wrong_de": "Wenig: keine Verhaltensänderung. CI könnte den Merge blockieren; der falsche Branch könnte aktiv sein (🟡).",
+      "danger": "caution",
+      "guardrails": [
+        {
+          "id": "G-PULL-FIRST",
+          "name_de": "Erst ziehen, dann arbeiten",
+          "rule_de": "Immer 'git pull --rebase origin main' bevor du etwas änderst.",
+          "why_de": "Sonst arbeitest du auf einem veralteten Stand und bekommst Konflikte."
+        },
+        {
+          "id": "G-PR-NOT-MAIN",
+          "name_de": "Nie direkt auf main",
+          "rule_de": "Änderungen immer über einen Branch + Pull Request, niemals direkt nach main pushen.",
+          "why_de": "main ist geschützt; direktes Pushen umgeht Review und CI."
+        }
+      ],
+      "related": [
+        "dev-flow-plan"
+      ],
+      "links": [],
+      "theme": "entwickeln",
+      "aliases_de": [
+        "chore",
+        "wartung",
+        "aufraeumen",
+        "dependency-bump",
+        "doku"
+      ],
+      "common": false,
+      "order": 999,
+      "harness": "both",
+      "stages": [
+        "code",
+        "pr-ci"
+      ],
+      "init_prompt_de": "/dev-flow-chore – erledige diese Wartung und merge sie."
+    },
+    {
+      "id": "dev-flow-execute",
+      "name_de": "Umsetzungs-Skill (dev-flow-execute)",
+      "kind": "skill",
+      "kind_de": "Fertigkeit",
+      "summary_de": "Setzt einen fertigen Plan um und öffnet einen Pull Request.",
+      "what_for_de": "Implementiert den Plan task-by-task, läuft Tests, pusht und erstellt den PR. Wird nach dev-flow-plan aufgerufen.",
+      "how_to_start_de": "Sage '/dev-flow-execute' oder 'Setze den Plan um' – ein staged Plan muss bereits existieren.",
+      "what_could_go_wrong_de": "Der falsche Branch könnte aktiv sein (🟡); CI könnte fehlschlagen und den Merge blockieren. Der Implementer endet nach dem Auto-Merge-Request – CI-Watch, Merge-Wait und Worktree-Cleanup laufen im Orchestrator, nicht im Implementer (T002365).",
+      "danger": "caution",
+      "guardrails": [
+        {
+          "id": "G-PULL-FIRST",
+          "name_de": "Erst ziehen, dann arbeiten",
+          "rule_de": "Immer 'git pull --rebase origin main' bevor du etwas änderst.",
+          "why_de": "Sonst arbeitest du auf einem veralteten Stand und bekommst Konflikte."
+        },
+        {
+          "id": "G-PR-NOT-MAIN",
+          "name_de": "Nie direkt auf main",
+          "rule_de": "Änderungen immer über einen Branch + Pull Request, niemals direkt nach main pushen.",
+          "why_de": "main ist geschützt; direktes Pushen umgeht Review und CI."
+        }
+      ],
+      "related": [
+        "dev-flow-plan",
+        "dev-flow-e2e"
+      ],
+      "links": [],
+      "theme": "entwickeln",
+      "aliases_de": [
+        "umsetzen",
+        "implementieren",
+        "ausfuehren",
+        "pr"
+      ],
+      "common": false,
+      "order": 999,
+      "harness": "both",
+      "stages": [
+        "code",
+        "pr-ci"
+      ],
+      "init_prompt_de": "/dev-flow-execute – setze den fertigen Plan um und öffne einen PR."
+    },
+    {
+      "id": "dev-flow-e2e",
+      "name_de": "E2E-Test-Skill (dev-flow-e2e)",
+      "kind": "skill",
+      "kind_de": "Fertigkeit",
+      "summary_de": "Schreibt und führt End-to-End-Tests gegen die Live-Umgebung nach einem Merge aus.",
+      "what_for_de": "Playwright-Tests gegen die echte, laufende Umgebung – prüft, ob das Feature wirklich funktioniert.",
+      "how_to_start_de": "Nur nach einem Merge und Deploy aufrufen; Umgebungs-URL muss erreichbar sein.",
+      "what_could_go_wrong_de": "Test schlägt fehl, wenn die Umgebung noch startet oder fehlerhaft deployt wurde.",
+      "danger": "caution",
+      "guardrails": [
+        {
+          "id": "G-ENV-EXPLICIT",
+          "name_de": "ENV immer explizit setzen",
+          "rule_de": "Bei jedem Deploy/Cluster-Befehl ENV= ausdrücklich angeben (z. B. ENV=mentolder).",
+          "why_de": "Ohne ENV= wird 'dev' angenommen und der Befehl trifft heimlich die falsche Umgebung."
+        }
+      ],
+      "related": [
+        "dev-flow-execute"
+      ],
+      "links": [],
+      "theme": "testen",
+      "aliases_de": [
+        "e2e",
+        "playwright",
+        "end-to-end",
+        "walkthrough"
+      ],
+      "common": false,
+      "order": 999,
+      "harness": "claude",
+      "stages": [
+        "live"
+      ],
+      "init_prompt_de": "/dev-flow-e2e – schreibe und führe E2E-Tests gegen die Live-Umgebung aus."
+    },
+    {
+      "id": "task-oracle",
+      "name_de": "Task-Orakel (task-oracle)",
+      "kind": "task",
+      "kind_de": "Aufgabe",
+      "summary_de": "Findet den richtigen Task-Befehl für ein Ziel in einfachem Deutsch.",
+      "what_for_de": "Übersetzt 'Ich will X tun' in den passenden task-Befehl, ohne dass du die Taskfile kennen musst.",
+      "how_to_start_de": "Rufe auf: bash scripts/vda.sh oracle 'Dein Ziel auf Deutsch'.",
+      "what_could_go_wrong_de": "Das Orakel könnte den falschen Task vorschlagen; prüfe immer die Ausgabe kurz.",
+      "danger": "safe",
+      "guardrails": [],
+      "related": [],
+      "links": [],
+      "theme": "entwickeln",
+      "aliases_de": [
+        "task",
+        "orakel",
+        "befehl",
+        "taskfile",
+        "kommando"
+      ],
+      "common": true,
+      "order": 5,
+      "harness": "both",
+      "stages": []
+    },
+    {
+      "id": "agent-website",
+      "name_de": "Website-Agent",
+      "kind": "agent",
+      "kind_de": "Agent",
+      "summary_de": "Bearbeitet die Webseite: Texte, Design, Komponenten und Svelte-Code.",
+      "what_for_de": "Für alles rund um components/website/src/ – Astro-Seiten, Svelte-Komponenten, CSS, Inhalte.",
+      "how_to_start_de": "Beschreibe einfach, was auf der Website geändert werden soll.",
+      "what_could_go_wrong_de": "Visuelle Änderungen wirken erst nach einem Deploy; er kann Typo-Fehler einbauen.",
+      "danger": "caution",
+      "guardrails": [
+        {
+          "id": "G-PULL-FIRST",
+          "name_de": "Erst ziehen, dann arbeiten",
+          "rule_de": "Immer 'git pull --rebase origin main' bevor du etwas änderst.",
+          "why_de": "Sonst arbeitest du auf einem veralteten Stand und bekommst Konflikte."
+        },
+        {
+          "id": "G-PR-NOT-MAIN",
+          "name_de": "Nie direkt auf main",
+          "rule_de": "Änderungen immer über einen Branch + Pull Request, niemals direkt nach main pushen.",
+          "why_de": "main ist geschützt; direktes Pushen umgeht Review und CI."
+        }
+      ],
+      "related": [
+        "agent-infra"
+      ],
+      "links": [],
+      "theme": "website",
+      "aliases_de": [
+        "website",
+        "astro",
+        "svelte",
+        "css",
+        "frontend"
+      ],
+      "common": false,
+      "order": 999,
+      "harness": "both",
+      "stages": [],
+      "init_prompt_de": "Übergib das an den Website-Agenten: <was auf der Website geändert werden soll>."
+    },
+    {
+      "id": "agent-ops",
+      "name_de": "Betriebs-Agent (ops)",
+      "kind": "agent",
+      "kind_de": "Agent",
+      "summary_de": "Schaut nach, warum etwas nicht läuft – liest Logs und Status, ohne etwas zu verändern.",
+      "what_for_de": "Für Fragen wie 'Warum ist Dienst X rot?' oder 'Läuft alles?'. Liest Pod-Status und Protokolle (Logs).",
+      "how_to_start_de": "Frag z. B.: 'Warum startet Nextcloud nicht?' oder 'Zeig mir den Status aller Dienste.'",
+      "what_could_go_wrong_de": "Beim reinen Nachschauen kaum etwas. Vorsicht erst, wenn er etwas neu startet (das ist 🟡).",
+      "danger": "safe",
+      "guardrails": [
+        {
+          "id": "G-CONTEXT-CHECK",
+          "name_de": "Namespace prüfen (Single-Cluster)",
+          "rule_de": "Vor jeder Cluster-Aktion prüfen, ob der Befehl in workspace, workspace-korczewski oder workspace-dev läuft.",
+          "why_de": "Es gibt nur einen Cluster (fleet) — der falsche Namespace betrifft die falsche Marke oder den Dev-Stack."
+        }
+      ],
+      "related": [
+        "agent-infra"
+      ],
+      "links": [],
+      "theme": "betrieb",
+      "aliases_de": [
+        "warum rot",
+        "crash",
+        "logs",
+        "laeuft nicht",
+        "status",
+        "betrieb"
+      ],
+      "common": true,
+      "order": 4,
+      "harness": "both",
+      "stages": [
+        "live"
+      ],
+      "init_prompt_de": "Frag den Betriebs-Agenten: warum läuft <Dienst> nicht / ist alles grün?"
+    },
+    {
+      "id": "agent-infra",
+      "name_de": "Infrastruktur-Agent (infra)",
+      "kind": "agent",
+      "kind_de": "Agent",
+      "summary_de": "Deployt Kubernetes-Manifeste und verwaltet Cluster-Konfiguration.",
+      "what_for_de": "Für k8s-Manifeste, Kustomize-Overlays, Taskfile-Tasks und ENV-spezifische Deployments.",
+      "how_to_start_de": "Beschreibe, was deployt oder konfiguriert werden soll – immer mit dem Ziel-ENV.",
+      "what_could_go_wrong_de": "Falsches ENV= deployt in die falsche Umgebung (🟠). Manifestfehler können Dienste lahmlegen.",
+      "danger": "assisted",
+      "guardrails": [
+        {
+          "id": "G-ENV-EXPLICIT",
+          "name_de": "ENV immer explizit setzen",
+          "rule_de": "Bei jedem Deploy/Cluster-Befehl ENV= ausdrücklich angeben (z. B. ENV=mentolder).",
+          "why_de": "Ohne ENV= wird 'dev' angenommen und der Befehl trifft heimlich die falsche Umgebung."
+        },
+        {
+          "id": "G-VALIDATE-FIRST",
+          "name_de": "Erst prüfen, dann anwenden",
+          "rule_de": "Manifeste vor dem Anwenden validieren (task workspace:validate) / dry-run nutzen.",
+          "why_de": "Fängt kaputte Konfiguration ab, bevor sie den Cluster erreicht."
+        },
+        {
+          "id": "G-ASK-EXPERT",
+          "name_de": "Bei Rot: stoppen und fragen",
+          "rule_de": "Bei 🔴-Aktionen nicht selbst handeln — Patrick fragen.",
+          "why_de": "Diese Aktionen können die Plattform für alle lahmlegen."
+        }
+      ],
+      "related": [
+        "agent-ops",
+        "agent-security"
+      ],
+      "links": [],
+      "theme": "ausrollen",
+      "aliases_de": [
+        "infra",
+        "kubernetes",
+        "kustomize",
+        "manifest",
+        "deploy"
+      ],
+      "common": false,
+      "order": 999,
+      "harness": "both",
+      "stages": [
+        "deploy"
+      ],
+      "init_prompt_de": "Übergib das an den Infrastruktur-Agenten: <Manifest-/Overlay-/Deploy-Aufgabe>."
+    },
+    {
+      "id": "agent-test",
+      "name_de": "Test-Agent",
+      "kind": "agent",
+      "kind_de": "Agent",
+      "summary_de": "Schreibt und führt Tests aus (pytest, Playwright, vitest).",
+      "what_for_de": "Für FA-*, SA-*, NFA-*-Testfälle, pytest-Module und Playwright-E2E-Tests.",
+      "how_to_start_de": "Sage z. B. 'Schreib einen Test für Feature X' oder 'FA-05 schlägt fehl, bitte fixen'.",
+      "what_could_go_wrong_de": "Test kann die falsche Umgebung treffen; Playwright braucht laufende Dienste.",
+      "danger": "caution",
+      "guardrails": [
+        {
+          "id": "G-ENV-EXPLICIT",
+          "name_de": "ENV immer explizit setzen",
+          "rule_de": "Bei jedem Deploy/Cluster-Befehl ENV= ausdrücklich angeben (z. B. ENV=mentolder).",
+          "why_de": "Ohne ENV= wird 'dev' angenommen und der Befehl trifft heimlich die falsche Umgebung."
+        }
+      ],
+      "related": [
+        "dev-flow-e2e"
+      ],
+      "links": [],
+      "theme": "testen",
+      "aliases_de": [
+        "test",
+        "pytest",
+        "playwright",
+        "vitest"
+      ],
+      "common": false,
+      "order": 999,
+      "harness": "both",
+      "stages": [],
+      "init_prompt_de": "Übergib das an den Test-Agenten: <Test schreiben/reparieren/ausführen>."
+    },
+    {
+      "id": "agent-db",
+      "name_de": "Datenbank-Agent (db)",
+      "kind": "agent",
+      "kind_de": "Agent",
+      "summary_de": "Verwaltet PostgreSQL-Schema, Migrationen und Backups.",
+      "what_for_de": "Für Datenbankfragen: Schema-Änderungen, SQL-Abfragen, Backup/Restore.",
+      "how_to_start_de": "Beschreibe die Datenbankaufgabe – Schema-Migration, Query oder Datenfix.",
+      "what_could_go_wrong_de": "Schema-Änderungen betreffen beide Marken (workspace + workspace-korczewski). Falsche DB-Operation kann Daten unwiederbringlich löschen (🟠).",
+      "danger": "assisted",
+      "guardrails": [
+        {
+          "id": "G-ENV-EXPLICIT",
+          "name_de": "ENV immer explizit setzen",
+          "rule_de": "Bei jedem Deploy/Cluster-Befehl ENV= ausdrücklich angeben (z. B. ENV=mentolder).",
+          "why_de": "Ohne ENV= wird 'dev' angenommen und der Befehl trifft heimlich die falsche Umgebung."
+        },
+        {
+          "id": "G-ASK-EXPERT",
+          "name_de": "Bei Rot: stoppen und fragen",
+          "rule_de": "Bei 🔴-Aktionen nicht selbst handeln — Patrick fragen.",
+          "why_de": "Diese Aktionen können die Plattform für alle lahmlegen."
+        }
+      ],
+      "related": [
+        "agent-infra"
+      ],
+      "links": [],
+      "theme": "datenbank",
+      "aliases_de": [
+        "datenbank",
+        "postgres",
+        "schema",
+        "backup",
+        "query"
+      ],
+      "common": false,
+      "order": 999,
+      "harness": "both",
+      "stages": [],
+      "init_prompt_de": "Frag den Datenbank-Agenten: <Schema, Query, Backup/Restore>."
+    },
+    {
+      "id": "agent-security",
+      "name_de": "Sicherheits-Agent (security)",
+      "kind": "agent",
+      "kind_de": "Agent",
+      "summary_de": "Rotiert Secrets, verwaltet Keycloak-Realms und SealedSecrets.",
+      "what_for_de": "Für Geheimnis-Rotation, Keycloak-Konfiguration, OIDC-Clients und Zertifikate.",
+      "how_to_start_de": "Nur mit Vorsicht aufrufen; erkläre genau, welches Secret oder welche Konfiguration geändert werden soll.",
+      "what_could_go_wrong_de": "Falsche Reihenfolge bei Sealed-Secrets überschreibt Produktiv-Zugangsdaten (🔴). Nur mit Patrick abstimmen.",
+      "danger": "assisted",
+      "guardrails": [
+        {
+          "id": "G-SECRET-ORDER",
+          "name_de": "Geheimnis-Reihenfolge einhalten",
+          "rule_de": "Sealed-Secrets-Schritte in der vorgegebenen Reihenfolge ausführen (install → fetch-cert → seal → deploy).",
+          "why_de": "Falsche Reihenfolge überschreibt Produktiv-Zugangsdaten mit Platzhaltern."
+        },
+        {
+          "id": "G-ASK-EXPERT",
+          "name_de": "Bei Rot: stoppen und fragen",
+          "rule_de": "Bei 🔴-Aktionen nicht selbst handeln — Patrick fragen.",
+          "why_de": "Diese Aktionen können die Plattform für alle lahmlegen."
+        },
+        {
+          "id": "G-ENV-EXPLICIT",
+          "name_de": "ENV immer explizit setzen",
+          "rule_de": "Bei jedem Deploy/Cluster-Befehl ENV= ausdrücklich angeben (z. B. ENV=mentolder).",
+          "why_de": "Ohne ENV= wird 'dev' angenommen und der Befehl trifft heimlich die falsche Umgebung."
+        }
+      ],
+      "related": [
+        "agent-infra"
+      ],
+      "links": [],
+      "theme": "sicherheit",
+      "aliases_de": [
+        "secret",
+        "keycloak",
+        "oidc",
+        "sealedsecret",
+        "zertifikat",
+        "rotieren"
+      ],
+      "common": false,
+      "order": 999,
+      "harness": "both",
+      "stages": [],
+      "init_prompt_de": "Übergib das an den Security-Agenten: <Secret rotieren, Keycloak/OIDC, DSGVO>."
+    },
+    {
+      "id": "opencode-git-workflow",
+      "name_de": "OpenCode-Git-Workflow",
+      "kind": "skill",
+      "kind_de": "Fertigkeit",
+      "summary_de": "Git-Lebenszyklus für OpenCode: Pull-First, Branch-Regeln, Worktree-Setup, Commit-Format, PR-Erstellung.",
+      "what_for_de": "Standardisiert alle Git-Operationen in OpenCode-Sessions – vom Branch-Wechsel bis zum Merge.",
+      "how_to_start_de": "Wird von dev-flow-plan/execute/chore automatisch geladen. Manuell: lade die Skill opencode-git-workflow.",
+      "what_could_go_wrong_de": "Git-crypt-verschlüsselte Dateien können in Worktrees fehlen – darum nutzen die Skills scripts/worktree-create.sh.",
+      "danger": "safe",
+      "guardrails": [
+        {
+          "id": "G-PULL-FIRST",
+          "name_de": "Erst ziehen, dann arbeiten",
+          "rule_de": "Immer 'git pull --rebase origin main' bevor du etwas änderst.",
+          "why_de": "Sonst arbeitest du auf einem veralteten Stand und bekommst Konflikte."
+        },
+        {
+          "id": "G-PR-NOT-MAIN",
+          "name_de": "Nie direkt auf main",
+          "rule_de": "Änderungen immer über einen Branch + Pull Request, niemals direkt nach main pushen.",
+          "why_de": "main ist geschützt; direktes Pushen umgeht Review und CI."
+        }
+      ],
+      "related": [
+        "dev-flow-plan",
+        "dev-flow-execute",
+        "dev-flow-chore"
+      ],
+      "links": [],
+      "theme": "entwickeln",
+      "aliases_de": [
+        "git",
+        "commit",
+        "pr",
+        "branch",
+        "worktree"
+      ],
+      "common": false,
+      "order": 999,
+      "harness": "opencode",
+      "stages": [
+        "code",
+        "pr-ci"
+      ],
+      "init_prompt_de": "Lade opencode-git-workflow – ich brauche Git-Operationen in einer OpenCode-Session."
+    }
+  ],
+  "components": {
+    "website": {
+      "slug": "website",
+      "kind": "software",
+      "name": "Website",
+      "emoji": "🌐",
+      "summary_de": "Die öffentliche Webseite und das Kundenportal. Hier ändert man Texte, Preise und sieht eigene Daten.",
+      "sensitivity": "caution",
+      "url": null,
+      "area": "dienste",
+      "theme": "website",
+      "relates_to": [
+        "website-text-aendern"
+      ]
+    },
+    "keycloak": {
+      "slug": "keycloak",
+      "kind": "software",
+      "name": "Keycloak",
+      "emoji": "🔑",
+      "summary_de": "Die zentrale Anmeldung (Single Sign-On): ein Login für alle Dienste.",
+      "sensitivity": "forbidden",
+      "url": null,
+      "area": "plattform",
+      "theme": "sicherheit",
+      "relates_to": [
+        "secret-aendern"
+      ]
+    },
+    "nextcloud": {
+      "slug": "nextcloud",
+      "kind": "software",
+      "name": "Nextcloud",
+      "emoji": "☁️",
+      "summary_de": "Deine private Cloud: Dateien, Kalender, Kontakte und Video-Telefonie (Talk).",
+      "sensitivity": "assisted",
+      "url": null,
+      "area": "dienste",
+      "theme": "betrieb"
+    },
+    "collabora": {
+      "slug": "collabora",
+      "kind": "software",
+      "name": "Collabora",
+      "emoji": "📄",
+      "summary_de": "Office im Browser: Dokumente, Tabellen und Präsentationen direkt in Nextcloud bearbeiten.",
+      "sensitivity": "caution",
+      "url": null,
+      "area": "dienste",
+      "theme": "betrieb"
+    },
+    "vaultwarden": {
+      "slug": "vaultwarden",
+      "kind": "software",
+      "name": "Vaultwarden",
+      "emoji": "🔒",
+      "summary_de": "Der Passwort-Tresor (kompatibel mit Bitwarden). Speichert Passwörter sicher und verschlüsselt.",
+      "sensitivity": "forbidden",
+      "url": null,
+      "area": "dienste",
+      "theme": "sicherheit"
+    },
+    "nextcloud-talk-hpb": {
+      "slug": "nextcloud-talk-hpb",
+      "kind": "software",
+      "name": "Talk HPB",
+      "emoji": "📡",
+      "summary_de": "Der Vermittlungs-Server (Signaling) für Nextcloud Talk – sorgt dafür, dass Video-Anrufe zueinander finden.",
+      "sensitivity": "caution",
+      "url": null
+    },
+    "brett": {
+      "slug": "brett",
+      "kind": "software",
+      "name": "Brett",
+      "emoji": "🧩",
+      "summary_de": "Das 3D-Systembrett: ein digitales Aufstellungs-Board für systemische Arbeit im Browser.",
+      "sensitivity": "caution",
+      "url": null
+    },
+    "mailpit": {
+      "slug": "mailpit",
+      "kind": "software",
+      "name": "Mailpit",
+      "emoji": "📬",
+      "summary_de": "Ein Test-Postfach für Entwickler: fängt E-Mails ab, statt sie echt zu verschicken.",
+      "sensitivity": "safe",
+      "url": null
+    },
+    "docuseal": {
+      "slug": "docuseal",
+      "kind": "software",
+      "name": "DocuSeal",
+      "emoji": "📝",
+      "summary_de": "Dokumente digital unterschreiben lassen (elektronische Signatur).",
+      "sensitivity": "caution",
+      "url": null,
+      "area": "dienste",
+      "theme": "betrieb"
+    },
+    "whiteboard": {
+      "slug": "whiteboard",
+      "kind": "software",
+      "name": "Whiteboard",
+      "emoji": "🎨",
+      "summary_de": "Eine gemeinsame Zeichen-Tafel zum Brainstormen, in Nextcloud eingebunden.",
+      "sensitivity": "safe",
+      "url": null
+    },
+    "arena": {
+      "slug": "arena",
+      "kind": "software",
+      "name": "Arena",
+      "emoji": "🎮",
+      "summary_de": "Der Mehrspieler-Spielserver (decommissioned).",
+      "sensitivity": "caution",
+      "url": null
+    },
+    "arena-server": {
+      "slug": "arena-server",
+      "kind": "software",
+      "name": "Arena Server",
+      "emoji": "🎮",
+      "summary_de": "Der 3D-Mehrspieler-Spielserver (decommissioned 2026-06).",
+      "sensitivity": "caution",
+      "url": null
+    },
+    "docs": {
+      "slug": "docs",
+      "kind": "software",
+      "name": "Documentation",
+      "emoji": "📚",
+      "summary_de": "Die Anleitungen und Handbücher der Plattform (die Doku-Seite).",
+      "sensitivity": "safe",
+      "url": null
+    },
+    "postgresql": {
+      "slug": "postgresql",
+      "kind": "software",
+      "name": "PostgreSQL 16",
+      "emoji": "🐘",
+      "summary_de": "Die zentrale Datenbank (PostgreSQL 16). Hier liegen fast alle Daten der Plattform.",
+      "sensitivity": "forbidden",
+      "url": null,
+      "area": "daten",
+      "theme": "datenbank",
+      "relates_to": [
+        "datenbank-aendern"
+      ]
+    },
+    "traefik": {
+      "slug": "traefik",
+      "kind": "software",
+      "name": "Traefik",
+      "emoji": "🔀",
+      "summary_de": "Der Türsteher des Clusters: leitet jede Web-Anfrage an den richtigen Dienst und macht HTTPS.",
+      "sensitivity": "assisted",
+      "url": null,
+      "area": "plattform",
+      "theme": "ausrollen"
+    },
+    "sealed-secrets": {
+      "slug": "sealed-secrets",
+      "kind": "software",
+      "name": "Sealed Secrets",
+      "emoji": "🔐",
+      "summary_de": "Verschlüsselt geheime Zugangsdaten, damit sie sicher in Git liegen können.",
+      "sensitivity": "forbidden",
+      "url": null,
+      "area": "daten",
+      "theme": "sicherheit",
+      "relates_to": [
+        "secret-aendern"
+      ]
+    },
+    "cert-manager": {
+      "slug": "cert-manager",
+      "kind": "software",
+      "name": "cert-manager",
+      "emoji": "📜",
+      "summary_de": "Holt und erneuert automatisch die HTTPS-Zertifikate (über Let's Encrypt / DNS-01).",
+      "sensitivity": "assisted",
+      "url": null,
+      "area": "plattform",
+      "theme": "sicherheit"
+    },
+    "k3s": {
+      "slug": "k3s",
+      "kind": "software",
+      "name": "k3s (Fleet)",
+      "emoji": "☸️",
+      "summary_de": "Das schlanke Kubernetes, auf dem die Fleet-Plattform läuft. Das Fundament der Plattform.",
+      "sensitivity": "forbidden",
+      "url": null,
+      "area": "plattform",
+      "theme": "ausrollen",
+      "relates_to": [
+        "cluster-neu-aufsetzen"
+      ]
+    },
+    "wireguard": {
+      "slug": "wireguard",
+      "kind": "software",
+      "name": "WireGuard (wg-mesh)",
+      "emoji": "🔗",
+      "summary_de": "Das verschlüsselte Netz (VPN-Mesh), das alle Server-Knoten privat verbindet.",
+      "sensitivity": "assisted",
+      "url": null
+    },
+    "tei": {
+      "slug": "tei",
+      "kind": "software",
+      "name": "TEI (Text Embeddings)",
+      "emoji": "🦾",
+      "summary_de": "Wandelt Texte in Vektoren um (Embeddings, Modell bge-m3) für die KI-Suche – läuft auf dem GPU-Rechner.",
+      "sensitivity": "caution",
+      "url": null
+    },
+    "openclaw": {
+      "slug": "openclaw",
+      "kind": "software",
+      "name": "OpenClaw",
+      "emoji": "🦅",
+      "summary_de": "Ein lokaler KI-Assistent-Dienst auf dem GPU-Rechner (spricht direkt mit LM Studio).",
+      "sensitivity": "caution",
+      "url": null
+    },
+    "whisper": {
+      "slug": "whisper",
+      "kind": "software",
+      "name": "Whisper",
+      "emoji": "🎙️",
+      "summary_de": "Wandelt gesprochene Sprache in Text um (Spracherkennung, OpenAI Whisper).",
+      "sensitivity": "caution",
+      "url": null
+    },
+    "talk-transcriber": {
+      "slug": "talk-transcriber",
+      "kind": "software",
+      "name": "Talk Transcriber",
+      "emoji": "📝",
+      "summary_de": "Schreibt Nextcloud-Talk-Gespräche automatisch mit (Transkription).",
+      "sensitivity": "caution",
+      "url": null
+    },
+    "mcp": {
+      "slug": "mcp",
+      "kind": "software",
+      "name": "MCP Monolith",
+      "emoji": "🤖",
+      "summary_de": "Die Brücke, über die Claude Code mit der Plattform arbeitet (MCP-Proxy, nur mentolder).",
+      "sensitivity": "assisted",
+      "url": null
+    },
+    "brainstorm": {
+      "slug": "brainstorm",
+      "kind": "software",
+      "name": "Brainstorm Sish",
+      "emoji": "🌀",
+      "summary_de": "Ein sicherer Tunnel, der das lokale Brainstorming-Board unter brainstorm.mentolder.de erreichbar macht.",
+      "sensitivity": "caution",
+      "url": null
+    },
+    "gekko-hetzner-2": {
+      "slug": "gekko-hetzner-2",
+      "kind": "hardware",
+      "name": "Gekko Worker 1",
+      "emoji": "🖥️",
+      "summary_de": "Fleet-Arbeitsknoten in Helsinki (Hetzner). Trägt Plattform-Workloads beider Marken.",
+      "sensitivity": "assisted",
+      "url": null
+    },
+    "gekko-hetzner-3": {
+      "slug": "gekko-hetzner-3",
+      "kind": "hardware",
+      "name": "Gekko Worker 2",
+      "emoji": "🖥️",
+      "summary_de": "Fleet-Arbeitsknoten in Helsinki (Hetzner). Trägt Plattform-Workloads beider Marken.",
+      "sensitivity": "assisted",
+      "url": null
+    },
+    "gekko-hetzner-4": {
+      "slug": "gekko-hetzner-4",
+      "kind": "hardware",
+      "name": "Gekko Worker 3",
+      "emoji": "🖥️",
+      "summary_de": "Fleet-Arbeitsknoten in Helsinki (Hetzner).",
+      "sensitivity": "assisted",
+      "url": null
+    },
+    "k3s-1": {
+      "slug": "k3s-1",
+      "kind": "hardware",
+      "name": "k3s-1",
+      "emoji": "🏠",
+      "summary_de": "Ehemaliger Heim-Server (Proxmox-VM) — permanent DECOMMISSIONED (2026-05-31).",
+      "sensitivity": "assisted",
+      "url": null
+    },
+    "k3s-2": {
+      "slug": "k3s-2",
+      "kind": "hardware",
+      "name": "k3s-2",
+      "emoji": "🏠",
+      "summary_de": "Heim-Server (zuhause).",
+      "sensitivity": "assisted",
+      "url": null
+    },
+    "k3s-3": {
+      "slug": "k3s-3",
+      "kind": "hardware",
+      "name": "k3s-3",
+      "emoji": "🏠",
+      "summary_de": "Heim-Server (zuhause).",
+      "sensitivity": "assisted",
+      "url": null
+    },
+    "pk-hetzner-4": {
+      "slug": "pk-hetzner-4",
+      "kind": "hardware",
+      "name": "PK CP 1",
+      "emoji": "🖥️",
+      "summary_de": "Fleet-Steuerknoten (Control-Plane) in Helsinki. Beherbergt den LiveKit-Server (per Node-Affinität gebunden); LiveKit-DNS zeigt hierhin.",
+      "sensitivity": "assisted",
+      "url": null
+    },
+    "pk-hetzner-6": {
+      "slug": "pk-hetzner-6",
+      "kind": "hardware",
+      "name": "PK CP 2",
+      "emoji": "🖥️",
+      "summary_de": "Fleet-Steuerknoten (Control-Plane) in Helsinki (Hetzner).",
+      "sensitivity": "assisted",
+      "url": null
+    },
+    "pk-hetzner-8": {
+      "slug": "pk-hetzner-8",
+      "kind": "hardware",
+      "name": "PK CP 3",
+      "emoji": "🖥️",
+      "summary_de": "Fleet-Steuerknoten (Control-Plane) in Helsinki (Hetzner).",
+      "sensitivity": "assisted",
+      "url": null
+    }
+  },
+  "map": {
+    "flow": [
+      {
+        "id": "idee",
+        "label_de": "Idee",
+        "emoji": "💡",
+        "danger": "safe",
+        "order": 1,
+        "blurb_de": "Was soll sich ändern? Noch nichts angefasst.",
+        "goalIds": [
+          "idee-starten"
+        ],
+        "toolIds": [
+          "brainstorming"
+        ]
+      },
+      {
+        "id": "brainstorm",
+        "label_de": "Brainstorm",
+        "emoji": "🧠",
+        "danger": "safe",
+        "order": 2,
+        "blurb_de": "Die Idee zu einem klaren Design schärfen.",
+        "goalIds": [
+          "idee-starten"
+        ],
+        "toolIds": [
+          "superpowers",
+          "brainstorming"
+        ]
+      },
+      {
+        "id": "plan",
+        "label_de": "Plan",
+        "emoji": "📋",
+        "danger": "caution",
+        "order": 3,
+        "blurb_de": "Einen Schritt-für-Schritt-Plan schreiben.",
+        "goalIds": [
+          "bug-beheben",
+          "feature-bauen",
+          "datenbank-aendern"
+        ],
+        "toolIds": [
+          "dev-flow-plan"
+        ]
+      },
+      {
+        "id": "code",
+        "label_de": "Code+TDD",
+        "emoji": "💻",
+        "danger": "caution",
+        "order": 4,
+        "blurb_de": "Erst den Test, dann die Umsetzung.",
+        "goalIds": [
+          "website-text-aendern",
+          "bug-beheben",
+          "feature-bauen",
+          "datenbank-aendern"
+        ],
+        "toolIds": [
+          "dev-flow-chore",
+          "dev-flow-execute",
+          "opencode-git-workflow"
+        ]
+      },
+      {
+        "id": "pr-ci",
+        "label_de": "PR+CI",
+        "emoji": "🔀",
+        "danger": "assisted",
+        "order": 5,
+        "blurb_de": "Pull Request öffnen — CI muss grün sein.",
+        "goalIds": [
+          "bug-beheben",
+          "feature-bauen",
+          "pr-oeffnen"
+        ],
+        "toolIds": [
+          "dev-flow-chore",
+          "dev-flow-execute",
+          "opencode-git-workflow"
+        ]
+      },
+      {
+        "id": "deploy",
+        "label_de": "Deploy",
+        "emoji": "🚀",
+        "danger": "assisted",
+        "order": 6,
+        "blurb_de": "Die Änderung live bringen (task workspace:deploy).",
+        "goalIds": [
+          "bug-beheben",
+          "feature-bauen",
+          "aenderung-ausrollen",
+          "datenbank-aendern"
+        ],
+        "toolIds": [
+          "agent-infra"
+        ]
+      },
+      {
+        "id": "live",
+        "label_de": "Live",
+        "emoji": "🌍",
+        "danger": "safe",
+        "order": 7,
+        "blurb_de": "Läuft es? Status und Logs prüfen.",
+        "goalIds": [
+          "dienst-status-pruefen",
+          "aenderung-ausrollen",
+          "deploy-pruefen"
+        ],
+        "toolIds": [
+          "dev-flow-e2e",
+          "agent-ops"
+        ]
+      }
+    ],
+    "territory": [
+      {
+        "id": "dienste",
+        "label_de": "Dienste",
+        "order": 1,
+        "nodes": [
+          {
+            "slug": "website",
+            "name": "Website",
+            "emoji": "🌐",
+            "sensitivity": "caution",
+            "theme": "website",
+            "accent": "#4a9eff",
+            "relatesTo": [
+              "website-text-aendern"
+            ]
+          },
+          {
+            "slug": "nextcloud",
+            "name": "Nextcloud",
+            "emoji": "☁️",
+            "sensitivity": "assisted",
+            "theme": "betrieb",
+            "accent": "#7e9aa6",
+            "relatesTo": []
+          },
+          {
+            "slug": "collabora",
+            "name": "Collabora",
+            "emoji": "📄",
+            "sensitivity": "caution",
+            "theme": "betrieb",
+            "accent": "#7e9aa6",
+            "relatesTo": []
+          },
+          {
+            "slug": "vaultwarden",
+            "name": "Vaultwarden",
+            "emoji": "🔒",
+            "sensitivity": "forbidden",
+            "theme": "sicherheit",
+            "accent": "#c77dff",
+            "relatesTo": []
+          },
+          {
+            "slug": "docuseal",
+            "name": "DocuSeal",
+            "emoji": "📝",
+            "sensitivity": "caution",
+            "theme": "betrieb",
+            "accent": "#7e9aa6",
+            "relatesTo": []
+          }
+        ]
+      },
+      {
+        "id": "plattform",
+        "label_de": "Plattform & Cluster",
+        "order": 2,
+        "nodes": [
+          {
+            "slug": "keycloak",
+            "name": "Keycloak",
+            "emoji": "🔑",
+            "sensitivity": "forbidden",
+            "theme": "sicherheit",
+            "accent": "#c77dff",
+            "relatesTo": [
+              "secret-aendern"
+            ]
+          },
+          {
+            "slug": "traefik",
+            "name": "Traefik",
+            "emoji": "🔀",
+            "sensitivity": "assisted",
+            "theme": "ausrollen",
+            "accent": "#5ad1c4",
+            "relatesTo": []
+          },
+          {
+            "slug": "cert-manager",
+            "name": "cert-manager",
+            "emoji": "📜",
+            "sensitivity": "assisted",
+            "theme": "sicherheit",
+            "accent": "#c77dff",
+            "relatesTo": []
+          },
+          {
+            "slug": "k3s",
+            "name": "k3s (Fleet)",
+            "emoji": "☸️",
+            "sensitivity": "forbidden",
+            "theme": "ausrollen",
+            "accent": "#5ad1c4",
+            "relatesTo": [
+              "cluster-neu-aufsetzen"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "daten",
+        "label_de": "Daten & Geheimnisse",
+        "order": 3,
+        "nodes": [
+          {
+            "slug": "postgresql",
+            "name": "PostgreSQL 16",
+            "emoji": "🐘",
+            "sensitivity": "forbidden",
+            "theme": "datenbank",
+            "accent": "#6c8cff",
+            "relatesTo": [
+              "datenbank-aendern"
+            ]
+          },
+          {
+            "slug": "sealed-secrets",
+            "name": "Sealed Secrets",
+            "emoji": "🔐",
+            "sensitivity": "forbidden",
+            "theme": "sicherheit",
+            "accent": "#c77dff",
+            "relatesTo": [
+              "secret-aendern"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,45 @@
+/* ===================================================================
+ * admin-foundation.css — Admin Design Token Foundation
+ * Loaded AFTER global.css and BEFORE admin-premium.css in AdminLayout
+ * =================================================================== */
+
+:root {
+  /* --- Spacing scale (8px baseline) --- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 64px;
+
+  /* --- Typography scale --- */
+  --admin-text-xs: 11px;
+  --admin-text-sm: 13px;
+  --admin-text-md: 14px;
+  --admin-text-lg: 16px;
+
+  /* --- Component tokens --- */
+  --admin-card-radius: 12px;
+  --admin-card-padding: 20px;
+  --admin-input-height: 40px;
+  --admin-input-radius: 8px;
+  --admin-table-row-height: 44px;
+  --admin-modal-backdrop: rgba(0, 0, 0, 0.6);
+
+  /* --- Z-index scale --- */
+  --z-sidebar: 50;
+  --z-dropdown: 80;
+  --z-modal: 100;
+  --z-toast: 120;
+
+  /* --- Animation --- */
+  --admin-transition-fast: 0.15s ease;
+  --admin-transition-normal: 0.25s ease;
+}
+
+/* No film grain on admin pages */
+body:has(#admin-sidebar)::before {
+  display: none;
+}

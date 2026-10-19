@@ -1,0 +1,16 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../components/admin/ui/AdminPageHeader.svelte';
+import Components from '../../components/admin/Components.svelte';
+import { getSession, isAdmin } from '../../lib/auth';
+import { buildLoginRedirect } from '../../lib/login-redirect';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(buildLoginRedirect(Astro.url));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+---
+
+<AdminLayout title="Komponenten-Registrierung">
+<AdminPageHeader title="Komponenten-Registrierung" />
+  <Components client:load />
+</AdminLayout>

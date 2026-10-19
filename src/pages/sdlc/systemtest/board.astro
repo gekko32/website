@@ -1,0 +1,420 @@
+---
+// /admin/systemtest/board — System-test failure kanban (Task 7)
+//
+// Four columns (Open / Fix in PR / Retest pending / Green 7d) populated from
+// /api/admin/systemtest/board, polled every 30s.
+//
+// Card click action (v1): opens the linked ticket detail in a new tab.
+// SystemtestReplayDrawer is shipped as a sibling component but NOT wired in
+// here — see the file's header comment for rationale. Promoting the drawer
+// to the primary action is a one-line change in the script block below.
+//
+// SECURITY: this page is authored with strict no-innerHTML rules. Every
+// dynamic value is set via createElement + textContent / setAttribute.
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
+import { getSession, isAdmin } from '../../../lib/auth';
+import { buildLoginRedirect } from '../../../lib/login-redirect';
+import { isSystemtestLoopEnabled } from '../../../lib/systemtest/feature-flag';
+import { listQTemplates } from '../../../lib/questionnaire-db';
+
+// SystemtestBoardCard.svelte and SystemtestReplayDrawer.svelte are shipped
+// alongside this page (see Task 7 deliverables). The current v1 client
+// builds cards via DOM construction in the inline <script> below — both
+// components remain usable from a follow-up PR that wants to render the
+// kanban as a fully Svelte tree (e.g. for the rrweb replay drawer).
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(buildLoginRedirect(Astro.url));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+
+// Task 10: gate the kanban behind the master SYSTEMTEST_LOOP_ENABLED flag.
+// Off by default — the page redirects to /admin with a breadcrumb message
+// so the operator can tell why the link bounced.
+if (!isSystemtestLoopEnabled()) {
+  return Astro.redirect('/admin?msg=systemtest-loop-disabled');
+}
+
+const allTemplates = await listQTemplates();
+const systemtestTemplates = allTemplates
+  .filter(t => t.is_system_test && t.status === 'published')
+  .sort((a, b) => a.title.localeCompare(b.title, 'de'));
+
+const COLUMNS: Array<{ key: string; title: string; hint: string }> = [
+  { key: 'open',           title: 'Offen',          hint: 'Failure-Ticket ohne Fix-PR'  },
+  { key: 'fix_in_pr',      title: 'Fix in PR',      hint: 'PR offen, noch nicht gemergt' },
+  { key: 'retest_pending', title: 'Retest ausstehend', hint: 'Fix gemergt — Retest fällig' },
+  { key: 'green',          title: 'Grün (7 Tage)',  hint: 'Letzter Lauf erfüllt'         },
+];
+---
+
+<AdminLayout title="Admin — System-Test Board">
+  <!-- Hidden metadata div for client-side JS -->
+  <div
+    id="board-meta"
+    class="hidden"
+    data-admin-kc-id={session.sub}
+    data-templates={JSON.stringify(systemtestTemplates.map(t => ({ id: t.id, title: t.title })))}
+  ></div>
+
+  <!-- Start-run modal -->
+  <div id="start-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <div class="bg-dark-light border border-dark-lighter rounded-xl p-6 w-full max-w-sm shadow-xl">
+      <h2 class="text-light font-semibold text-lg mb-4">System-Test starten</h2>
+      <label class="block text-xs text-muted mb-1" for="tpl-select">Vorlage</label>
+      <select
+        id="tpl-select"
+        class="w-full px-3 py-2 text-sm bg-dark border border-dark-lighter text-light rounded-lg focus:outline-none focus:border-gold/40"
+      ></select>
+      <p id="start-error" class="hidden text-red-400 text-xs mt-2"></p>
+      <div class="flex justify-end gap-2 mt-5">
+        <button
+          type="button"
+          id="start-cancel"
+          class="px-3 py-1.5 text-xs bg-dark-light border border-dark-lighter text-light rounded-lg hover:border-gold/40 transition-colors"
+        >
+          Abbrechen
+        </button>
+        <button
+          type="button"
+          id="start-confirm"
+          class="px-3 py-1.5 text-xs bg-gold/10 border border-gold/40 text-gold rounded-lg hover:bg-gold/20 transition-colors"
+        >
+          Starten
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <section class="pt-10 pb-20 bg-dark min-h-screen">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="mb-6 flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <AdminPageHeader title="System-Test Board" />
+          <p>
+            Fehlgeschlagene Test-Schritte → automatisch erstelltes Ticket → Fix → Retest.
+          </p>
+        </div>
+        <div class="text-xs text-muted flex items-center gap-3">
+          <span id="poll-status" data-fresh="false">Lade…</span>
+          <span class="hidden md:inline" id="undelivered-warning"></span>
+          <button type="button" id="new-run-btn"
+            class="px-3 py-1.5 text-xs bg-dark-light border border-dark-lighter text-light rounded-lg hover:border-gold/40 transition-colors">
+            + Neuen Lauf starten
+          </button>
+          <button type="button" id="refresh-btn"
+            class="px-3 py-1.5 text-xs bg-dark-light border border-dark-lighter text-light rounded-lg hover:border-gold/40 transition-colors">
+            ↻ Aktualisieren
+          </button>
+        </div>
+      </div>
+
+      <div id="error-banner"
+        class="hidden mb-6 p-4 bg-red-900/30 border border-red-800 rounded-xl text-red-300 text-sm">
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {COLUMNS.map(col => (
+          <div class="bg-dark-light border border-dark-lighter rounded-xl p-4 min-h-[200px]"
+               data-col-root={col.key}>
+            <header class="flex items-center justify-between mb-3 pb-2 border-b border-dark-lighter">
+              <div>
+                <h2 class="text-sm font-semibold text-light">{col.title}</h2>
+                <p class="text-[11px] text-muted mt-0.5">{col.hint}</p>
+              </div>
+              <span class="text-[11px] px-2 py-0.5 rounded-full bg-dark border border-dark-lighter text-muted"
+                    data-col-count={col.key}>0</span>
+            </header>
+            <div class="space-y-2" data-col-list={col.key}>
+              <p class="text-xs text-muted text-center py-6" data-col-empty={col.key}>
+                Keine Einträge.
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+</AdminLayout>
+
+<script>
+  import { browserLogger } from '$lib/browser-logger';
+  // -------------------------------------------------------------------
+  //  Failure-board client poller.
+  //
+  //  Talks to /api/admin/systemtest/board, repaints the four columns every
+  //  30 s, and (v1) opens the linked ticket in a new tab on card click.
+  //
+  //  STRICT NO-innerHTML rule: every dynamic string flows through
+  //  textContent / setAttribute. The only HTML strings in this file are the
+  //  Astro-side static template above (compile-time, no user data).
+  // -------------------------------------------------------------------
+  type BoardRow = {
+    assignment_id: string;
+    question_id: string;
+    last_result: string | null;
+    last_result_at: string | null;
+    retest_pending_at: string | null;
+    retest_attempt: number;
+    evidence_id: string | null;
+    last_failure_ticket_id: string | null;
+    ticket_id: string | null;
+    ticket_external_id: string | null;
+    ticket_status: string | null;
+    ticket_resolution: string | null;
+    pr_number: number | null;
+    pr_merged_at: string | null;
+    column_key: 'open' | 'fix_in_pr' | 'retest_pending' | 'green' | null;
+  };
+  type BoardResponse = {
+    columns: Record<'open' | 'fix_in_pr' | 'retest_pending' | 'green', BoardRow[]>;
+    undelivered: number;
+  };
+
+  const COL_KEYS: Array<'open' | 'fix_in_pr' | 'retest_pending' | 'green'> =
+    ['open', 'fix_in_pr', 'retest_pending', 'green'];
+  const POLL_MS = 30_000;
+
+  const banner = document.getElementById('error-banner') as HTMLDivElement;
+  const status = document.getElementById('poll-status') as HTMLSpanElement;
+  const undeliveredEl = document.getElementById('undelivered-warning') as HTMLSpanElement;
+  const refreshBtn = document.getElementById('refresh-btn') as HTMLButtonElement;
+
+  function ageLabel(ts: string | null): string {
+    if (!ts) return '—';
+    const diffMs = Date.now() - new Date(ts).getTime();
+    if (Number.isNaN(diffMs) || diffMs < 0) return '—';
+    const minutes = Math.floor(diffMs / 60_000);
+    if (minutes < 1) return 'gerade eben';
+    if (minutes < 60) return `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} h`;
+    const days = Math.floor(hours / 24);
+    return `${days} d`;
+  }
+
+  function buildCard(row: BoardRow): HTMLElement {
+    const card = document.createElement('div');
+    card.className = 'block w-full text-left p-3 rounded-lg border border-dark-lighter bg-dark/40 hover:bg-dark/70 hover:border-gold/40 cursor-pointer transition-colors';
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+
+    const head = document.createElement('div');
+    head.className = 'flex items-center justify-between gap-2 mb-2';
+
+    const ext = document.createElement('span');
+    ext.className = 'font-mono text-xs text-gold';
+    ext.textContent = row.ticket_external_id ?? (row.ticket_id ? row.ticket_id.slice(0, 8) : '—');
+    head.appendChild(ext);
+
+    if ((row.retest_attempt ?? 0) > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-purple-900/30 text-purple-300 border border-purple-800';
+      badge.textContent = `Retest #${row.retest_attempt}`;
+      head.appendChild(badge);
+    }
+
+    const body = document.createElement('div');
+    body.className = 'flex flex-wrap gap-1.5 items-center text-[11px]';
+
+    const age = document.createElement('span');
+    age.className = 'text-muted';
+    age.textContent = ageLabel(row.last_result_at);
+    if (row.last_result_at) age.title = row.last_result_at;
+    body.appendChild(age);
+
+    if (row.pr_number != null) {
+      const pr = document.createElement('span');
+      pr.className = 'text-[10px] px-2 py-0.5 rounded-full bg-green-900/20 text-green-400 border border-green-800';
+      pr.textContent = `PR #${row.pr_number}`;
+      body.appendChild(pr);
+    }
+
+    if (row.ticket_status) {
+      const st = document.createElement('span');
+      st.className = 'text-[10px] px-2 py-0.5 rounded-full bg-dark border border-dark-lighter text-muted';
+      st.textContent = row.ticket_status;
+      body.appendChild(st);
+    }
+
+    card.appendChild(head);
+    card.appendChild(body);
+
+    // v1: open ticket detail in a new tab. Replay drawer wiring is deferred.
+    const open = () => {
+      if (!row.ticket_id) return;
+      window.open(`/sdlc/tickets/${encodeURIComponent(row.ticket_id)}`, '_blank', 'noopener');
+    };
+    card.addEventListener('click', open);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        open();
+      }
+    });
+
+    return card;
+  }
+
+  function repaint(data: BoardResponse): void {
+    for (const key of COL_KEYS) {
+      const list = document.querySelector(`[data-col-list="${key}"]`) as HTMLDivElement | null;
+      const empty = document.querySelector(`[data-col-empty="${key}"]`) as HTMLElement | null;
+      const count = document.querySelector(`[data-col-count="${key}"]`) as HTMLElement | null;
+      if (!list) continue;
+
+      // wipe previous rows except the empty placeholder
+      Array.from(list.children).forEach(child => {
+        if (child !== empty) child.remove();
+      });
+
+      const rows = data.columns[key] ?? [];
+      if (count) count.textContent = String(rows.length);
+
+      if (rows.length === 0) {
+        if (empty) empty.classList.remove('hidden');
+        continue;
+      }
+      if (empty) empty.classList.add('hidden');
+      for (const row of rows) {
+        list.appendChild(buildCard(row));
+      }
+    }
+
+    if (data.undelivered > 0) {
+      undeliveredEl.textContent = `⚠ ${data.undelivered} Outbox-Einträge stecken (retry≥12)`;
+      undeliveredEl.classList.add('text-amber-400');
+    } else {
+      undeliveredEl.textContent = '';
+      undeliveredEl.classList.remove('text-amber-400');
+    }
+  }
+
+  async function poll(): Promise<void> {
+    try {
+      const r = await fetch('/sdlc/api/systemtest/board', { credentials: 'same-origin' });
+      if (!r.ok) {
+        const msg = `Board konnte nicht geladen werden (HTTP ${r.status}).`;
+        banner.textContent = msg;
+        banner.classList.remove('hidden');
+        status.textContent = 'Fehler';
+        status.dataset.fresh = 'false';
+        return;
+      }
+      const data = (await r.json()) as BoardResponse;
+      banner.classList.add('hidden');
+      banner.textContent = '';
+      repaint(data);
+      status.textContent = `Aktualisiert ${new Date().toLocaleTimeString('de-DE')}`;
+      status.dataset.fresh = 'true';
+    } catch (err) {
+      banner.textContent = 'Netzwerkfehler beim Laden des Boards.';
+      banner.classList.remove('hidden');
+      status.textContent = 'Fehler';
+      status.dataset.fresh = 'false';
+      browserLogger.error({ err }, '[systemtest/board] poll failed');
+    }
+  }
+
+  refreshBtn?.addEventListener('click', () => { poll(); });
+
+  poll();
+  const interval = window.setInterval(poll, POLL_MS);
+  window.addEventListener('beforeunload', () => window.clearInterval(interval));
+
+  // -------------------------------------------------------------------
+  //  "Neuen Lauf starten" modal
+  // -------------------------------------------------------------------
+  const boardMeta   = document.getElementById('board-meta') as HTMLDivElement;
+  const startModal  = document.getElementById('start-modal') as HTMLDivElement;
+  const newRunBtn   = document.getElementById('new-run-btn') as HTMLButtonElement;
+  const startCancel = document.getElementById('start-cancel') as HTMLButtonElement;
+  const startConfirm = document.getElementById('start-confirm') as HTMLButtonElement;
+  const tplSelect   = document.getElementById('tpl-select') as HTMLSelectElement;
+  const startError  = document.getElementById('start-error') as HTMLParagraphElement;
+
+  // Read server-injected metadata once.
+  const adminKcId = boardMeta?.dataset.adminKcId ?? '';
+  type TplOption = { id: string; title: string };
+  let templates: TplOption[] = [];
+  try {
+    templates = JSON.parse(boardMeta?.dataset.templates ?? '[]') as TplOption[];
+  } catch {
+    templates = [];
+  }
+
+  // Populate <select> from template list.
+  for (const tpl of templates) {
+    const opt = document.createElement('option');
+    opt.setAttribute('value', tpl.id);
+    opt.textContent = tpl.title;
+    tplSelect.appendChild(opt);
+  }
+  if (templates.length === 0) {
+    const opt = document.createElement('option');
+    opt.setAttribute('value', '');
+    opt.textContent = '— Keine Vorlagen verfügbar —';
+    tplSelect.appendChild(opt);
+  }
+
+  function openModal(): void {
+    startError.classList.add('hidden');
+    startError.textContent = '';
+    startConfirm.disabled = false;
+    startModal.classList.remove('hidden');
+    tplSelect.focus();
+  }
+
+  function closeModal(): void {
+    startModal.classList.add('hidden');
+  }
+
+  newRunBtn?.addEventListener('click', openModal);
+  startCancel?.addEventListener('click', closeModal);
+
+  // Close on overlay click (but not card click).
+  startModal?.addEventListener('click', (e) => {
+    if (e.target === startModal) closeModal();
+  });
+
+  startConfirm?.addEventListener('click', async () => {
+    const templateId = tplSelect.value;
+    if (!templateId) {
+      startError.textContent = 'Bitte eine Vorlage auswählen.';
+      startError.classList.remove('hidden');
+      return;
+    }
+
+    startConfirm.disabled = true;
+    startError.classList.add('hidden');
+    startError.textContent = '';
+
+    try {
+      const r = await fetch('/api/admin/questionnaires/assign', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId, keycloakUserId: adminKcId }),
+      });
+
+      if (!r.ok) {
+        let msg = `Fehler (HTTP ${r.status}).`;
+        try {
+          const errBody = await r.json() as { error?: string };
+          if (errBody.error) msg = errBody.error;
+        } catch { /* ignore */ }
+        startError.textContent = msg;
+        startError.classList.remove('hidden');
+        startConfirm.disabled = false;
+        return;
+      }
+
+      const json = await r.json() as { id: string };
+      window.location.href = `/portal/fragebogen/${encodeURIComponent(json.id)}`;
+    } catch {
+      startError.textContent = 'Netzwerkfehler. Bitte erneut versuchen.';
+      startError.classList.remove('hidden');
+      startConfirm.disabled = false;
+    }
+  });
+</script>

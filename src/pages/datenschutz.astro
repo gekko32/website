@@ -1,0 +1,68 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getLegalPage } from '../lib/website-db';
+import { getDefaultDatenschutz } from '../lib/legal-defaults';
+import { resolveTokens } from '../lib/legal-tokens';
+import { getEffectiveStammdaten } from '../lib/content';
+import type { Stammdaten } from '../lib/website-db';
+
+const BRAND = process.env.BRAND || 'mentolder';
+const BRAND_ID = process.env.BRAND_ID ?? BRAND;
+const isKore = BRAND_ID === 'korczewski';
+const isMassage = BRAND_ID === 'massage';
+const sd = await getEffectiveStammdaten().catch(() => ({} as Stammdaten));
+const stored = await getLegalPage(BRAND, 'datenschutz').catch(() => null);
+// Massage-Entwurf nach T901019 §3 (Art. 13/14, TTDSG): offene Felder sind sichtbare Platzhalter.
+const massageDatenschutz = `<h1>Datenschutzerklärung</h1>
+<p>Entwurf — Owner-Review und Fachberatung offen.</p>
+<h2>Verantwortliche</h2>
+<p>[Name der Inhaberin folgt]<br>[Ladungsfähige Anschrift folgt]<br>Vögelsen bei Lüneburg<br>E-Mail: {{stammdaten.email}} [E-Mail-Adresse folgt]</p>
+<h2>Verarbeitungszwecke und Rechtsgrundlagen</h2>
+<p>Terminanfragen und Buchungen verarbeiten wir zur Vertragsanbahnung und -erfüllung (DSGVO Art. 6 Abs. 1 lit. b). Rechnungsdaten bewahren wir für steuerliche Pflichten auf (Art. 6 Abs. 1 lit. c).</p>
+<h2>Speicherdauer</h2>
+<p>Anfragedaten löschen wir, sobald sie nicht mehr erforderlich sind. Für Rechnungsdaten gelten steuerliche Aufbewahrungsfristen [Details folgen mit Steuerberatung].</p>
+<h2>Ihre Rechte</h2>
+<p>Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit und Widerspruch (DSGVO Art. 15–21) sowie Beschwerde bei einer Aufsichtsbehörde.</p>
+<h2>Cookies und Einwilligung</h2>
+<p>Nicht-notwendige Cookies und Tracker setzen wir nur mit Ihrer Einwilligung (TTDSG). Sie können sie jederzeit widerrufen.</p>
+<h2>Hosting</h2>
+<p>Diese Website wird gehostet bei: [Anbieter folgt].</p>`;
+const contentHtml = resolveTokens(stored?.trim() ? stored : (isMassage ? massageDatenschutz : getDefaultDatenschutz()), sd);
+---
+
+{isKore ? (
+  <Layout title="Datenschutzerklärung" brand="korczewski-kore">
+    <article class="kore-legal">
+      <div set:html={contentHtml} />
+      <div class="kore-legal-actions">
+        <button onclick="window.print()" class="kore-print-btn">Drucken / PDF</button>
+      </div>
+    </article>
+  </Layout>
+) : (
+  <Layout title="Datenschutzerklärung">
+    {isMassage && <link rel="stylesheet" href="/brand/massage/colors_and_type.css" />}
+    <section class="pt-28 pb-20">
+      <div class="max-w-3xl mx-auto px-6 prose prose-lg prose-slate">
+        <div set:html={contentHtml} />
+        <div class="not-prose mt-10 pt-6 border-t border-slate-700 flex justify-end">
+          <button onclick="window.print()" class="text-xs px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors">Drucken / PDF</button>
+        </div>
+      </div>
+    </section>
+  </Layout>
+)}
+
+<style>
+  .kore-legal { max-width: 720px; margin: 0 auto; padding: 80px 28px 120px; }
+  .kore-legal h1 { font-family: var(--serif); font-size: clamp(36px,5vw,56px); font-weight: 400; letter-spacing: -0.02em; margin: 0 0 56px; line-height: 1.05; }
+  .kore-legal h2 { font-family: var(--serif); font-size: 22px; font-weight: 400; margin: 48px 0 12px; color: var(--fg); }
+  .kore-legal h3 { font-family: var(--sans); font-size: 15px; font-weight: 600; margin: 28px 0 8px; color: var(--fg); }
+  .kore-legal h2:first-of-type { margin-top: 0; }
+  .kore-legal p { font-family: var(--sans); font-size: 15px; line-height: 1.7; color: var(--fg-soft); margin: 0 0 12px; }
+  .kore-legal strong { color: var(--fg); font-weight: 600; }
+  .kore-legal a { color: var(--copper); text-decoration: none; }
+  .kore-legal a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .kore-legal-actions { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; }
+  .kore-print-btn { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; background: var(--ink-800); border: 1px solid var(--line-2); border-radius: 8px; color: var(--mute); padding: 8px 16px; cursor: pointer; }
+</style>

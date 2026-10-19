@@ -1,0 +1,264 @@
+---
+import '../styles/fonts.css';
+import '../styles/global.css';
+import '../styles/admin-foundation.css';
+import '../styles/admin-premium.css';
+import '../styles/admin-responsive.css';
+import '../styles/sidekick-panels.css';
+import { config } from '../config/index';
+import TicketWidgetBar from '../components/TicketWidgetBar.astro';
+import AssistantWidget from '../components/assistant/AssistantWidget.svelte';
+const ASSISTANT_ENABLED = (process.env.ENABLE_ASSISTANT_ADMIN ?? 'false') === 'true';
+const MEDIAVIEWER_HOST = process.env.MEDIAVIEWER_HOST ?? 'mediaviewer.localhost';
+const TERMINAL_HOST = process.env.TERMINAL_HOST ?? 'terminal.localhost';
+const brettDomain = process.env.BRETT_DOMAIN ?? 'brett.localhost';
+const brettProto = brettDomain.includes('localhost') ? 'http' : 'https';
+const BRETT_URL = `${brettProto}://${brettDomain}/?admin=1`;
+import PortalSidekick from '../components/PortalSidekick.svelte';
+import SessionExpiryWarning from '../components/SessionExpiryWarning.svelte';
+import { countPendingByType } from '../lib/messaging-db';
+import { getSession } from '../lib/auth';
+import AdminSidebarNav from '../components/admin/AdminSidebarNav.astro';
+
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+const path = Astro.url.pathname;
+
+function adminSection(p: string): string {
+  if (p === '/admin') return 'dashboard';
+  if (p.startsWith('/admin/einstellungen')) return 'einstellungen';
+  const match = p.match(/^\/admin\/([^/]+)/);
+  return match ? match[1] : 'dashboard';
+}
+const sectionParam = Astro.url.searchParams.get('section') ?? '';
+const helpSection = sectionParam || adminSection(path);
+
+
+let inboxPending = 0;
+try {
+  const counts = await countPendingByType();
+  inboxPending = Object.values(counts).reduce((a, b) => a + b, 0);
+} catch { /* ignore if messaging-db unavailable */ }
+
+let adminGivenName = '';
+let adminFamilyName = '';
+try {
+  const session = await getSession(Astro.request.headers.get('cookie'));
+  if (session) {
+    adminGivenName = session.given_name ?? '';
+    adminFamilyName = session.family_name ?? '';
+  }
+} catch { /* session unavailable — badge stays empty */ }
+
+const adminInitials = ((adminGivenName[0] ?? '') + (adminFamilyName[0] ?? '')).toUpperCase() || '?';
+
+const brandId = (process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder').toLowerCase();
+const isKore = brandId === 'korczewski';
+const brandWord = config.meta.siteTitle.replace(/\.de$/i, '').toLowerCase();
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preload" href="/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/Newsreader-Latin.woff2" as="font" type="font/woff2" crossorigin />
+    {isKore && <link rel="stylesheet" href="/brand/korczewski/colors_and_type.css" />}
+    {isKore && <link rel="stylesheet" href="/brand/korczewski/kore-app.css" />}
+    <title>{title} | Admin — {config.meta.siteTitle}</title>
+    <script is:inline>
+      try {
+        if (localStorage.getItem('admin-sidebar-collapsed') === '1') {
+          document.documentElement.classList.add('sidebar-collapsed');
+        }
+      } catch {}
+    </script>
+  </head>
+  <body class={isKore ? 'kore' : ''} style="min-height:100vh; background:var(--admin-bg); color:var(--admin-text); display:flex; font-family:var(--font-sans); overflow-x:hidden;">
+    <div id="mobile-topbar" style="display:none;">
+      <button
+        id="mobile-hamburger"
+        aria-label="Menü öffnen"
+        style="width:44px; height:44px; display:flex; align-items:center; justify-content:center; background:transparent; border:none; cursor:pointer; color:var(--admin-text); border-radius:10px; flex-shrink:0;"
+      >
+        <svg id="hamburger-icon-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px; height:22px;"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        <svg id="hamburger-icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px; height:22px; display:none;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <a href="/admin" style="display:flex; align-items:center; gap:10px; text-decoration:none; flex:1; min-width:0;">
+        {isKore ? (<div class="ka-brand-mark" style="width:28px; height:28px;" />) : (
+          <div style="width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg, #818cf8, #4f46e5); box-shadow:0 2px 8px rgba(0,0,0,0.3); position:relative; flex-shrink:0;">
+            <div style="position:absolute; inset:6px; border-radius:2px; background:var(--admin-bg); clip-path:polygon(0 55%, 30% 55%, 30% 0, 70% 0, 70% 55%, 100% 55%, 100% 100%, 0 100%);"></div>
+          </div>
+        )}
+        <span style="font-family:var(--font-serif); font-size:15px; color:var(--admin-primary); font-weight:700;">{brandWord}</span>
+      </a>
+      <span style="font-family:var(--font-mono); font-size:10px; color:var(--admin-text-disabled); letter-spacing:0.1em; text-transform:uppercase;">Admin</span>
+    </div>
+
+    <div id="admin-backdrop"></div>
+
+    <aside id="admin-sidebar" style="position:fixed; top:0; left:0; bottom:0; display:flex; flex-direction:column;">
+      <div style="padding:24px 18px; display:flex; align-items:center; gap:12px; min-width:0; border-bottom:1px solid var(--admin-border);">
+        <a href="/admin" style="display:flex; align-items:center; gap:12px; text-decoration:none; flex:1; min-width:0; overflow:hidden;">
+          {isKore ? (<div class="ka-brand-mark" style="width:32px; height:32px;" />) : (
+            <div style="width:32px; height:32px; border-radius:10px; background:linear-gradient(135deg, #818cf8, #4f46e5); box-shadow:0 4px 12px rgba(0,0,0,0.3); position:relative; flex-shrink:0;">
+              <div style="position:absolute; inset:7px; border-radius:3px; background:var(--admin-bg); clip-path:polygon(0 55%, 30% 55%, 30% 0, 70% 0, 70% 55%, 100% 55%, 100% 100%, 0 100%);"></div>
+            </div>
+          )}
+          <div class="sidebar-label" style="min-width:0;">
+            <span style="font-family:var(--font-serif); font-size:16px; color:var(--admin-primary); font-weight:700; letter-spacing:-0.01em; display:block; line-height:1.2;">{brandWord}</span>
+            <span style="font-family:var(--font-mono); font-size:10px; color:var(--admin-text-mute); letter-spacing:0.15em; text-transform:uppercase; display:block; margin-top:1px;">Admin</span>
+          </div>
+        </a>
+      </div>
+      <AdminSidebarNav brandWord={brandWord} isKore={isKore} inboxPending={inboxPending} brettUrl={BRETT_URL} path={path} />
+
+      <div style="padding:12px 16px; border-top:1px solid var(--admin-border); display:flex; flex-direction:column; gap:4px;">
+        <!-- User badge -->
+        {adminInitials !== '?' && (
+          <div class="sidebar-label" style="display:flex; align-items:center; gap:10px; padding:8px 12px; margin-bottom:4px; border-radius:8px; background:var(--admin-surface);">
+            <div style="width:30px; height:30px; border-radius:999px; background:linear-gradient(155deg, oklch(0.86 0.09 75) 0%, oklch(0.78 0.09 75) 100%); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:-0.01em; color:#0b111c; user-select:none;">
+              {adminInitials}
+            </div>
+            <div style="display:flex; flex-direction:column; gap:1px; min-width:0; overflow:hidden;">
+              <span style="font-size:12px; font-weight:500; color:var(--admin-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.3;">{adminGivenName} {adminFamilyName}</span>
+              <span style="font-family:var(--font-mono); font-size:9px; letter-spacing:0.14em; text-transform:uppercase; color:oklch(0.83 0.09 75); line-height:1.2;">Admin</span>
+            </div>
+          </div>
+        )}
+        <a href="/" class="sidebar-nav-item" style="margin:0; padding:8px 12px;">
+          <span class="nav-icon" style="width:16px; height:16px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></span>
+          <span class="sidebar-label" style="margin-left:12px; font-size:12px;">Portal</span>
+        </a>
+        <a href="/api/auth/logout" class="sidebar-nav-item" style="margin:0; padding:8px 12px; color:var(--admin-text-disabled);">
+          <span class="nav-icon" style="width:16px; height:16px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
+          <span class="sidebar-label" style="margin-left:12px; font-size:12px;">Logout</span>
+        </a>
+
+        <button id="sidebar-toggle" style="margin-top:8px; align-self:flex-end; background:var(--admin-surface); border:1px solid var(--admin-border); color:var(--admin-text-mute); width:24px; height:24px; border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+          <svg id="icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px;"><polyline points="15 18 9 12 15 6"/></svg>
+          <svg id="icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; display:none;"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <main id="admin-main" style="flex:1; min-height:100vh;">
+      <slot />
+    </main>
+
+    {ASSISTANT_ENABLED ? (
+      <AssistantWidget client:load profile="admin" />
+    ) : null}
+    <TicketWidgetBar context="admin" showCreate={false} />
+    <PortalSidekick client:load helpSection={helpSection} helpContext="admin" mediaviewerHost={MEDIAVIEWER_HOST} terminalHost={TERMINAL_HOST} />
+    <SessionExpiryWarning client:load />
+
+    <script is:inline>
+      (function() {
+        const btn = document.getElementById('sidebar-toggle');
+        if (btn) {
+          let collapsed = document.documentElement.classList.contains('sidebar-collapsed');
+          function updateState(isCollapsed) {
+            const label = isCollapsed ? 'Sidebar ausklappen' : 'Sidebar einklappen';
+            btn.title = label;
+            btn.setAttribute('aria-label', label);
+            btn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+          }
+          updateState(collapsed);
+          btn.addEventListener('click', function() {
+            collapsed = document.documentElement.classList.toggle('sidebar-collapsed');
+            localStorage.setItem('admin-sidebar-collapsed', collapsed ? '1' : '0');
+            updateState(collapsed);
+          });
+        }
+
+        const hamburger = document.getElementById('mobile-hamburger');
+        const backdrop = document.getElementById('admin-backdrop');
+        const sidebar = document.getElementById('admin-sidebar');
+        const iconOpen = document.getElementById('hamburger-icon-open');
+        const iconClose = document.getElementById('hamburger-icon-close');
+
+        function openMobileSidebar() {
+          sidebar.classList.add('mobile-open');
+          backdrop.classList.add('visible');
+          if (iconOpen) iconOpen.style.display = 'none';
+          if (iconClose) iconClose.style.display = 'block';
+          if (hamburger) hamburger.setAttribute('aria-label', 'Menü schließen');
+        }
+        function closeMobileSidebar() {
+          sidebar.classList.remove('mobile-open');
+          backdrop.classList.remove('visible');
+          if (iconOpen) iconOpen.style.display = 'block';
+          if (iconClose) iconClose.style.display = 'none';
+          if (hamburger) hamburger.setAttribute('aria-label', 'Menü öffnen');
+        }
+
+        if (hamburger) {
+          hamburger.addEventListener('click', function() {
+            if (sidebar.classList.contains('mobile-open')) closeMobileSidebar();
+            else openMobileSidebar();
+          });
+        }
+        if (backdrop) backdrop.addEventListener('click', closeMobileSidebar);
+
+        if (sidebar) {
+          sidebar.querySelectorAll('a').forEach(function(a) {
+            a.addEventListener('click', function() {
+              if (window.innerWidth < 768) closeMobileSidebar();
+            });
+          });
+        }
+
+        const ticker = document.getElementById('ka-cluster-ticker');
+        if (ticker) {
+          const refresh = function() {
+      const ctrl = new AbortController();
+      const t = setTimeout(function() { ctrl.abort(); }, 3000);
+      fetch('/sdlc/api/cluster/status', { signal: ctrl.signal })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(s) {
+          clearTimeout(t);
+          if (!s || typeof s.nodes !== 'number' || typeof s.pods !== 'number') return;
+          while (ticker.firstChild) ticker.removeChild(ticker.firstChild);
+          const dot = document.createElement('span'); dot.className = 'ka-ticker-dot'; ticker.appendChild(dot);
+          const nodesB = document.createElement('b'); nodesB.textContent = String(s.nodes); ticker.appendChild(nodesB);
+          ticker.appendChild(document.createTextNode(' Nodes '));
+          const pods = document.createElement('span'); pods.style.color = 'var(--mute)'; pods.textContent = String('· ' + s.pods + ' Pods'); ticker.appendChild(pods);
+        })
+        .catch(function() { clearTimeout(t); });
+    };
+          refresh();
+          setInterval(refresh, 30000);
+        }
+
+        function setAdminInboxBadgeCount(n) {
+          const nodes = document.querySelectorAll('[data-admin-inbox-badge]');
+          for (let i = 0; i < nodes.length; i++) {
+            const el = nodes[i]; el.setAttribute('data-count', String(n)); el.textContent = String(n);
+            el.style.display = n > 0 ? 'flex' : 'none';
+          }
+        }
+        function refreshAdminInboxBadge() {
+          const ctrl = new AbortController();
+          const t = setTimeout(function() { ctrl.abort(); }, 5000);
+          fetch('/api/admin/inbox/count', { signal: ctrl.signal, credentials: 'same-origin' })
+            .then(function(r) { return r.ok ? r.json() : null; })
+            .then(function(d) { clearTimeout(t); if (!d || typeof d.total !== 'number') return; setAdminInboxBadgeCount(d.total); })
+            .catch(function() { clearTimeout(t); });
+        }
+        window.refreshAdminInboxBadge = refreshAdminInboxBadge;
+        window.setAdminInboxBadgeCount = setAdminInboxBadgeCount;
+        window.addEventListener('admin-inbox-changed', function(ev) {
+          const detail = ev && ev.detail;
+          if (detail && typeof detail.total === 'number') setAdminInboxBadgeCount(detail.total);
+          else refreshAdminInboxBadge();
+        });
+      })();
+    </script>
+  </body>
+</html>

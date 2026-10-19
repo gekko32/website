@@ -1,0 +1,266 @@
+---
+import Layout from '../layouts/Layout.astro';
+import CallToAction from '../components/CallToAction.svelte';
+import { config } from '../config/index';
+import { getEffectiveLeistungen, getPriceListUrl, getEffectiveStammdaten, getEffectiveKontakt, bundleSeo } from '../lib/content';
+import { massageRowPriceLabel } from '../lib/massage-pricing';
+
+const BRAND_ID = process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder';
+const isMassage = BRAND_ID === 'massage';
+const layoutBrand = BRAND_ID === 'korczewski' ? 'korczewski-kore' : undefined;
+
+const { leistungenCta, contact } = config;
+const [leistungen, priceListUrl, stammdaten] = await Promise.all([
+  getEffectiveLeistungen(),
+  getPriceListUrl(),
+  getEffectiveStammdaten().catch(() => null),
+]);
+const massageSeo = isMassage ? bundleSeo(BRAND_ID) : null;
+const massageKontakt = isMassage ? await getEffectiveKontakt().catch(() => null) : null;
+const massageTitle = massageSeo?.titles.leistungen ?? 'Leistungen';
+const massageDesc = massageSeo?.descriptions.leistungen ?? 'Massage-Anwendungen auf Anfrage in Vögelsen bei Lüneburg.';
+const massageMail = stammdaten?.email ?? '';
+const massagePhone = stammdaten?.phone ?? '';
+const massagePhoneHref = (massagePhone === '' || massagePhone.startsWith('slot:'))
+  ? null
+  : `tel:${massagePhone.replace(/\s+/g, '')}`;
+---
+
+{isMassage ? (
+<Layout title={massageTitle} rawTitle={true} description={massageDesc}>
+  <link rel="stylesheet" href="/brand/massage/colors_and_type.css" />
+  <section class="mg-catalog" aria-labelledby="mg-cat-heading">
+    <div class="mg-wrap">
+      <p class="t-kicker">Massagepraxis Vögelsen</p>
+      <h1 id="mg-cat-heading">Leistungen & Preise</h1>
+      <p class="t-lede">Drei Zeitformate zur Auswahl — alle Termine auf Anfrage mit persönlicher Bestätigung durch die Inhaberin.</p>
+      {leistungen.map((cat) => (
+        <div class="mg-cat">
+          <h2>{cat.title}</h2>
+          <ol class="mg-offer-list">
+            {cat.services.map((svc) => (
+              <li class="mg-offer">
+                <div>
+                  <h3 class="t-h3-serif">{svc.name} <span class="t-small">· {svc.unit}</span>
+                    {svc.highlight && (<span class="t-slot">Beliebt</span>)}
+                  </h3>
+                  <p>{svc.desc}</p>
+                </div>
+                <div class="mg-offer-side">
+                  <p><span class="t-slot">Entwurf</span> <strong>{massageRowPriceLabel(svc)}</strong></p>
+                  <a class="mg-btn mg-btn-primary" href={`/kontakt?service=${svc.key}`}>Termin anfragen</a>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ))}
+      <aside class="mg-note" aria-label="Hinweise zu Anwendungen und Absagen">
+        <p>Alle Anwendungen dienen der Entspannung und dem Wohlbefinden — keine Behandlung von Krankheiten.</p>
+        <p>Absagen: Bitte sagen Sie so früh wie möglich ab. Kostenfreier Storno bis 24 h vor Terminbeginn, danach 50 % des Preises.</p>
+        <p>
+          Lieber anrufen?{' '}
+          {massagePhoneHref ? (
+            <a href={massagePhoneHref}>{massagePhone}</a>
+          ) : (
+            <span class="t-slot">Entwurf · slot:slot-telefon</span>
+          )}
+        </p>
+      </aside>
+    </div>
+  </section>
+  <CallToAction
+    client:visible
+    eyebrow="Massagepraxis Vögelsen"
+    title={massageKontakt?.sidebarTitle ?? 'Termin anfragen'}
+    subtitle={massageKontakt?.sidebarText ?? massageDesc}
+    primaryText="Termin anfragen"
+    primaryHref="/kontakt"
+    secondaryText={massageMail}
+    secondaryHref={massageMail ? `mailto:${massageMail}` : ''}
+  />
+</Layout>
+) : (
+<Layout title="Leistungen & Preise" description="Alle Angebote und Preise auf einen Blick." brand={layoutBrand}>
+  <section class="pt-28 pb-16 bg-dark">
+    <div class="max-w-5xl mx-auto px-6">
+      <div class="text-center mb-14">
+        <h1 class="text-4xl md:text-5xl font-bold text-light mb-4 font-serif">Leistungen & Preise</h1>
+        <p class="text-xl text-muted max-w-2xl mx-auto">
+          Alle Angebote auf einen Blick. Wählen Sie das passende Format und nehmen Sie Kontakt auf.
+        </p>
+      </div>
+
+      <!-- Erstgespräch hero -->
+      <div class="bg-dark-light rounded-2xl p-8 md:p-10 border border-gold/30 mb-12 text-center">
+        <p class="font-mono text-xs tracking-widest uppercase text-gold mb-3">Einstieg</p>
+        <h2 class="text-2xl md:text-3xl font-bold text-light mb-2 font-serif">Kostenloses Erstgespräch</h2>
+        <p class="text-muted mb-1">30 Minuten · kostenlos & unverbindlich</p>
+        <p class="text-muted max-w-xl mx-auto mb-6">
+          Wir klären gemeinsam, ob und wie ich Sie unterstützen kann.
+          Kein Verkaufsgespräch — ein ehrliches Kennenlernen.
+        </p>
+        <a href={leistungenCta.href} class="inline-block bg-gold hover:bg-gold-light text-dark px-8 py-3 rounded-full font-bold transition-colors uppercase tracking-wide text-sm">
+          Jetzt Erstgespräch buchen
+        </a>
+      </div>
+
+      {/* Pricing comparison table — driven by `leistungen` config so editing it in /admin/inhalte
+          (Angebote → Leistungskatalog) is the single source of truth. Compares the first two
+          categories pairwise by row index. */}
+      {leistungen.length >= 2 && (() => {
+        const cmpCats = leistungen.slice(0, 2);
+        const maxRows = Math.max(...cmpCats.map((c) => c.services.length));
+        return (
+          <div class="mb-16">
+            <h2 class="text-2xl md:text-3xl font-bold text-light mb-8 font-serif text-center">Angebote im Überblick</h2>
+            <div class="overflow-x-auto rounded-2xl border border-dark-lighter">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr style="background:var(--ink-800);">
+                    <th class="px-6 py-4 text-muted font-mono text-xs tracking-widest uppercase">Leistung</th>
+                    {cmpCats.map((c) => (
+                      <th class="px-6 py-4 text-gold font-mono text-xs tracking-widest uppercase text-center">{c.title}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: maxRows }).map((_, rowIdx) => {
+                    const rowServices = cmpCats.map((c) => c.services[rowIdx]);
+                    const rowName = rowServices.find((s) => s)?.name ?? '';
+                    const isHighlighted = rowServices.some((s) => s?.highlight);
+                    return (
+                      <tr class="border-t border-dark-lighter hover:bg-dark-light transition-colors" style={isHighlighted ? 'background:rgba(255,255,255,0.02)' : ''}>
+                        <td class="px-6 py-4 text-light">
+                          {rowName}
+                          {isHighlighted && (
+                            <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-gold/10 text-gold border border-gold/20">Beliebt</span>
+                          )}
+                        </td>
+                        {rowServices.map((s) => (
+                          <td class={`px-6 py-4 text-center font-bold ${isHighlighted ? 'text-gold' : 'text-light'}`}>{s?.price ?? '—'}</td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                  <tr class="border-t border-dark-lighter hover:bg-dark-light transition-colors" style="background:rgba(255,255,255,0.02)">
+                    <td class="px-6 py-4 text-muted">Erstgespräch (30 Min.)</td>
+                    {cmpCats.map(() => (
+                      <td class="px-6 py-4 text-center text-muted">kostenlos</td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="text-xs text-muted mt-3 text-center">
+              Alle Preise sind Nettopreise gemäß §&nbsp;19 UStG — kein Ausweis von Umsatzsteuer.
+            </p>
+            <p class="text-sm text-muted mt-2 text-center">
+              Für Unternehmenskunden (ab 3 Personen) erstelle ich gerne ein individuelles Angebot.
+              <a href="/kontakt" class="text-gold hover:underline ml-1">Anfrage stellen →</a>
+            </p>
+          </div>
+        );
+      })()}
+
+      {leistungen.map((cat) => (
+        <div id={cat.id} class="mb-16">
+          <h2 class="text-2xl md:text-3xl font-bold text-light mb-3 font-serif">
+            <span class="mr-3">{cat.icon}</span>{cat.title}
+          </h2>
+          {cat.description && (
+            <p class="text-lg text-muted mb-8 max-w-3xl">{cat.description}</p>
+          )}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {cat.services.map((svc) => (
+              <div class={`bg-dark-light rounded-xl p-6 border ${svc.highlight ? 'border-gold' : 'border-dark-lighter'} flex flex-col`}>
+                <div class="flex-1">
+                  <h3 class="text-xl font-bold text-light mb-1">{svc.name}</h3>
+                  <div class="mb-3">
+                    <span class="text-2xl font-bold text-gold">{svc.price}</span>
+                    <span class="text-muted-dark ml-2">{svc.unit}</span>
+                  </div>
+                  <p class="text-muted mb-4">{svc.desc}</p>
+                </div>
+                <div class="flex flex-col gap-2 mt-auto">
+                  <a
+                    href="/kontakt"
+                    class="block text-center bg-gold hover:bg-gold-light text-dark px-6 py-3 rounded-full font-bold transition-colors uppercase tracking-wide text-sm"
+                  >
+                    Kontakt aufnehmen
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {priceListUrl && (
+        <div class="mb-8 flex justify-center">
+          <a
+            href={priceListUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-2 px-6 py-3 bg-dark-light border border-gold/40 hover:border-gold text-gold rounded-lg font-medium transition-colors"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Preisliste herunterladen
+          </a>
+        </div>
+      )}
+
+      <div class="bg-dark-light rounded-2xl p-8 border border-dark-lighter text-center">
+        <h3 class="text-xl font-bold text-light mb-3 font-serif">Kostenloses Erstgespräch</h3>
+        <p class="text-muted mb-4">Nicht sicher, welches Angebot passt? In einem kostenlosen Erstgespräch klären wir gemeinsam, was für Sie am besten geeignet ist.</p>
+        <a href={leistungenCta.href} class="inline-block bg-gold hover:bg-gold-light text-dark px-8 py-3 rounded-full font-bold transition-colors uppercase tracking-wide text-sm">
+          Erstgespräch vereinbaren
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <CallToAction client:visible secondaryText={stammdaten?.email || contact.email} secondaryHref={`mailto:${stammdaten?.email || contact.email}`} />
+</Layout>
+)}
+
+<style>
+  /* Massage brand branch (T901028, Richtung A) — paper base, editorial rows. */
+  .mg-wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 40px; }
+  .mg-catalog { padding: 96px 0 72px; }
+  .mg-catalog h1 { margin: 14px 0 16px; }
+  .mg-catalog .t-lede { margin-bottom: 40px; }
+  .mg-cat { margin-bottom: 56px; }
+  .mg-cat h2 { margin-bottom: 8px; }
+  .mg-offer-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .mg-offer {
+    display: flex; justify-content: space-between; align-items: center; gap: 32px;
+    padding: 32px 0; border-top: 1px solid var(--line-2);
+  }
+  .mg-offer:last-child { border-bottom: 1px solid var(--line-2); }
+  .mg-offer-side { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; align-items: flex-end; }
+  .mg-offer-side strong { font-size: 20px; color: var(--fg); margin-left: 8px; }
+  .mg-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 48px; padding: 12px 28px; border-radius: var(--radius-pill);
+    text-decoration: none; font-weight: 600; font-size: 15px;
+  }
+  .mg-btn-primary { background: var(--brass-2); color: #FDFCF9; }
+  .mg-btn:focus-visible { outline: 2px solid var(--brass-2); outline-offset: 3px; }
+  .mg-note { border-top: 1px solid var(--line-2); padding-top: 32px; display: flex; flex-direction: column; gap: 12px; }
+  .mg-note a { color: var(--brass-2); text-decoration: underline; text-underline-offset: 2px; }
+
+  @media (max-width: 720px) {
+    .mg-wrap { padding: 0 22px; }
+    .mg-catalog { padding: 64px 0 48px; }
+    .mg-offer { flex-direction: column; align-items: stretch; }
+    .mg-offer-side { text-align: left; align-items: flex-start; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mg-btn { transition: none; }
+  }
+</style>
+

@@ -1,0 +1,49 @@
+---
+import AdminLayout from '../../../../../layouts/AdminLayout.astro';
+import PublishEditor from '../../../../../components/admin/PublishEditor.svelte';
+import { listSnippets, getBook } from '../../../../../lib/coaching-db';
+import { getSession, getLoginUrl, isAdmin } from '../../../../../lib/auth';
+import { pool } from '../../../../../lib/website-db';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+
+const id = Astro.params.id as string;
+
+let snippet: Awaited<ReturnType<typeof listSnippets>>[number] | undefined;
+try {
+  const snippets = await listSnippets(pool, {});
+  snippet = snippets.find((s) => s.id === id);
+} catch {
+  // DB or coaching schema unavailable — treat as not-found
+}
+if (!snippet) return new Response('Snippet not found', { status: 404 });
+
+let book: Awaited<ReturnType<typeof getBook>> | null = null;
+try {
+  book = await getBook(pool, snippet.bookId);
+} catch {
+  // DB unavailable
+}
+if (!book) return new Response('Book not found', { status: 404 });
+---
+<AdminLayout title={`Veröffentlichen: ${snippet.title}`}>
+  <div class="page">
+    <header>
+      <nav class="crumbs">
+        <a href="/admin/knowledge/drafts">Drafts</a> ›
+        {book.title} ›
+        Veröffentlichen
+      </nav>
+    </header>
+    <PublishEditor client:load snippet={snippet} bookTitle={book.title} />
+  </div>
+</AdminLayout>
+
+<style>
+  .page { max-width: 1280px; margin: 0 auto; padding: 1rem 1.5rem 3rem; }
+  .crumbs { font-size: 0.78rem; color: var(--text-muted, #888); margin-bottom: 1.25rem; }
+  .crumbs a { color: var(--text-muted, #888); text-decoration: none; }
+  .crumbs a:hover { color: var(--brass, #c9a55c); }
+</style>

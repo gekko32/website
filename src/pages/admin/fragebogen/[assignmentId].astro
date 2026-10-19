@@ -1,0 +1,625 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
+import {
+  getQAssignment, listQDimensions, listQQuestions,
+  listQAnswerOptionsForTemplate, listQAnswers, getQTemplate,
+  listEvidenceByAssignment,
+} from '../../../lib/questionnaire-db';
+import { getDisplayScores } from '../../../lib/questionnaire-display';
+import { isSystemtestLoopEnabled } from '../../../lib/systemtest/feature-flag';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+
+const { assignmentId } = Astro.params;
+if (!assignmentId) return Astro.redirect('/admin');
+
+const assignment = await getQAssignment(assignmentId).catch(() => null);
+if (!assignment) return Astro.redirect('/admin');
+
+const [_dimensions, questions, _allOptions, answers, evidenceList] = await Promise.all([
+  listQDimensions(assignment.template_id),
+  listQQuestions(assignment.template_id),
+  listQAnswerOptionsForTemplate(assignment.template_id),
+  listQAnswers(assignment.id),
+  listEvidenceByAssignment(assignment.id),
+]);
+
+const tpl = await getQTemplate(assignment.template_id).catch(() => null);
+const isSystemTest = tpl?.is_system_test ?? false;
+const systemtestLoopEnabled = isSystemTest && isSystemtestLoopEnabled();
+void systemtestLoopEnabled;
+
+const scores = await getDisplayScores(assignment);
+const answerMap = new Map(answers.map(a => [a.question_id, a]));
+const evidenceMap = new Map(evidenceList.map(e => [e.question_id, e]));
+
+function levelColor(level: string | null) {
+  if (level === 'kritisch') return '#ef4444';
+  if (level === 'mittel') return '#f59e0b';
+  if (level === 'förderlich') return '#22c55e';
+  return '#b8a06a';
+}
+
+function fmtDate(d: string | null) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+const maxScore = Math.max(...scores.map(s => s.threshold_high ?? s.final_score ?? 1), 1);
+---
+
+<AdminLayout title={`Auswertung — ${assignment.template_title}`}>
+  <section class="pt-10 pb-20 bg-dark min-h-screen">
+    <div class="max-w-3xl mx-auto px-6">
+
+      <div class="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <a href="javascript:history.back()" class="text-muted text-sm hover:text-light mb-2 block">← Zurück</a>
+          <h1 class="text-2xl font-bold text-light font-serif">{assignment.template_title}</h1>
+          <p class="text-muted mt-1 text-sm">
+            Eingereicht: {fmtDate(assignment.submitted_at)}
+          </p>
+          {assignment.project_id && (
+            <a
+              href={`/admin/projekte/${assignment.project_id}`}
+              class="inline-flex items-center gap-1 mt-2 text-xs text-gold/70 hover:text-gold underline"
+            >
+              → Verknüpftes Projekt öffnen
+            </a>
+          )}
+        </div>
+        <span class={`px-3 py-1 rounded-full border text-sm ${
+          assignment.status === 'reviewed' ? 'bg-green-500/10 text-green-400 border-green-500/20'
+          : assignment.status === 'submitted' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+          : assignment.status === 'dismissed' ? 'bg-red-500/10 text-red-400 border-red-500/20'
+          : assignment.status === 'archived' ? 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+          : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+        }`}>
+          {assignment.status === 'reviewed' ? 'Besprochen'
+            : assignment.status === 'submitted' ? 'Eingereicht'
+            : assignment.status === 'dismissed' ? 'Abgelehnt'
+            : assignment.status === 'archived' ? 'Archiviert'
+            : assignment.status}
+        </span>
+      </div>
+
+      {isSystemTest && (
+        <aside class="systemtest-guidance">
+          <strong>Wenn dir etwas auffällt — auch nur tangential — schreib es auf.</strong>
+          <p>
+            Verwirrung ist Signal. Lieber eine geschwätzige <code>teilweise</code>-Notiz mit
+            Fragezeichen als ein sauberes <code>erfüllt</code>, das einen echten Defekt versteckt.
+          </p>
+          <p>
+            <em>AI-Tester:</em> dasselbe gilt für dich. Wenn etwas anders aussieht als erwartet
+            und das Testskript es nicht abdeckt, dokumentiere es im Notizfeld. Wenn dich eine
+            Fehlermeldung verwirrt, beschreibe was verwirrend war. Halte dich nicht zurück.
+          </p>
+        </aside>
+      )}
+
+      <!-- Score bars -->
+      {scores.length > 0 && (
+        <div class="mb-8 p-6 bg-dark-light rounded-xl border border-dark-lighter">
+          <h2 class="text-sm font-medium text-muted uppercase tracking-wide mb-4">Auswertung</h2>
+          <div class="flex flex-col gap-4">
+            {scores.map(score => {
+              const pct = Math.min((score.final_score / Math.max(maxScore * (score.threshold_high ? 1 : 1), 100)) * 100, 100);
+              const color = levelColor(score.level);
+              return (
+                <div>
+                  <div class="flex justify-between items-baseline mb-1.5">
+                    <span class="text-light text-sm">{score.name}</span>
+                    <span class="text-sm font-mono" style={`color: ${color}`}>
+                      {score.final_score}
+                      {score.level && ` · ${score.level}`}
+                    </span>
+                  </div>
+                  <div class="h-2 bg-dark rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all"
+                      style={`width: ${pct}%; background-color: ${color}`}></div>
+                  </div>
+                  {score.threshold_mid !== null && score.threshold_high !== null && (
+                    <div class="flex gap-3 mt-1">
+                      <span class="text-xs text-green-400">■ &lt;{score.threshold_mid} förderlich</span>
+                      <span class="text-xs text-amber-400">■ &lt;{score.threshold_high} mittel</span>
+                      <span class="text-xs text-red-400">■ ≥{score.threshold_high} kritisch</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <!-- Answers / Test results -->
+      <div class="mb-8 p-6 bg-dark-light rounded-xl border border-dark-lighter">
+        <h2 class="text-sm font-medium text-muted uppercase tracking-wide mb-4">
+          {isSystemTest ? 'Testergebnisse' : 'Einzelantworten'} ({answers.length}/{questions.length})
+        </h2>
+        {isSystemTest && (
+          <p class="text-muted text-xs mb-4">
+            Nicht erfüllte oder teilweise erfüllte Tests können direkt als Bug-Ticket erfasst werden. Die Tickets erscheinen im
+            <a href="/admin/monitoring" class="text-gold hover:underline">Monitoring → Bugs</a>.
+          </p>
+        )}
+        <div class="flex flex-col gap-3">
+          {questions.map((q, i) => {
+            const answer = answerMap.get(q.id);
+            const chosen = answer?.option_key ?? null;
+            const details = answer?.details_text ?? null;
+
+            if (q.question_type === 'test_step') {
+              const resultColor =
+                chosen === 'erfüllt' ? '#22c55e'
+                : chosen === 'teilweise' ? '#f59e0b'
+                : chosen === 'nicht_erfüllt' ? '#ef4444'
+                : chosen === 'skipped' ? '#d97706'
+                : '#6b7280';
+              const resultLabel =
+                chosen === 'erfüllt' ? 'Test erfüllt'
+                : chosen === 'teilweise' ? 'Test zum Teil erfüllt'
+                : chosen === 'nicht_erfüllt' ? 'Test nicht erfüllt'
+                : chosen === 'skipped' ? 'Übersprungen'
+                : null;
+              const canFileBug = chosen === 'nicht_erfüllt' || chosen === 'teilweise';
+              const bugDesc = [
+                `[Systemtest] ${assignment.template_title} — Schritt ${i + 1}`,
+                `Test: ${q.question_text}`,
+                q.test_expected_result ? `Erwartet: ${q.test_expected_result}` : null,
+                resultLabel ? `Ergebnis: ${resultLabel}` : null,
+                details ? `Beobachtungen: ${details}` : null,
+                `Referenz: /admin/fragebogen/${assignment.id}`,
+              ].filter(Boolean).join('\n');
+              return (
+                <div class="border-b border-dark-lighter pb-4 last:border-0 last:pb-0" id={`step-${q.id}`}>
+                  <div class="flex items-center gap-2 mb-2 flex-wrap">
+                    <span class="text-muted text-xs">Schritt {i + 1}</span>
+                    {q.test_role && (
+                      <span class={`px-2 py-0.5 rounded text-xs border ${
+                        q.test_role === 'admin'
+                          ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                          : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      }`}>
+                        {q.test_role === 'admin' ? 'Admin' : 'Nutzer'}
+                      </span>
+                    )}
+                    {q.test_function_url && (
+                      <a href={q.test_function_url} target="_blank" rel="noopener noreferrer"
+                        class="text-xs text-gold hover:underline">{q.test_function_url}</a>
+                    )}
+                  </div>
+                  <p class="text-light text-sm font-medium mb-1">{q.question_text}</p>
+                  {q.test_expected_result && (
+                    <p class="text-muted text-xs mb-2 italic">Erwartet: {q.test_expected_result}</p>
+                  )}
+                  <div class="flex items-start gap-3 flex-wrap">
+                    {chosen ? (
+                      <div class="flex-1">
+                        <span class="inline-block px-2 py-0.5 rounded border text-xs font-semibold"
+                          style={`color: ${resultColor}; border-color: ${resultColor}40; background-color: ${resultColor}15`}>
+                          {resultLabel}
+                        </span>
+                        {details && (
+                          <p class="text-muted text-xs mt-1 whitespace-pre-line">{details}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <span class="text-muted text-xs italic flex-1">Noch nicht getestet</span>
+                    )}
+                    {isSystemTest && evidenceMap.has(q.id) && (
+                      <button
+                        type="button"
+                        class="replay-btn px-2.5 py-1 text-xs border border-blue-500/30 text-blue-400 rounded hover:bg-blue-500/10 transition-colors flex-shrink-0"
+                        data-evidence-id={evidenceMap.get(q.id)?.latest_evidence_id}
+                      >
+                        ▶ Replay ansehen
+                        <span class="ml-1 text-blue-300/70">(Versuch {evidenceMap.get(q.id)?.latest_attempt})</span>
+                      </button>
+                    )}
+                    {canFileBug && (
+                      <button
+                        class="file-bug-btn px-2.5 py-1 text-xs border border-red-500/30 text-red-400 rounded hover:bg-red-500/10 transition-colors flex-shrink-0"
+                        data-desc={bugDesc}
+                        data-step-id={q.id}
+                      >
+                        Bug erfassen
+                      </button>
+                    )}
+                    {assignment.project_id && (
+                      <button
+                        class="create-task-btn text-xs px-2 py-1 bg-dark border border-dark-lighter text-light/70 rounded hover:border-gold/40 hover:text-light transition-colors"
+                        data-question-id={q.id}
+                      >
+                        + Aufgabe
+                      </button>
+                    )}
+                    <span id={`task-result-${q.id}`} class="text-xs text-green-400 hidden"></span>
+                  </div>
+                  <div id={`bug-result-${q.id}`} class="mt-2 text-xs hidden"></div>
+                </div>
+              );
+            }
+
+            return (
+              <div class="border-b border-dark-lighter pb-3 last:border-0 last:pb-0">
+                <p class="text-muted text-xs mb-1">Frage {i + 1}</p>
+                <p class="text-light text-sm whitespace-pre-line mb-1">{q.question_text}</p>
+                {chosen === 'skipped' ? (
+                  <div>
+                    <span class="inline-block px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded text-xs">
+                      Übersprungen
+                    </span>
+                    {details && (
+                      <p class="text-muted text-xs mt-1">Grund: {details}</p>
+                    )}
+                  </div>
+                ) : chosen ? (
+                  <span class="inline-block px-2 py-0.5 bg-gold/10 text-gold border border-gold/20 rounded text-xs">
+                    Gewählt: {chosen}
+                  </span>
+                ) : (
+                  <span class="text-muted text-xs italic">Nicht beantwortet</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <!-- Dismiss reason (if dismissed) -->
+      {assignment.status === 'dismissed' && (
+        <div class="mb-8 p-5 bg-red-500/5 rounded-xl border border-red-500/20">
+          <h2 class="text-sm font-medium text-red-400 uppercase tracking-wide mb-2">Fragebogen abgelehnt</h2>
+          {assignment.dismiss_reason ? (
+            <p class="text-muted text-sm">Begründung: {assignment.dismiss_reason}</p>
+          ) : (
+            <p class="text-muted text-sm italic">Keine Begründung angegeben.</p>
+          )}
+        </div>
+      )}
+
+      <!-- Bug filing modal (hidden) -->
+      <div id="bug-modal" class="fixed inset-0 bg-black/70 items-center justify-center z-50 hidden" role="dialog">
+        <div class="bg-dark-light border border-dark-lighter rounded-xl p-6 w-full max-w-lg mx-4 space-y-4">
+          <h3 class="text-light font-semibold">Bug-Ticket erfassen</h3>
+          <textarea id="bug-desc-input" rows="7"
+            class="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-light text-sm focus:border-gold outline-none resize-y font-mono"
+          ></textarea>
+          <p id="bug-modal-error" class="text-red-400 text-xs hidden"></p>
+          <div class="flex gap-2 justify-end">
+            <button id="bug-modal-cancel"
+              class="px-4 py-2 text-sm text-muted hover:text-light transition-colors cursor-pointer">
+              Abbrechen
+            </button>
+            <button id="bug-modal-submit"
+              class="px-4 py-2 bg-red-700 text-white rounded-lg text-sm font-semibold hover:bg-red-600 cursor-pointer">
+              Ticket erstellen
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coach notes + status -->
+      <div class="p-6 bg-dark-light rounded-xl border border-dark-lighter" id="notes-section">
+        <h2 class="text-sm font-medium text-muted uppercase tracking-wide mb-4">Coach-Notizen</h2>
+        <textarea
+          id="coach-notes"
+          rows="5"
+          placeholder="Notizen und Interpretation…"
+          class="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-light text-sm focus:border-gold outline-none resize-y mb-3"
+        >{assignment.coach_notes}</textarea>
+        <div class="flex gap-3">
+          <button id="save-notes-btn"
+            class="px-4 py-2 bg-dark border border-dark-lighter text-light rounded-lg text-sm hover:border-gold/40 transition-colors">
+            Notizen speichern
+          </button>
+          {assignment.status !== 'reviewed' && (
+            <button id="mark-reviewed-btn"
+              class="px-4 py-2 bg-gold text-dark rounded-lg text-sm font-semibold hover:bg-gold/80">
+              Als besprochen markieren ✓
+            </button>
+          )}
+          {(assignment.status === 'submitted' || assignment.status === 'reviewed') && (
+            <button id="archive-btn"
+              class="px-4 py-2 bg-dark border border-dark-lighter text-muted rounded-lg text-sm hover:border-gold/40 hover:text-light transition-colors">
+              Archivieren
+            </button>
+          )}
+          {assignment.status === 'archived' && (
+            <button id="reassign-btn"
+              data-testid="reassign-questionnaire"
+              class="px-4 py-2 bg-emerald-700 text-white rounded-lg text-sm font-semibold hover:bg-emerald-600 transition-colors"
+              title="Gleichen Fragebogen neu zuweisen — der archivierte Datenpunkt bleibt erhalten.">
+              Erneut zuweisen ➕
+            </button>
+          )}
+          {(assignment.status === 'submitted' || assignment.status === 'reviewed' || assignment.status === 'dismissed') && (
+            <button id="reopen-btn"
+              data-testid="reopen-questionnaire"
+              class="px-4 py-2 bg-amber-700 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 transition-colors"
+              title={isSystemTest ? 'Antworten löschen, retest_attempt hochzählen, Fragebogen erneut starten.' : 'Antworten löschen und Fragebogen erneut zuweisen.'}>
+              Erneut durchführen ↻
+            </button>
+          )}
+        </div>
+        <p id="notes-msg" class="text-xs mt-2 hidden"></p>
+      </div>
+
+    </div>
+  </section>
+  <div id="replay-drawer-mount"></div>
+</AdminLayout>
+
+<script is:inline define:vars={{ assignmentId }}>
+  const notesEl = document.getElementById('coach-notes');
+  const msgEl = document.getElementById('notes-msg');
+
+  async function saveNotes(status) {
+    const body = { coach_notes: notesEl.value };
+    if (status) body.status = status;
+    const r = await fetch(`/api/admin/questionnaires/assignments/${assignmentId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    msgEl.textContent = r.ok ? 'Gespeichert.' : 'Fehler beim Speichern.';
+    msgEl.className = `text-xs mt-2 ${r.ok ? 'text-green-400' : 'text-red-400'}`;
+    msgEl.classList.remove('hidden');
+    if (status === 'reviewed' && r.ok) window.location.reload();
+  }
+
+  document.getElementById('save-notes-btn')?.addEventListener('click', () => saveNotes(null));
+  document.getElementById('mark-reviewed-btn')?.addEventListener('click', () => saveNotes('reviewed'));
+
+  // Bug filing
+  const bugModal = document.getElementById('bug-modal');
+  const bugDescInput = document.getElementById('bug-desc-input');
+  const bugModalError = document.getElementById('bug-modal-error');
+  let activeBugStepId = null;
+
+  document.querySelectorAll('.file-bug-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeBugStepId = btn.dataset.stepId;
+      bugDescInput.value = btn.dataset.desc || '';
+      bugModalError.classList.add('hidden');
+      bugModal.classList.remove('hidden');
+      bugModal.classList.add('flex');
+    });
+  });
+
+  document.getElementById('bug-modal-cancel')?.addEventListener('click', closeBugModal);
+  bugModal?.addEventListener('click', (e) => { if (e.target === bugModal) closeBugModal(); });
+
+  function closeBugModal() {
+    bugModal.classList.add('hidden');
+    bugModal.classList.remove('flex');
+    activeBugStepId = null;
+  }
+
+  // Task creation
+  document.querySelectorAll('.create-task-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const questionId = btn.dataset.questionId;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const r = await fetch(
+          `/api/admin/questionnaires/assignments/${assignmentId}/create-task`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ questionId }),
+          },
+        );
+        const data = await r.json().catch(() => ({}));
+        const resultEl = document.getElementById(`task-result-${questionId}`);
+        if (r.ok && data.taskId) {
+          btn.remove();
+          if (resultEl) {
+            resultEl.textContent = '✓ Aufgabe angelegt';
+            resultEl.classList.remove('hidden');
+          }
+        } else {
+          btn.disabled = false;
+          btn.textContent = '+ Aufgabe';
+          if (resultEl) {
+            resultEl.textContent = data.error || 'Fehler';
+            resultEl.className = 'text-xs text-red-400';
+            resultEl.classList.remove('hidden');
+          }
+        }
+      } catch {
+        btn.disabled = false;
+        btn.textContent = '+ Aufgabe';
+      }
+    });
+  });
+
+  // Archive
+  document.getElementById('archive-btn')?.addEventListener('click', async () => {
+    if (!window.confirm(
+      'Diese Auswertung als historischen Datenpunkt sichern? '
+      + 'Werte werden eingefroren und der Fragebogen verschwindet aus den aktiven Listen.',
+    )) return;
+    const r = await fetch(
+      `/api/admin/questionnaires/assignments/${assignmentId}/archive`,
+      { method: 'POST' },
+    );
+    if (r.ok) {
+      window.location.reload();
+    } else {
+      const d = await r.json().catch(() => ({}));
+      msgEl.textContent = d.error || 'Fehler beim Archivieren.';
+      msgEl.className = 'text-xs mt-2 text-red-400';
+      msgEl.classList.remove('hidden');
+    }
+  });
+
+  // Reassign — create a fresh assignment, keep the archived datapoint
+  document.getElementById('reassign-btn')?.addEventListener('click', async () => {
+    if (!window.confirm(
+      'Gleichen Fragebogen erneut zuweisen? Der archivierte Datenpunkt bleibt unverändert; '
+      + 'eine neue Zuweisung wird angelegt.',
+    )) return;
+    const btn = document.getElementById('reassign-btn');
+    btn.disabled = true;
+    btn.textContent = '…';
+    try {
+      const r = await fetch(
+        `/api/admin/questionnaires/assignments/${assignmentId}/reassign`,
+        { method: 'POST' },
+      );
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) {
+        window.location.href = d.portalUrl;
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Erneut zuweisen ➕';
+        msgEl.textContent = d.error || 'Fehler beim Zuweisen.';
+        msgEl.className = 'text-xs mt-2 text-red-400';
+        msgEl.classList.remove('hidden');
+      }
+    } catch {
+      btn.disabled = false;
+      btn.textContent = 'Erneut zuweisen ➕';
+      msgEl.textContent = 'Netzwerkfehler.';
+      msgEl.className = 'text-xs mt-2 text-red-400';
+      msgEl.classList.remove('hidden');
+    }
+  });
+
+  // Replay drawer — lazy-mount SystemtestReplayDrawer
+  let replayDrawer = null;
+  document.querySelectorAll('.replay-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const evidenceId = btn.dataset.evidenceId;
+      if (!evidenceId) return;
+      if (!replayDrawer) {
+        const { default: Drawer } = await import(
+          '../../../components/SystemtestReplayDrawer.svelte'
+        );
+        const replayMount = document.getElementById('replay-drawer-mount');
+        replayDrawer = new Drawer({
+          target: replayMount,
+          props: { evidenceId },
+        });
+        replayDrawer.$on('close', () => {
+          replayDrawer.$destroy();
+          replayDrawer = null;
+        });
+      } else {
+        replayDrawer.$set({ evidenceId });
+      }
+    });
+  });
+
+  // Reopen — wipe answers + reset to pending, then jump to portal wizard
+  const reopenBtn = document.getElementById('reopen-btn');
+  reopenBtn?.addEventListener('click', async () => {
+    const ok = window.confirm(
+      'Diesen Fragebogen erneut durchführen? Bisherige Antworten werden gelöscht (Coach-Notizen bleiben). Bei System-Tests bekommen alle Test-Schritte einen neuen Retest-Versuch — alte Fixtures werden vom Cleanup-Job entfernt.',
+    );
+    if (!ok) return;
+    reopenBtn.disabled = true;
+    reopenBtn.textContent = 'Wird zurückgesetzt …';
+    try {
+      const r = await fetch(`/api/admin/questionnaires/assignments/${assignmentId}/reopen`, {
+        method: 'POST',
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        reopenBtn.disabled = false;
+        reopenBtn.textContent = 'Erneut durchführen ↻';
+        msgEl.textContent = d.error || 'Fehler beim Zurücksetzen.';
+        msgEl.className = 'text-xs mt-2 text-red-400';
+        msgEl.classList.remove('hidden');
+        return;
+      }
+      window.location.href = `/portal/fragebogen/${assignmentId}`;
+    } catch {
+      reopenBtn.disabled = false;
+      reopenBtn.textContent = 'Erneut durchführen ↻';
+      msgEl.textContent = 'Netzwerkfehler.';
+      msgEl.className = 'text-xs mt-2 text-red-400';
+      msgEl.classList.remove('hidden');
+    }
+  });
+
+  document.getElementById('bug-modal-submit')?.addEventListener('click', async () => {
+    const desc = bugDescInput.value.trim();
+    if (!desc) { bugModalError.textContent = 'Beschreibung darf nicht leer sein.'; bugModalError.classList.remove('hidden'); return; }
+    const submitBtn = document.getElementById('bug-modal-submit');
+    submitBtn.textContent = '…';
+    submitBtn.disabled = true;
+    bugModalError.classList.add('hidden');
+    try {
+      const r = await fetch('/sdlc/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'bug', title: desc.trim().slice(0, 80), description: desc }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.id) {
+        // Fetch external_id (T-number) from the detail endpoint
+        let ticketId = '';
+        try {
+          const detail = await fetch(`/sdlc/api/tickets/${data.id}`).then(r => r.json()).catch(() => null);
+          ticketId = detail?.ticket?.externalId ?? '';
+        } catch { /* best-effort */ }
+        const resultEl = document.getElementById(`bug-result-${activeBugStepId}`);
+        if (resultEl) {
+          resultEl.textContent = `Ticket erstellt: ${ticketId || data.id}`;
+          const link = document.createElement('a');
+          link.href = '/admin/tickets';
+          link.textContent = ticketId || data.id;
+          link.className = 'underline text-gold';
+          resultEl.textContent = 'Ticket erstellt: ';
+          resultEl.appendChild(link);
+          resultEl.className = 'mt-2 text-xs text-green-400';
+        }
+        document.querySelector(`[data-step-id="${activeBugStepId}"].file-bug-btn`)?.remove();
+        closeBugModal();
+      } else {
+        bugModalError.textContent = data.error || 'Fehler beim Erstellen.';
+        bugModalError.classList.remove('hidden');
+      }
+    } catch {
+      bugModalError.textContent = 'Netzwerkfehler.';
+      bugModalError.classList.remove('hidden');
+    } finally {
+      submitBtn.textContent = 'Ticket erstellen';
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+
+<style>
+  .systemtest-guidance {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(192, 133, 82, 0.1);
+    border-left: 3px solid var(--brass, #c08552);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: 0 4px 4px 0;
+  }
+  .systemtest-guidance strong {
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+  .systemtest-guidance p {
+    margin: 0.35rem 0 0;
+    font-size: 0.875rem;
+    line-height: 1.45;
+  }
+  .systemtest-guidance code {
+    padding: 0 0.2rem;
+    background: rgba(192, 133, 82, 0.15);
+    border-radius: 2px;
+    font-size: 0.85em;
+  }
+</style>

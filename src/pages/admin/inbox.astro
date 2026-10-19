@@ -1,0 +1,43 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import InboxApp from '../../components/inbox/InboxApp.svelte';
+import AdminPageHeader from '../../components/admin/ui/AdminPageHeader.svelte';
+import { getSession, isAdmin, getLoginUrl } from '../../lib/auth';
+import { listInboxItems, countPendingByType } from '../../lib/messaging-db';
+import { logger } from '../../lib/logger';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+
+const rawStatus = Astro.url.searchParams.get('status') ?? 'pending';
+const initialStatus = rawStatus === 'done' ? 'actioned'
+  : (rawStatus === 'actioned' || rawStatus === 'archived') ? rawStatus as 'actioned' | 'archived'
+  : 'pending' as const;
+
+// E2E-only escape hatch (T001456): test rows are hidden by default.
+const includeTest = Astro.url.searchParams.get('includeTest') === '1';
+
+let initialItems: Awaited<ReturnType<typeof listInboxItems>> = [];
+let initialCounts: Awaited<ReturnType<typeof countPendingByType>> = {};
+try {
+  [initialItems, initialCounts] = await Promise.all([
+    listInboxItems({ status: initialStatus, includeTest }),
+    countPendingByType(),
+  ]);
+} catch (err) {
+  logger.error({ err }, '[admin/inbox] DB error');
+}
+---
+
+<AdminLayout title="Inbox">
+  <div style="max-width:72rem; margin:0 auto; padding:1.5rem 1.5rem 0;">
+    <AdminPageHeader
+      title="Postfach"
+      description={initialStatus === 'actioned' ? 'Erledigte Nachrichten' : initialStatus === 'archived' ? 'Archivierte Nachrichten' : 'Eingehende Nachrichten'}
+    />
+  </div>
+  <div style="height: calc(100vh - 220px)">
+    <InboxApp {initialItems} {initialCounts} client:load />
+  </div>
+</AdminLayout>

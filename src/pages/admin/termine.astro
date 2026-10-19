@@ -1,0 +1,772 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../components/admin/ui/AdminPageHeader.svelte';
+import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
+import { getAllBookings } from '../../lib/caldav';
+import type { AdminBooking } from '../../lib/caldav';
+import { getBookingProjects, getBookingInvoices, getBookingLeistungen, getVacationPeriods, getFreeTimeWindows, type BookingInvoiceInfo, type VacationPeriod, type FreeTimeWindow } from '../../lib/website-db';
+import { listProjects, type Project } from '../../lib/projects-db';
+import { getEffectiveLeistungen } from '../../lib/content';
+import type { LeistungCategory } from '../../config/types';
+import AdminBookingModal from '../../components/admin/AdminBookingModal.svelte';
+import { logger } from '../../lib/logger';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+
+const ncBase      = (process.env.NEXTCLOUD_EXTERNAL_URL ?? 'https://files.example.com').replace(/\/$/, '');
+const calendarUrl = `${ncBase}/apps/calendar`;
+const brand = process.env.BRAND_NAME || 'mentolder';
+const IN_PUBLIC_URL = process.env.INVOICENINJA_PUBLIC_URL || '';
+
+const WEEKDAYS_DE = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+
+const now = new Date();
+const horizon = new Date(now);
+horizon.setDate(horizon.getDate() + 14);
+
+let bookings: AdminBooking[] = [];
+let bookingProjectMap: Map<string, string> = new Map();
+let bookingInvoiceMap: Map<string, BookingInvoiceInfo> = new Map();
+let bookingLeistungMap: Map<string, string> = new Map();
+let leistungen: LeistungCategory[] = [];
+let projects: Project[] = [];
+let calError = '';
+let vacationPeriods: VacationPeriod[] = [];
+
+try {
+  vacationPeriods = await getVacationPeriods(brand).catch(() => []);
+} catch { /**/ }
+
+try {
+  const [allBookings, allProjects] = await Promise.all([
+    getAllBookings(),
+    listProjects({ brand }),
+  ]);
+  bookings = allBookings;
+  projects = allProjects;
+  const uids = bookings.map(b => b.uid).filter(Boolean);
+  const [bpMap, biMap, blMap, cats] = await Promise.all([
+    getBookingProjects(uids, brand),
+    getBookingInvoices(uids, brand),
+    getBookingLeistungen(uids, brand),
+    getEffectiveLeistungen(),
+  ]);
+  bookingProjectMap = bpMap;
+  bookingInvoiceMap = biMap;
+  bookingLeistungMap = blMap;
+  leistungen = cats;
+} catch (err) {
+  logger.error({ err }, '[admin/termine] load failed');
+  calError = 'Kalender konnte nicht geladen werden.';
+}
+
+// Generate all days for next 14 days (show every day, not just work days)
+const allDays: Array<{ date: string; weekday: string }> = [];
+{
+  const cur = new Date(now);
+  cur.setHours(0, 0, 0, 0);
+  while (cur <= horizon) {
+    const dayStr = cur.toISOString().split('T')[0];
+    allDays.push({ date: dayStr, weekday: WEEKDAYS_DE[cur.getDay()] });
+    cur.setDate(cur.getDate() + 1);
+  }
+}
+
+// Load time windows and group by date
+const timeWindowsList = await getFreeTimeWindows(
+  brand,
+  now.toISOString().split('T')[0],
+  horizon.toISOString().split('T')[0]
+).catch(() => [] as FreeTimeWindow[]);
+
+const windowsByDate = new Map<string, FreeTimeWindow[]>();
+for (const w of timeWindowsList) {
+  if (!windowsByDate.has(w.date)) windowsByDate.set(w.date, []);
+  windowsByDate.get(w.date)!.push(w);
+}
+
+const upcomingBookings = bookings.filter(b => b.start >= now && b.status !== 'CANCELLED');
+const pastBookings = bookings.filter(b => b.start < now || b.status === 'CANCELLED');
+
+function formatBookingDate(d: Date) {
+  return `${WEEKDAYS_DE[d.getDay()]}, ${d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
+}
+function formatTime(d: Date) {
+  return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+}
+---
+
+<AdminLayout title="Admin — Termine">
+  <div style="border-bottom:1px solid var(--line);padding:0 2rem;display:flex;gap:0;overflow-x:auto;flex-shrink:0;">
+    <a href="/admin/termine" style="display:inline-flex;align-items:center;padding:12px 16px;font-size:13px;font-weight:500;border-bottom:2px solid var(--brass);color:var(--brass);text-decoration:none;white-space:nowrap;margin-bottom:-1px;">Termine</a>
+    <a href="/admin/kalender" style="display:inline-flex;align-items:center;padding:12px 16px;font-size:13px;font-weight:500;border-bottom:2px solid transparent;color:var(--fg-soft);text-decoration:none;white-space:nowrap;transition:color 0.15s ease,border-color 0.15s ease;margin-bottom:-1px;">Kalender</a>
+  </div>
+  <section class="pt-10 pb-20 bg-dark min-h-screen">
+    <div class="max-w-4xl mx-auto px-6">
+
+      <div class="mb-8 flex items-center justify-between">
+        <div>
+<AdminPageHeader title="Termine" />
+        </div>
+        <div class="flex gap-3">
+          <AdminBookingModal
+            client:load
+            projects={projects.map(p => ({ id: p.id, name: p.name }))}
+            buttonLabel="＋ Neuer Termin"
+          />
+          <a
+            href={calendarUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="px-4 py-2 bg-gold/20 text-gold rounded-lg text-sm font-medium hover:bg-gold/30 transition-colors"
+          >
+            Nextcloud Kalender →
+          </a>
+        </div>
+      </div>
+
+      {calError && (
+        <div class="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+          {calError}
+        </div>
+      )}
+
+      <!-- Gebuchte Termine -->
+      <div class="mb-10">
+        <h2 class="text-xl font-semibold text-light mb-4">Gebuchte Termine</h2>
+
+        {bookings.length === 0 && !calError && (
+          <div class="p-6 bg-dark-light rounded-xl border border-dark-lighter text-muted text-center">
+            Keine gebuchten Termine vorhanden.
+          </div>
+        )}
+
+        {upcomingBookings.length > 0 && (
+          <div class="mb-6">
+            <h3 class="text-sm font-medium text-muted mb-3 uppercase tracking-wide">Anstehend</h3>
+            <div class="grid gap-3">
+              {upcomingBookings.map(b => {
+                const inv = bookingInvoiceMap.get(b.uid);
+                return (
+                  <div class="p-4 bg-dark-light rounded-xl border border-dark-lighter" data-booking-uid={b.uid} data-booking-summary={b.summary} data-booking-attendee-email={b.attendeeEmail} data-booking-attendee-name={b.attendeeName} data-booking-date={formatBookingDate(b.start)} data-booking-time={`${formatTime(b.start)} – ${formatTime(b.end)}`}>
+                    <div class="flex items-start justify-between gap-4 flex-wrap">
+                      <div>
+                        <p class="text-light font-medium">{b.summary}</p>
+                        <p class="text-sm text-muted mt-0.5">
+                          {formatBookingDate(b.start)} · {formatTime(b.start)} – {formatTime(b.end)}
+                        </p>
+                        <p class="text-sm text-accent mt-0.5">{b.attendeeName} &lt;{b.attendeeEmail}&gt;</p>
+                      </div>
+                      <div class="flex items-center gap-3 shrink-0 flex-wrap">
+                        {projects.length > 0 && (
+                          <select
+                            class="booking-project-select text-xs bg-dark border border-dark-lighter rounded-lg px-2 py-1 text-light focus:border-gold focus:ring-1 focus:ring-gold/20 outline-none cursor-pointer"
+                            data-booking-uid={b.uid}
+                          >
+                            <option value="">— Kein Projekt —</option>
+                            {projects.map(p => (
+                              <option value={p.id} selected={bookingProjectMap.get(b.uid) === p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {leistungen.length > 0 && (
+                          <select
+                            class="booking-leistung-select text-xs bg-dark border border-dark-lighter rounded-lg px-2 py-1 text-light focus:border-gold focus:ring-1 focus:ring-gold/20 outline-none cursor-pointer"
+                            data-booking-uid={b.uid}
+                          >
+                            <option value="">— Keine Leistung —</option>
+                            {leistungen.map(cat => (
+                              <optgroup label={`${cat.icon} ${cat.title}`}>
+                                {cat.services.map(svc => (
+                                  <option value={svc.key} selected={bookingLeistungMap.get(b.uid) === svc.key}>
+                                    {svc.name}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                        )}
+                        {inv && (IN_PUBLIC_URL
+                          ? <a
+                              href={`${IN_PUBLIC_URL}/invoices/${inv.invoiceId}/edit`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="text-xs px-2 py-0.5 rounded-full bg-gold/10 text-gold border border-gold/20 hover:bg-gold/20 transition-colors whitespace-nowrap"
+                            >
+                              #{inv.invoiceNumber} · {inv.amount.toFixed(0)} EUR →
+                            </a>
+                          : <span class="text-xs px-2 py-0.5 rounded-full bg-gold/10 text-gold border border-gold/20 whitespace-nowrap">
+                              #{inv.invoiceNumber} · {inv.amount.toFixed(0)} EUR
+                            </span>
+                        )}
+                        <span class={`booking-status-badge text-xs px-2 py-0.5 rounded-full ${b.status === 'TENTATIVE' ? 'bg-gold/20 text-gold' : 'bg-accent/20 text-accent'}`}>
+                          {b.status === 'TENTATIVE' ? 'Anfrage' : 'Bestätigt'}
+                        </span>
+                        {b.status === 'TENTATIVE' && (
+                          <button
+                            class="booking-confirm-btn text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20 transition-colors cursor-pointer whitespace-nowrap"
+                            data-booking-uid={b.uid}
+                            title="Termin bestätigen"
+                          >
+                            ✓ Bestätigen
+                          </button>
+                        )}
+                        <button
+                          class="booking-remind-btn text-xs px-2 py-0.5 rounded-full bg-dark-lighter text-muted border border-dark-lighter hover:text-light hover:border-muted transition-colors cursor-pointer whitespace-nowrap"
+                          data-booking-uid={b.uid}
+                          title="Erinnerung per E-Mail senden"
+                        >
+                          ✉ Erinnerung
+                        </button>
+                        <button
+                          class="booking-cancel-btn text-xs px-2 py-0.5 rounded-full bg-dark-lighter text-muted border border-dark-lighter hover:text-red-400 hover:border-red-400/30 transition-colors cursor-pointer whitespace-nowrap"
+                          data-booking-uid={b.uid}
+                          title="Termin absagen (bleibt im Kalender als Abgesagt)"
+                        >
+                          Absagen
+                        </button>
+                        <button
+                          class="booking-delete-btn text-xs px-2 py-0.5 rounded-full bg-dark-lighter text-muted border border-dark-lighter hover:text-red-400 hover:border-red-400/30 transition-colors cursor-pointer whitespace-nowrap"
+                          data-booking-uid={b.uid}
+                          title="Termin endgültig löschen"
+                        >
+                          Löschen
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {pastBookings.length > 0 && (
+          <div>
+            <h3 class="text-sm font-medium text-muted mb-3 uppercase tracking-wide">Vergangene</h3>
+            <div class="grid gap-3">
+              {pastBookings.map(b => {
+                const inv = bookingInvoiceMap.get(b.uid);
+                return (
+                  <div class="p-4 bg-dark-light rounded-xl border border-dark-lighter opacity-60" data-booking-uid={b.uid}>
+                    <div class="flex items-start justify-between gap-4 flex-wrap">
+                      <div>
+                        <p class="text-light font-medium">{b.summary}</p>
+                        <p class="text-sm text-muted mt-0.5">
+                          {formatBookingDate(b.start)} · {formatTime(b.start)} – {formatTime(b.end)}
+                        </p>
+                        <p class="text-sm text-muted mt-0.5">{b.attendeeName} &lt;{b.attendeeEmail}&gt;</p>
+                      </div>
+                      <div class="flex items-center gap-3 shrink-0 flex-wrap">
+                        {projects.length > 0 && (
+                          <select
+                            class="booking-project-select text-xs bg-dark border border-dark-lighter rounded-lg px-2 py-1 text-light focus:border-gold focus:ring-1 focus:ring-gold/20 outline-none cursor-pointer"
+                            data-booking-uid={b.uid}
+                          >
+                            <option value="">— Kein Projekt —</option>
+                            {projects.map(p => (
+                              <option value={p.id} selected={bookingProjectMap.get(b.uid) === p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {leistungen.length > 0 && (
+                          <select
+                            class="booking-leistung-select text-xs bg-dark border border-dark-lighter rounded-lg px-2 py-1 text-light focus:border-gold focus:ring-1 focus:ring-gold/20 outline-none cursor-pointer"
+                            data-booking-uid={b.uid}
+                          >
+                            <option value="">— Keine Leistung —</option>
+                            {leistungen.map(cat => (
+                              <optgroup label={`${cat.icon} ${cat.title}`}>
+                                {cat.services.map(svc => (
+                                  <option value={svc.key} selected={bookingLeistungMap.get(b.uid) === svc.key}>
+                                    {svc.name}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                        )}
+                        {inv && (IN_PUBLIC_URL
+                          ? <a
+                              href={`${IN_PUBLIC_URL}/invoices/${inv.invoiceId}/edit`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="text-xs px-2 py-0.5 rounded-full bg-dark-lighter text-muted border border-dark-lighter hover:text-light transition-colors whitespace-nowrap"
+                            >
+                              #{inv.invoiceNumber} · {inv.amount.toFixed(0)} EUR →
+                            </a>
+                          : <span class="text-xs px-2 py-0.5 rounded-full bg-dark-lighter text-muted border border-dark-lighter whitespace-nowrap">
+                              #{inv.invoiceNumber} · {inv.amount.toFixed(0)} EUR
+                            </span>
+                        )}
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-dark-lighter text-muted">
+                          {b.status === 'CANCELLED' ? 'Abgesagt' : 'Vergangen'}
+                        </span>
+                        <button
+                          class="booking-delete-btn text-xs px-2 py-0.5 rounded-full bg-dark-lighter text-muted border border-dark-lighter hover:text-red-400 hover:border-red-400/30 transition-colors cursor-pointer whitespace-nowrap"
+                          data-booking-uid={b.uid}
+                          title="Termin endgültig löschen"
+                        >
+                          Löschen
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <!-- Freie Zeiträume -->
+      <div>
+        <h2 class="text-xl font-semibold text-light mb-1">Freie Zeiträume <span class="text-sm font-normal text-muted">(nächste 14 Tage)</span></h2>
+        <p class="text-sm text-muted mb-4">Definiere Zeitfenster pro Tag. Kunden sehen automatisch alle Terminslots innerhalb dieser Fenster.</p>
+
+        <div class="grid gap-3">
+          {allDays.map(day => {
+            const windows = windowsByDate.get(day.date) ?? [];
+            return (
+              <div class="window-card p-4 bg-dark-light rounded-xl border border-dark-lighter" data-date={day.date}>
+                <div class="flex items-center gap-3 mb-2">
+                  <h3 class="text-light font-semibold text-sm">{day.weekday}</h3>
+                  <span class="text-muted text-xs">{day.date}</span>
+                  {windows.length > 0 && (
+                    <span class="ml-auto text-xs text-gold">{windows.length} Zeitraum{windows.length !== 1 ? 'e' : ''}</span>
+                  )}
+                </div>
+
+                <div class="space-y-1.5 mb-2 windows-list">
+                  {windows.map(w => (
+                    <div class="flex items-center gap-2 px-3 py-1.5 bg-gold/5 rounded-lg border border-gold/20 window-entry" data-id={w.id}>
+                      <span class="text-gold font-mono text-sm">{w.winStart} – {w.winEnd}</span>
+                      <button
+                        class="window-remove ml-auto text-muted hover:text-red-400 transition-colors text-xs px-1"
+                        data-id={w.id}
+                        data-date={day.date}
+                        title="Zeitraum entfernen"
+                      >✕</button>
+                    </div>
+                  ))}
+                </div>
+
+                <div class="window-add-form hidden gap-2 items-center flex-wrap" style="display:none" data-date={day.date}>
+                  <input type="time" class="window-start bg-dark border border-dark-lighter rounded px-2 py-1 text-light text-sm focus:border-gold outline-none" value="09:00" />
+                  <span class="text-muted text-xs">bis</span>
+                  <input type="time" class="window-end bg-dark border border-dark-lighter rounded px-2 py-1 text-light text-sm focus:border-gold outline-none" value="12:00" />
+                  <button class="window-save text-xs px-3 py-1 bg-gold text-dark rounded font-semibold hover:bg-gold/90 transition-colors" data-date={day.date}>Speichern</button>
+                  <button class="window-cancel text-xs px-2 py-1 text-muted hover:text-light transition-colors">✕</button>
+                </div>
+
+                <button
+                  class="window-add text-xs px-3 py-1.5 border border-dashed border-gold/30 text-gold/60 rounded-lg hover:border-gold/60 hover:text-gold transition-colors"
+                  data-date={day.date}
+                >
+                  ＋ Zeitraum
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Urlaubsplanung / Auszeiten -->
+    <div class="mt-12">
+      <h2 class="text-xl font-semibold text-light mb-4">Urlaubsplanung <span class="text-sm font-normal text-muted">/ Auszeiten</span></h2>
+      <p class="text-sm text-muted mb-4">Geblockte Zeiträume erscheinen nicht in der Buchungsansicht. Änderungen wirken sofort.</p>
+      <div id="vacation-list" class="space-y-2 mb-4">
+        {vacationPeriods.map((p, _i) => (
+          <div class="vacation-row flex gap-2 items-center flex-wrap p-3 bg-dark-light rounded-lg border border-dark-lighter" data-id={p.id}>
+            <input type="text" class="vacation-label flex-1 min-w-32 bg-dark border border-dark-lighter rounded px-2 py-1 text-light text-sm focus:border-gold outline-none" value={p.label} placeholder="Bezeichnung (z.B. Sommerurlaub)" />
+            <input type="date" class="vacation-start bg-dark border border-dark-lighter rounded px-2 py-1 text-light text-sm focus:border-gold outline-none" value={p.start} />
+            <span class="text-muted text-sm">bis</span>
+            <input type="date" class="vacation-end bg-dark border border-dark-lighter rounded px-2 py-1 text-light text-sm focus:border-gold outline-none" value={p.end} />
+            <button class="vacation-remove text-xs px-2 py-1 bg-dark-lighter text-muted rounded hover:text-red-400 border border-dark-lighter">✕</button>
+          </div>
+        ))}
+      </div>
+      <button id="vacation-add" class="text-sm px-3 py-1.5 border border-dashed border-gold/30 text-gold/70 rounded-lg hover:border-gold/60 hover:text-gold transition-colors">＋ Zeitraum hinzufügen</button>
+      <button id="vacation-save" class="ml-3 text-sm px-4 py-1.5 bg-gold text-dark rounded-lg font-semibold hover:bg-gold/90 transition-colors">Speichern</button>
+      <span id="vacation-status" class="ml-3 text-sm hidden"></span>
+    </div>
+  </section>
+</AdminLayout>
+
+<script>
+  // ── Zeitraum-Verwaltung ────────────────────────────────────────────────────
+
+  function updateWindowsCounter(delta: number) {
+    const el = document.getElementById('windows-counter');
+    if (el) el.textContent = String(Number(el.textContent) + delta);
+  }
+
+  function makeWindowEntry(id: string, winStart: string, winEnd: string, date: string): HTMLElement {
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-2 px-3 py-1.5 bg-gold/5 rounded-lg border border-gold/20 window-entry';
+    div.dataset.id = id;
+    const label = document.createElement('span');
+    label.className = 'text-gold font-mono text-sm';
+    label.textContent = `${winStart} – ${winEnd}`;
+    const btn = document.createElement('button');
+    btn.className = 'window-remove ml-auto text-muted hover:text-red-400 transition-colors text-xs px-1';
+    btn.dataset.id = id;
+    btn.dataset.date = date;
+    btn.title = 'Zeitraum entfernen';
+    btn.textContent = '✕';
+    div.append(label, btn);
+    return div;
+  }
+
+  // Show/hide add-form on "＋ Zeitraum" click
+  document.addEventListener('click', async (e) => {
+    const target = e.target as HTMLElement;
+
+    // ＋ Zeitraum button
+    const addBtn = target.closest<HTMLButtonElement>('.window-add');
+    if (addBtn) {
+      const card = addBtn.closest<HTMLElement>('.window-card')!;
+      const form = card.querySelector<HTMLElement>('.window-add-form')!;
+      form.style.display = 'flex';
+      addBtn.style.display = 'none';
+      return;
+    }
+
+    // Cancel form
+    const cancelBtn = target.closest<HTMLButtonElement>('.window-cancel');
+    if (cancelBtn) {
+      const card = cancelBtn.closest<HTMLElement>('.window-card')!;
+      const form = card.querySelector<HTMLElement>('.window-add-form')!;
+      form.style.display = 'none';
+      const wb = card.querySelector<HTMLButtonElement>('.window-add')!;
+      wb.style.display = '';
+      return;
+    }
+
+    // Save window
+    const saveBtn = target.closest<HTMLButtonElement>('.window-save');
+    if (saveBtn) {
+      const card = saveBtn.closest<HTMLElement>('.window-card')!;
+      const date = card.dataset.date!;
+      const form = card.querySelector<HTMLElement>('.window-add-form')!;
+      const winStart = form.querySelector<HTMLInputElement>('.window-start')!.value;
+      const winEnd   = form.querySelector<HTMLInputElement>('.window-end')!.value;
+
+      if (!winStart || !winEnd || winStart >= winEnd) {
+        alert('Bitte gültige Start- und Endzeit eingeben (Start muss vor Ende liegen).');
+        return;
+      }
+
+      saveBtn.textContent = '…';
+      saveBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/admin/time-windows/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date, winStart, winEnd }),
+        });
+        if (!res.ok) { alert('Fehler beim Speichern.'); return; }
+        const { id } = await res.json();
+
+        const list = card.querySelector<HTMLElement>('.windows-list')!;
+        list.appendChild(makeWindowEntry(id, winStart, winEnd, date));
+
+        // Update badge
+        const badge = card.querySelector<HTMLElement>('.text-gold.ml-auto');
+        const count = card.querySelectorAll('.window-entry').length;
+        if (badge) {
+          badge.textContent = `${count} Zeitraum${count !== 1 ? 'e' : ''}`;
+        } else {
+          const header = card.querySelector<HTMLElement>('.flex.items-center.gap-3')!;
+          const newBadge = document.createElement('span');
+          newBadge.className = 'ml-auto text-xs text-gold';
+          newBadge.textContent = `${count} Zeitraum${count !== 1 ? 'e' : ''}`;
+          header.appendChild(newBadge);
+        }
+
+        updateWindowsCounter(1);
+        form.style.display = 'none';
+        const addBtnAfterSave = card.querySelector<HTMLButtonElement>('.window-add')!;
+        addBtnAfterSave.style.display = '';
+        // Reset time inputs
+        form.querySelector<HTMLInputElement>('.window-start')!.value = '09:00';
+        form.querySelector<HTMLInputElement>('.window-end')!.value = '12:00';
+      } catch {
+        alert('Netzwerkfehler.');
+      } finally {
+        saveBtn.textContent = 'Speichern';
+        saveBtn.disabled = false;
+      }
+      return;
+    }
+
+    // Remove window
+    const removeBtn = target.closest<HTMLButtonElement>('.window-remove');
+    if (removeBtn) {
+      const id = removeBtn.dataset.id!;
+      removeBtn.disabled = true;
+      removeBtn.textContent = '…';
+      try {
+        const res = await fetch('/api/admin/time-windows/remove', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        });
+        if (!res.ok) { alert('Fehler beim Entfernen.'); removeBtn.disabled = false; removeBtn.textContent = '✕'; return; }
+
+        const entry = removeBtn.closest<HTMLElement>('.window-entry')!;
+        const card  = entry.closest<HTMLElement>('[data-date]')!;
+        entry.remove();
+
+        const count = card.querySelectorAll('.window-entry').length;
+        const badge = card.querySelector<HTMLElement>('.text-gold.ml-auto');
+        if (badge) {
+          if (count === 0) badge.remove();
+          else badge.textContent = `${count} Zeitraum${count !== 1 ? 'e' : ''}`;
+        }
+
+        updateWindowsCounter(-1);
+      } catch {
+        alert('Netzwerkfehler.');
+        removeBtn.disabled = false;
+        removeBtn.textContent = '✕';
+      }
+    }
+  });
+
+  // Booking project assignment
+  document.querySelectorAll<HTMLSelectElement>('.booking-project-select').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      const uid = sel.dataset.bookingUid;
+      if (!uid) return;
+      sel.disabled = true;
+      try {
+        const res = await fetch(`/api/bookings/${encodeURIComponent(uid)}/project`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: sel.value || null,
+            leistungKey: sel.closest<HTMLElement>('[data-booking-uid]')?.querySelector<HTMLSelectElement>('.booking-leistung-select')?.value || null,
+          }),
+        });
+        if (!res.ok) {
+          alert('Fehler beim Speichern der Projektzuordnung.');
+        }
+      } catch {
+        alert('Netzwerkfehler beim Speichern.');
+      } finally {
+        sel.disabled = false;
+      }
+    });
+  });
+
+  // Booking leistung assignment
+  document.querySelectorAll<HTMLSelectElement>('.booking-leistung-select').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      const uid = sel.dataset.bookingUid;
+      if (!uid) return;
+      const projectSel = sel.closest<HTMLElement>('[data-booking-uid]')?.querySelector<HTMLSelectElement>('.booking-project-select');
+      const projectId = projectSel?.value || null;
+      sel.disabled = true;
+      try {
+        const res = await fetch(`/api/bookings/${encodeURIComponent(uid)}/project`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId, leistungKey: sel.value || null }),
+        });
+        if (!res.ok) alert('Fehler beim Speichern der Leistungszuordnung.');
+      } catch {
+        alert('Netzwerkfehler.');
+      } finally {
+        sel.disabled = false;
+      }
+    });
+  });
+
+  // Delete booking
+  document.querySelectorAll<HTMLButtonElement>('.booking-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const uid = btn.dataset.bookingUid;
+      if (!uid) return;
+      if (!confirm('Termin endgültig löschen? Dies kann nicht rückgängig gemacht werden.')) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const res = await fetch(`/api/admin/bookings/${encodeURIComponent(uid)}/delete`, { method: 'DELETE' });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || 'Löschen fehlgeschlagen.');
+          btn.disabled = false;
+          btn.textContent = 'Löschen';
+          return;
+        }
+        btn.closest<HTMLElement>('[data-booking-uid]')?.remove();
+      } catch {
+        alert('Netzwerkfehler beim Löschen.');
+        btn.disabled = false;
+        btn.textContent = 'Löschen';
+      }
+    });
+  });
+
+  // Cancel booking
+  document.querySelectorAll<HTMLButtonElement>('.booking-cancel-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const uid = btn.dataset.bookingUid;
+      if (!uid) return;
+      if (!confirm('Termin absagen? Er bleibt im Kalender als "Abgesagt" sichtbar.')) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const res = await fetch(`/api/admin/bookings/${encodeURIComponent(uid)}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'CANCELLED' }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || 'Absagen fehlgeschlagen.');
+          btn.disabled = false;
+          btn.textContent = 'Absagen';
+          return;
+        }
+        const card = btn.closest<HTMLElement>('[data-booking-uid]');
+        if (card) {
+          const badge = card.querySelector('.booking-status-badge');
+          if (badge) { badge.textContent = 'Abgesagt'; badge.className = 'booking-status-badge text-xs px-2 py-0.5 rounded-full bg-dark-lighter text-muted'; }
+          card.classList.add('opacity-60');
+          btn.remove();
+          card.querySelector('.booking-confirm-btn')?.remove();
+          card.querySelector('.booking-remind-btn')?.remove();
+        }
+      } catch {
+        alert('Netzwerkfehler beim Absagen.');
+        btn.disabled = false;
+        btn.textContent = 'Absagen';
+      }
+    });
+  });
+
+  // Confirm booking (TENTATIVE → CONFIRMED)
+  document.querySelectorAll<HTMLButtonElement>('.booking-confirm-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const uid = btn.dataset.bookingUid;
+      if (!uid) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const res = await fetch(`/api/admin/bookings/${encodeURIComponent(uid)}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'CONFIRMED' }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || 'Bestätigen fehlgeschlagen.');
+          btn.disabled = false;
+          btn.textContent = '✓ Bestätigen';
+          return;
+        }
+        const card = btn.closest<HTMLElement>('[data-booking-uid]');
+        if (card) {
+          const badge = card.querySelector('.booking-status-badge');
+          if (badge) { badge.textContent = 'Bestätigt'; badge.className = 'booking-status-badge text-xs px-2 py-0.5 rounded-full bg-accent/20 text-accent'; }
+        }
+        btn.remove();
+      } catch {
+        alert('Netzwerkfehler beim Bestätigen.');
+        btn.disabled = false;
+        btn.textContent = '✓ Bestätigen';
+      }
+    });
+  });
+
+  // Send reminder email
+  document.querySelectorAll<HTMLButtonElement>('.booking-remind-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const uid = btn.dataset.bookingUid;
+      if (!uid) return;
+      const card = btn.closest<HTMLElement>('[data-booking-uid]');
+      const attendeeEmail = card?.dataset.bookingAttendeeEmail;
+      const attendeeName = card?.dataset.bookingAttendeeName;
+      const summary = card?.dataset.bookingSummary;
+      const dateDisplay = card?.dataset.bookingDate;
+      const timeDisplay = card?.dataset.bookingTime;
+      if (!attendeeEmail) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const res = await fetch(`/api/admin/bookings/${encodeURIComponent(uid)}/remind`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ attendeeEmail, attendeeName, summary, dateDisplay, timeDisplay }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || 'Erinnerung konnte nicht gesendet werden.');
+        } else {
+          btn.textContent = '✓ Gesendet';
+          setTimeout(() => { btn.textContent = '✉ Erinnerung'; btn.disabled = false; }, 3000);
+          return;
+        }
+      } catch {
+        alert('Netzwerkfehler beim Senden der Erinnerung.');
+      }
+      btn.disabled = false;
+      btn.textContent = '✉ Erinnerung';
+    });
+  });
+
+  // Vacation planning
+  const CLS = {
+    row: 'vacation-row flex gap-2 items-center flex-wrap p-3 bg-dark-light rounded-lg border border-dark-lighter',
+    input: 'bg-dark border border-dark-lighter rounded px-2 py-1 text-light text-sm focus:border-gold outline-none',
+  };
+
+  function makeVacationRow(): HTMLElement {
+    const div = document.createElement('div');
+    div.className = CLS.row;
+    const lbl = Object.assign(document.createElement('input'), { type: 'text', className: `vacation-label flex-1 min-w-32 ${CLS.input}`, placeholder: 'Bezeichnung (z.B. Sommerurlaub)' });
+    const s = Object.assign(document.createElement('input'), { type: 'date', className: `vacation-start ${CLS.input}` });
+    const sep = Object.assign(document.createElement('span'), { className: 'text-muted text-sm', textContent: 'bis' });
+    const e = Object.assign(document.createElement('input'), { type: 'date', className: `vacation-end ${CLS.input}` });
+    const rm = Object.assign(document.createElement('button'), { type: 'button', className: 'vacation-remove text-xs px-2 py-1 bg-dark-lighter text-muted rounded hover:text-red-400 border border-dark-lighter', textContent: '✕' });
+    div.append(lbl, s, sep, e, rm);
+    return div;
+  }
+
+  const vacList = document.getElementById('vacation-list')!;
+  vacList.addEventListener('click', e => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.vacation-remove');
+    if (btn) btn.closest('.vacation-row')?.remove();
+  });
+  document.getElementById('vacation-add')?.addEventListener('click', () => vacList.appendChild(makeVacationRow()));
+  document.getElementById('vacation-save')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('vacation-status')!;
+    const periods = Array.from(vacList.querySelectorAll<HTMLElement>('.vacation-row')).map(row => ({
+      label: (row.querySelector<HTMLInputElement>('.vacation-label')?.value ?? '').trim() || 'Auszeit',
+      start: row.querySelector<HTMLInputElement>('.vacation-start')?.value ?? '',
+      end: row.querySelector<HTMLInputElement>('.vacation-end')?.value ?? '',
+    })).filter(p => p.start && p.end && p.start <= p.end);
+    try {
+      const res = await fetch('/api/admin/urlaub/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ periods }) });
+      if (!res.ok) throw new Error();
+      statusEl.textContent = '✓ Gespeichert';
+      statusEl.className = 'ml-3 text-sm text-green-400';
+    } catch {
+      statusEl.textContent = 'Fehler beim Speichern';
+      statusEl.className = 'ml-3 text-sm text-red-400';
+    }
+    statusEl.classList.remove('hidden');
+    setTimeout(() => statusEl.classList.add('hidden'), 3000);
+  });
+</script>

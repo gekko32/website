@@ -1,0 +1,334 @@
+// Email helper using nodemailer.
+// Uses Mailpit in dev (localhost:1025), real SMTP in prod.
+
+import nodemailer from 'nodemailer';
+import { isE2ETestRequest } from './e2e-marker';
+import { renderNewsletterEmail, renderNewsletterText } from './newsletter-template';
+import { logger } from './logger';
+
+const SMTP_HOST = process.env.SMTP_HOST || 'mailpit.workspace.svc.cluster.local';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '1025');
+const SMTP_SECURE = process.env.SMTP_SECURE === 'true';
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+const FROM_EMAIL = process.env.FROM_EMAIL || process.env.CONTACT_EMAIL || '';
+const FROM_NAME = process.env.FROM_NAME || process.env.BRAND_NAME || 'Workspace';
+const CONTACT_PHONE = process.env.CONTACT_PHONE || '';
+const PROD_DOMAIN = process.env.PROD_DOMAIN || '';
+
+const transporter = nodemailer.createTransport({
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: SMTP_SECURE,
+  connectionTimeout: 5_000,
+  socketTimeout: 10_000,
+  ...(SMTP_USER ? { auth: { user: SMTP_USER, pass: SMTP_PASS } } : {}),
+});
+
+interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+}
+
+interface SendEmailParams {
+  to: string;
+  subject: string;
+  text: string;
+  html?: string;
+  replyTo?: string;
+  bcc?: string;
+  headers?: Record<string, string>;
+  from?: string;
+  attachments?: EmailAttachment[];
+}
+
+export async function sendEmail(params: SendEmailParams, request?: Request): Promise<boolean> {
+  if (request && isE2ETestRequest(request)) {
+    return true;
+  }
+  try {
+    await transporter.sendMail({
+      from: params.from ?? `"${FROM_NAME}" <${FROM_EMAIL}>`,
+      to: params.to,
+      subject: params.subject,
+      text: params.text,
+      html: params.html,
+      replyTo: params.replyTo,
+      bcc: params.bcc,
+      headers: params.headers,
+      attachments: params.attachments,
+    });
+    return true;
+  } catch (err) {
+    logger.error({ err }, '[email] Failed to send');
+    return false;
+  }
+}
+
+export async function sendRegistrationConfirmation(email: string, name: string, request?: Request): Promise<boolean> {
+  return sendEmail({
+    to: email,
+    subject: `Ihre Registrierung bei ${FROM_NAME}`,
+    text: `Hallo ${name},
+
+vielen Dank für Ihre Registrierung bei ${FROM_NAME}.
+
+Ihre Anfrage wird in Kürze geprüft. Sie erhalten eine separate E-Mail, sobald Ihr Zugang freigeschaltet wurde.
+
+Bei Fragen erreichen Sie uns unter ${FROM_EMAIL}${CONTACT_PHONE ? ` oder ${CONTACT_PHONE}` : ''}.
+
+Mit freundlichen Grüßen
+${FROM_NAME}`,
+    html: `<p>Hallo ${name},</p>
+<p>vielen Dank für Ihre Registrierung bei ${FROM_NAME}.</p>
+<p>Ihre Anfrage wird in Kürze geprüft. Sie erhalten eine separate E-Mail, sobald Ihr Zugang freigeschaltet wurde.</p>
+<p>Bei Fragen erreichen Sie uns unter <a href="mailto:${FROM_EMAIL}">${FROM_EMAIL}</a>${CONTACT_PHONE ? ` oder ${CONTACT_PHONE}` : ''}.</p>
+<p>Mit freundlichen Grüßen<br>${FROM_NAME}</p>`,
+  }, request);
+}
+
+export async function sendRegistrationApproved(email: string, name: string, request?: Request): Promise<boolean> {
+  const loginUrl = PROD_DOMAIN ? `https://web.${PROD_DOMAIN}/` : '';
+  return sendEmail({
+    to: email,
+    subject: `Ihr Zugang bei ${FROM_NAME} wurde freigeschaltet`,
+    text: `Hallo ${name},
+
+Ihr Zugang bei ${FROM_NAME} wurde freigeschaltet!
+
+Sie erhalten in Kürze eine separate E-Mail mit einem Link, um Ihr Passwort festzulegen.
+${loginUrl ? `\nDanach können Sie sich unter ${loginUrl} einloggen.\n` : ''}
+Mit freundlichen Grüßen
+${FROM_NAME}`,
+    html: `<p>Hallo ${name},</p>
+<p><strong>Ihr Zugang bei ${FROM_NAME} wurde freigeschaltet!</strong></p>
+<p>Sie erhalten in Kürze eine separate E-Mail mit einem Link, um Ihr Passwort festzulegen.</p>
+${loginUrl ? `<p>Danach können Sie sich unter <a href="${loginUrl}">${loginUrl}</a> einloggen.</p>` : ''}
+<p>Mit freundlichen Grüßen<br>${FROM_NAME}</p>`,
+  }, request);
+}
+
+export async function sendRegistrationDeclined(email: string, name: string, reason?: string, request?: Request): Promise<boolean> {
+  return sendEmail({
+    to: email,
+    subject: `Zu Ihrer Registrierung bei ${FROM_NAME}`,
+    text: `Hallo ${name},
+
+vielen Dank für Ihr Interesse an ${FROM_NAME}.
+
+Leider können wir Ihre Registrierung derzeit nicht bestätigen.${reason ? `\n\nGrund: ${reason}` : ''}
+
+Falls Sie Fragen haben, kontaktieren Sie uns gerne unter ${FROM_EMAIL}.
+
+Mit freundlichen Grüßen
+${FROM_NAME}`,
+  }, request);
+}
+
+export async function sendContactReply(email: string, name: string, replyText: string, threadId?: string): Promise<boolean> {
+  return sendEmail({
+    to: email,
+    subject: `Antwort auf Ihre Anfrage bei ${FROM_NAME}`,
+    text: `Hallo ${name},
+
+${replyText}
+
+Mit freundlichen Grüßen
+${FROM_NAME}`,
+    html: `<p>Hallo ${name},</p>
+<p>${replyText.replace(/\n/g, '<br>')}</p>
+<p>Mit freundlichen Grüßen<br>${FROM_NAME}</p>`,
+    ...(threadId ? { headers: { 'X-Mattermost-Thread-Id': threadId } } : {}),
+  });
+}
+
+export async function sendNewsletterConfirmation(
+  email: string,
+  confirmUrl: string,
+  request?: Request,
+): Promise<boolean> {
+  return sendEmail({
+    to: email,
+    subject: `Bitte bestätige deine Newsletter-Anmeldung bei ${FROM_NAME}`,
+    text: `Hallo,
+
+du hast dich für den Newsletter von ${FROM_NAME} angemeldet.
+
+Bitte bestätige deine E-Mail-Adresse innerhalb von 48 Stunden:
+${confirmUrl}
+
+Falls du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.
+
+Mit freundlichen Grüßen
+${FROM_NAME}`,
+    html: `<p>Hallo,</p>
+<p>du hast dich für den Newsletter von <strong>${FROM_NAME}</strong> angemeldet.</p>
+<p>Bitte bestätige deine E-Mail-Adresse innerhalb von 48 Stunden:</p>
+<p><a href="${confirmUrl}" style="display:inline-block;padding:10px 20px;background:#b8973a;color:#fff;text-decoration:none;border-radius:6px;">E-Mail bestätigen</a></p>
+<p style="font-size:12px;color:#888;">Oder kopiere diesen Link: ${confirmUrl}</p>
+<p>Falls du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.</p>
+<p>Mit freundlichen Grüßen<br>${FROM_NAME}</p>`,
+  }, request);
+}
+
+export async function sendNewsletterCampaign(params: {
+  to: string;
+  subject: string;
+  html: string;
+  unsubscribeUrl: string;
+}): Promise<boolean> {
+  // Wrap user-authored content in the shared branded template (header + body
+  // + mandatory legal footer). This is the SAME wrapper the admin preview
+  // endpoint uses — preview and send must never diverge (T000173 / T000171).
+  const htmlWithFooter = renderNewsletterEmail({
+    bodyHtml: params.html,
+    subject: params.subject,
+    unsubscribeUrl: params.unsubscribeUrl,
+  });
+  const textWithFooter = renderNewsletterText({
+    bodyHtml: params.html,
+    subject: params.subject,
+    unsubscribeUrl: params.unsubscribeUrl,
+  });
+  return sendEmail({
+    to: params.to,
+    subject: params.subject,
+    text: textWithFooter,
+    html: htmlWithFooter,
+    headers: {
+      // RFC 8058 / RFC 2369 — one-click unsubscribe header pair.
+      // Many providers (Gmail, Apple Mail) require this for newsletters.
+      'List-Unsubscribe': `<${params.unsubscribeUrl}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
+  });
+}
+
+export async function sendQuestionnaireAssigned(params: {
+  clientEmail: string;
+  clientName: string;
+  questionnaireTitle: string;
+  portalUrl: string;
+}, request?: Request): Promise<boolean> {
+  return sendEmail({
+    to: params.clientEmail,
+    subject: `Neuer Fragebogen für Sie: ${params.questionnaireTitle}`,
+    text: `Hallo ${params.clientName},
+
+ein neuer Fragebogen wurde Ihnen zugewiesen: ${params.questionnaireTitle}
+
+Sie können ihn jetzt in Ihrem Portal ausfüllen:
+${params.portalUrl}
+
+Mit freundlichen Grüßen
+${FROM_NAME}`,
+    html: `<p>Hallo ${params.clientName},</p>
+<p>ein neuer Fragebogen wurde Ihnen zugewiesen: <strong>${params.questionnaireTitle}</strong></p>
+<p><a href="${params.portalUrl}" style="display:inline-block;padding:10px 20px;background:#b8973a;color:#fff;text-decoration:none;border-radius:6px;">Fragebogen ausfüllen</a></p>
+<p>Mit freundlichen Grüßen<br>${FROM_NAME}</p>`,
+  }, request);
+}
+
+export async function sendQuestionnaireSubmitted(params: {
+  adminEmail: string;
+  clientName: string;
+  questionnaireTitle: string;
+  auswertungUrl: string;
+}, request?: Request): Promise<boolean> {
+  return sendEmail({
+    to: params.adminEmail,
+    subject: `Fragebogen eingereicht: ${params.questionnaireTitle} — ${params.clientName}`,
+    text: `${params.clientName} hat den Fragebogen "${params.questionnaireTitle}" ausgefüllt.
+
+Auswertung: ${params.auswertungUrl}
+
+${FROM_NAME}`,
+    html: `<p><strong>${params.clientName}</strong> hat den Fragebogen <strong>${params.questionnaireTitle}</strong> ausgefüllt.</p>
+<p><a href="${params.auswertungUrl}">Auswertung ansehen →</a></p>`,
+  }, request);
+}
+
+export async function sendQuestionnaireDismissed(params: {
+  adminEmail: string;
+  clientName: string;
+  questionnaireTitle: string;
+  reason: string;
+}, request?: Request): Promise<boolean> {
+  const reasonLine = params.reason ? `\nGrund: ${params.reason}` : '';
+  return sendEmail({
+    to: params.adminEmail,
+    subject: `Fragebogen abgelehnt: ${params.questionnaireTitle} — ${params.clientName}`,
+    text: `${params.clientName} hat den Fragebogen "${params.questionnaireTitle}" abgelehnt.${reasonLine}
+
+${FROM_NAME}`,
+    html: `<p><strong>${params.clientName}</strong> hat den Fragebogen <strong>${params.questionnaireTitle}</strong> abgelehnt.</p>${params.reason ? `<p>Grund: ${params.reason}</p>` : ''}`,
+  }, request);
+}
+
+function formatDe(d: Date): string {
+  return d.toLocaleString('de-DE', {
+    timeZone: 'Europe/Berlin',
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+export async function sendBookingConfirmation(params: {
+  to: string;
+  name: string;
+  start: Date;
+  end: Date;
+}, request?: Request): Promise<boolean> {
+  const dateStr = formatDe(params.start);
+  return sendEmail({
+    to: params.to,
+    subject: `Terminbestätigung — ${dateStr}`,
+    text: `Hallo ${params.name},
+
+Ihr Termin am ${dateStr} ist bestätigt.
+
+Mit freundlichen Grüßen
+${FROM_NAME}`,
+  }, request);
+}
+
+export async function sendCancellationNotification(params: {
+  to: string;
+  name: string;
+  start: Date;
+}, request?: Request): Promise<boolean> {
+  const dateStr = formatDe(params.start);
+  return sendEmail({
+    to: params.to,
+    subject: 'Terminabsage bestätigt',
+    text: `Hallo ${params.name},
+
+Ihr Termin am ${dateStr} wurde erfolgreich abgesagt.
+
+Mit freundlichen Grüßen
+${FROM_NAME}`,
+  }, request);
+}
+
+export async function sendRescheduleNotification(params: {
+  to: string;
+  name: string;
+  newStart: Date;
+  newEnd: Date;
+}, request?: Request): Promise<boolean> {
+  const dateStr = formatDe(params.newStart);
+  return sendEmail({
+    to: params.to,
+    subject: `Termin verschoben — ${dateStr}`,
+    text: `Hallo ${params.name},
+
+Ihr Termin wurde auf ${dateStr} verschoben.
+
+Mit freundlichen Grüßen
+${FROM_NAME}`,
+  }, request);
+}

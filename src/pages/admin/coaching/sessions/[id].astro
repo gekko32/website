@@ -1,0 +1,250 @@
+---
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import SessionWizard from '../../../../components/admin/coaching/SessionWizard.svelte';
+import SessionReport from '../../../../components/admin/coaching/SessionReport.svelte';
+import SessionSummary from '../../../../components/admin/coaching/SessionSummary.svelte';
+import { getSession as getAuthSession, getLoginUrl, isAdmin } from '../../../../lib/auth';
+import { getSession as getCoachingSession, getAuditLog, updateSessionFields } from '../../../../lib/coaching-session-db';
+import { listKiProviders } from '../../../../lib/coaching-ki-config-db';
+import { pool } from '../../../../lib/website-db';
+
+const authSession = await getAuthSession(Astro.request.headers.get('cookie'));
+if (!authSession) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(authSession)) return Astro.redirect('/admin');
+
+const brand = process.env.BRAND || 'mentolder';
+const id = Astro.params.id as string;
+let coachingSession = null;
+try { coachingSession = await getCoachingSession(pool, id); } catch { /* ignore */ }
+
+if (!coachingSession) return Astro.redirect('/admin/coaching/sessions');
+
+let auditLog: Awaited<ReturnType<typeof getAuditLog>> = [];
+try { auditLog = await getAuditLog(pool, id); } catch {}
+
+let customers: { id: string; name: string }[] = [];
+try {
+  const res = await pool.query(`SELECT id, name FROM public.customers ORDER BY name`);
+  customers = res.rows;
+} catch { /* ignore */ }
+
+let kiProviders: { id: number; displayName: string; provider: string; isActive: boolean }[] = [];
+try { kiProviders = await listKiProviders(pool, brand); } catch { /* ignore */ }
+
+let saveOk = false;
+let saveError = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = form.get('_action')?.toString();
+
+  if (action === 'update-meta') {
+    const title = form.get('title')?.toString().trim() ?? '';
+    const clientId = form.get('clientId')?.toString().trim() || null;
+    const kiConfigIdRaw = form.get('kiConfigId')?.toString().trim();
+    const kiConfigId = kiConfigIdRaw ? parseInt(kiConfigIdRaw, 10) : null;
+    try {
+      const updated = await updateSessionFields(
+        pool, id, { title, clientId, kiConfigId }, authSession.preferred_username
+      );
+      if (updated) {
+        coachingSession = updated;
+        saveOk = true;
+      } else {
+        saveError = 'Session nicht gefunden';
+      }
+    } catch {
+      saveError = 'Fehler beim Speichern';
+    }
+  }
+}
+
+const isCompleted = coachingSession.status === 'completed';
+
+const displayClient = customers.find(c => c.id === coachingSession.clientId)?.name ?? coachingSession.clientName ?? '—';
+const displayKi = kiProviders.find(p => p.id === coachingSession.kiConfigId)?.displayName
+  ?? kiProviders.find(p => p.isActive)?.displayName
+  ?? '— Standard —';
+---
+
+<AdminLayout title={`Session: ${coachingSession.title}`}>
+  <div class="page">
+    <nav class="crumbs">
+      <a href="/admin">Admin</a><span class="sep">›</span>
+      <a href="/admin/coaching/sessions">Sessions</a><span class="sep">›</span>
+      {coachingSession.title}
+      {!isCompleted && <a id="popout-link" href={`/admin/coaching/sessions/${id}/popout`} class="popout-link">Popout ↗</a>}
+    </nav>
+
+    {isCompleted ? (
+      <SessionReport session={coachingSession} clientName={displayClient} providerName={displayKi} client:load />
+    ) : (
+      <SessionWizard
+        sessionId={id}
+        initialSession={coachingSession}
+        providerName={kiProviders.find(p => p.id === coachingSession.kiConfigId)?.provider ?? kiProviders.find(p => p.isActive)?.provider ?? 'claude'}
+        client:load
+      />
+    )}
+
+    <!-- Session-Metadaten: Anzeige + expliziter Edit-Modus -->
+    <div class="meta-edit-box">
+      <div class="meta-header">
+        <h2 class="meta-edit-title">Session-Info</h2>
+        {saveOk && <span class="save-ok">Gespeichert ✓</span>}
+        {saveError && <span class="save-error">{saveError}</span>}
+        <button id="meta-edit-btn" class="btn-edit" type="button">✏ Bearbeiten</button>
+      </div>
+
+      <!-- Lesemodus (Standard) -->
+      <div id="meta-view" class="meta-view">
+        <div class="meta-row"><span class="meta-lbl">Titel</span><span class="meta-val">{coachingSession.title}</span></div>
+        <div class="meta-row"><span class="meta-lbl">Klient</span><span class="meta-val">{displayClient}</span></div>
+        <div class="meta-row"><span class="meta-lbl">KI-Provider</span><span class="meta-val">{displayKi}</span></div>
+      </div>
+
+      <!-- Bearbeitungsmodus (versteckt bis Klick auf Bearbeiten) -->
+      <form id="meta-form" method="POST" class="meta-form" style="display:none">
+        <input type="hidden" name="_action" value="update-meta" />
+        <div class="meta-field">
+          <label for="meta-title">Titel</label>
+          <input id="meta-title" type="text" name="title" value={coachingSession.title} class="meta-input" />
+        </div>
+        <div class="meta-field">
+          <label for="meta-clientId">Klient (optional)</label>
+          <select id="meta-clientId" name="clientId" class="meta-input">
+            <option value="">— kein Klient —</option>
+            {customers.map(c => (
+              <option value={c.id} selected={coachingSession.clientId === c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div class="meta-field">
+          <label for="meta-kiConfigId">KI-Provider</label>
+          <select id="meta-kiConfigId" name="kiConfigId" class="meta-input">
+            <option value="">— Standard (aktiver Provider) —</option>
+            {kiProviders.map(p => (
+              <option value={String(p.id)} selected={coachingSession.kiConfigId === p.id}>
+                {p.displayName}{p.isActive ? ' ★' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div class="meta-actions">
+          <button type="submit" class="meta-save-btn">Speichern</button>
+          <button type="button" id="meta-cancel-btn" class="meta-cancel-btn">Abbrechen</button>
+          <button id="meta-delete-btn" class="meta-delete-btn" type="button">Löschen</button>
+        </div>
+      </form>
+    </div>
+
+    <SessionSummary
+      sessionId={id}
+      initialSummary={coachingSession.llmSummary}
+      initialGeneratedAt={coachingSession.llmSummaryAt ? coachingSession.llmSummaryAt.toISOString() : null}
+      client:load
+    />
+
+    {auditLog.length > 0 && (
+      <div class="lg:col-span-3 bg-dark-light rounded-xl p-5 border border-dark-lighter">
+        <h2 class="text-sm font-semibold text-light mb-4">Verlaufsprotokoll</h2>
+        <ul class="space-y-2 text-sm">
+          {auditLog.map(e => (
+            <li class="flex items-start gap-3 text-muted">
+              <span class="shrink-0 mt-0.5">
+                {e.eventType === 'status_change' ? '🔄' :
+                 e.eventType === 'field_change'  ? '✏️' :
+                 e.eventType === 'ai_request'    ? '🤖' : '📝'}
+              </span>
+              <div class="flex-1 min-w-0">
+                <span class="text-light">
+                  {e.eventType === 'status_change' && `Status: ${(e.payload as Record<string, string>).from ?? ''} → ${(e.payload as Record<string, string>).to ?? (e.payload as Record<string, string>).action ?? ''}`}
+                  {e.eventType === 'field_change'  && `Feld ${(e.payload as Record<string, string>).field}: "${(e.payload as Record<string, string>).from}" → "${(e.payload as Record<string, string>).to}"`}
+                  {e.eventType === 'ai_request'    && `KI-Anfrage Schritt ${e.stepNumber} (${(e.payload as Record<string, string>).provider}, ${(e.payload as Record<string, string>).duration_ms}ms)`}
+                  {e.eventType === 'notes_change'  && `Notiz Schritt ${e.stepNumber} geändert`}
+                </span>
+                <span class="ml-2 text-xs">{new Date(e.changedAt).toLocaleString('de-DE')} · {e.actor}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+  </div>
+</AdminLayout>
+
+<script>
+  import { openPopout } from '../../../../lib/popout';
+
+  document.getElementById('popout-link')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    // The href is rendered server-side from the session id — reuse it instead
+    // of re-deriving the id from the pathname (breaks on trailing slashes).
+    const href = (e.currentTarget as HTMLAnchorElement).href;
+    openPopout(href, 'coaching-session-popout');
+  });
+
+  const editBtn    = document.getElementById('meta-edit-btn') as HTMLButtonElement;
+  const cancelBtn  = document.getElementById('meta-cancel-btn') as HTMLButtonElement;
+  const view       = document.getElementById('meta-view') as HTMLElement;
+  const form       = document.getElementById('meta-form') as HTMLElement;
+
+  editBtn?.addEventListener('click', () => {
+    view.style.display = 'none';
+    form.style.display = 'flex';
+    editBtn.style.display = 'none';
+  });
+  cancelBtn?.addEventListener('click', () => {
+    form.style.display = 'none';
+    view.style.display = 'grid';
+    editBtn.style.display = '';
+  });
+
+  document.getElementById('meta-delete-btn')?.addEventListener('click', async () => {
+    if (!confirm('Session wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return;
+    const id = window.location.pathname.split('/').at(-1);
+    const res = await fetch(`/api/admin/coaching/sessions/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      window.location.href = '/admin/coaching/sessions';
+    } else {
+      alert('Fehler beim Löschen');
+    }
+  });
+</script>
+
+<style>
+  .page { max-width: 800px; margin: 0 auto; padding: 1rem 1.5rem 3rem; }
+  .crumbs { font-size: 0.78rem; color: var(--text-muted,#888); margin-bottom: 1rem; }
+  .crumbs a { color: var(--text-muted,#888); text-decoration: none; }
+  .crumbs .sep { margin: 0 0.4rem; }
+  .popout-link { float: right; color: var(--gold,#c9a55c); text-decoration: none; }
+  .popout-link:hover { text-decoration: underline; }
+  h1 { font-size: 1.5rem; font-weight: 700; color: var(--text-light,#f0f0f0); margin: 0; }
+  .btn-ghost { color: var(--text-muted,#888); text-decoration: underline; font-size: 0.85rem; }
+  .meta-edit-box { background: var(--bg-2,#1a1a1a); border: 1px solid var(--line,#333); border-radius: 12px; padding: 1.25rem 1.5rem; margin-top: 2rem; }
+  .meta-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .meta-edit-title { font-size: 0.85rem; font-weight: 600; color: var(--text-light,#f0f0f0); margin: 0; flex: 1; }
+  .meta-view { display: grid; grid-template-columns: 1fr; gap: 0.5rem; }
+  .meta-row { display: flex; gap: 0.75rem; align-items: baseline; }
+  .meta-lbl { font-size: 0.75rem; color: var(--text-muted,#888); min-width: 90px; }
+  .meta-val { font-size: 0.88rem; color: var(--text-light,#f0f0f0); }
+  .btn-edit { padding: 0.3rem 0.8rem; border: 1px solid var(--gold,#c9a55c); border-radius: 4px; color: var(--gold,#c9a55c); background: none; cursor: pointer; font-size: 0.78rem; white-space: nowrap; }
+  .btn-edit:hover { background: var(--gold,#c9a55c22); }
+  .meta-form { display: flex; flex-direction: column; gap: 0.9rem; }
+  .meta-field { display: flex; flex-direction: column; gap: 0.3rem; }
+  .meta-field label { font-size: 0.78rem; color: var(--text-muted,#888); }
+  .meta-input { padding: 0.5rem 0.75rem; background: var(--bg-dark,#111); border: 1px solid var(--line,#333); border-radius: 6px; color: var(--text-light,#f0f0f0); font-size: 0.88rem; outline: none; width: 100%; box-sizing: border-box; }
+  .meta-input:focus { border-color: var(--gold,#c9a55c); }
+  .meta-actions { display: flex; gap: 0.5rem; align-items: center; }
+  .meta-save-btn { padding: 0.5rem 1.25rem; background: var(--gold,#c9a55c); color: #111; border: none; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; }
+  .meta-cancel-btn { padding: 0.5rem 0.9rem; border: 1px solid var(--line,#444); border-radius: 6px; color: var(--text-muted,#888); background: none; font-size: 0.85rem; cursor: pointer; }
+  .meta-delete-btn { padding: 0.5rem 0.9rem; border: 1px solid #ef4444; border-radius: 6px; color: #ef4444; background: none; font-size: 0.85rem; cursor: pointer; margin-left: auto; }
+  .meta-delete-btn:hover { background: #ef444420; }
+  .save-ok { color: #4ade80; font-size: 0.82rem; }
+  .save-error { color: #f87171; font-size: 0.82rem; }
+
+  @media print {
+    .crumbs, .meta-edit-box, .lg\\:col-span-3 { display: none !important; }
+    .page { max-width: none; padding: 0; }
+  }
+</style>

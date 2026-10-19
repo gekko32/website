@@ -1,0 +1,113 @@
+---
+import Navigation from '../components/Navigation.svelte';
+import Footer from '../components/Footer.astro';
+import CookieConsent from '../components/CookieConsent.svelte';
+// global.css is critical CSS (:root vars, html/body base, typography .t-*,
+// .prose). It stays a small (~20KB) render-blocking <link> emitted by Astro for
+// this side-effect import. T002057 tried ?inline, but that inlined the FULL
+// Tailwind output (~95KB) into every page for zero measured FCP/LCP gain — the
+// render-blocking cost of this stylesheet is 0ms in traces (T002058). Reverted.
+import '../styles/global.css';
+import fontsCssUrl from '../styles/fonts.css?url';
+import { config } from '../config/index';
+import { getEffectiveNavigation } from '../lib/content';
+import { t, type Locale } from '../i18n/index';
+import { getLocaleFromUrl } from '../i18n/index';
+import { siteOrigin } from '../lib/site-origin';
+
+interface Props {
+  title: string;
+  /** When true, renders the title as-is without appending " | siteTitle". */
+  rawTitle?: boolean;
+  description?: string;
+  brand?: string;
+  ogImage?: string;
+}
+
+const { title, rawTitle = false, description = config.meta.siteDescription, brand, ogImage } = Astro.props;
+const locale: Locale = (Astro.locals.locale as Locale) ?? getLocaleFromUrl(Astro.url);
+const isKore = brand === 'korczewski-kore';
+const pageTitle = rawTitle ? title : `${title} | ${config.meta.siteTitle}`;
+const effectiveOgImage = ogImage || (isKore ? '/brand/korczewski/og-image.png' : '/brand/mentolder/og-image.png');
+const effectiveNav = await getEffectiveNavigation().catch(() => null);
+const navLinks = effectiveNav
+  ? [...effectiveNav].sort((a, b) => a.order - b.order).map(n => ({ label: n.label, href: n.href }))
+  : config.navigation;
+
+const pathname = Astro.url.pathname;
+const basePath = locale === 'en' ? pathname.replace(/^\/en/, '') || '/' : pathname;
+const enPath = basePath === '/' ? '/en/' : `/en${basePath}`;
+const dePath = basePath;
+const siteDomain = siteOrigin();
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <link rel="alternate" hreflang="de" href={`${siteDomain}${dePath}`} />
+    <link rel="alternate" hreflang="en" href={`${siteDomain}${enPath}`} />
+    <link rel="alternate" hreflang="x-default" href={`${siteDomain}${dePath}`} />
+    {isKore ? (
+      <>
+        <link rel="icon" type="image/svg+xml" href="/brand/korczewski/favicon.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/brand/korczewski/favicons/favicon-32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/brand/korczewski/favicons/favicon-16.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/brand/korczewski/favicons/apple-touch-icon.png" />
+        <link rel="manifest" href="/brand/korczewski/site.webmanifest" />
+        <meta name="theme-color" content="#120D1C" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={title} />
+        <meta property="og:description" content={description} />
+        <meta property="og:url" content={`${siteDomain}${Astro.url.pathname}`} />
+        <meta property="og:image" content={effectiveOgImage} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content={effectiveOgImage} />
+      </>
+    ) : (
+      <>
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={title} />
+        <meta property="og:description" content={description} />
+        <meta property="og:url" content={`${siteDomain}${Astro.url.pathname}`} />
+        <meta property="og:image" content={effectiveOgImage} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content={effectiveOgImage} />
+      </>
+    )}
+    <link rel="preload" href="/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/Newsreader-Latin.woff2" as="font" type="font/woff2" crossorigin />
+    {isKore && <link rel="preload" href="/fonts/InstrumentSerif-Latin.woff2" as="font" type="font/woff2" crossorigin />}
+    <link rel="preload" as="style" href={fontsCssUrl} {...{ onload: "this.onload=null;this.rel='stylesheet'" }} />
+    <noscript><link rel="stylesheet" href={fontsCssUrl} /></noscript>
+    <title>{pageTitle}</title>
+    {isKore && <link rel="stylesheet" href="/brand/korczewski/colors_and_type.css" />}
+    {isKore && <link rel="stylesheet" href="/brand/korczewski/app.css" />}
+    {isKore && <link rel="stylesheet" href="/brand/korczewski/kore-website.css" />}
+  </head>
+  <body class={`min-h-screen flex flex-col${isKore ? ' kore' : ''}`} style="background:var(--ink-900); color:var(--fg);">
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:rounded" style="background:var(--brass); color:var(--ink-900); font-weight:600;">
+      {t(locale, 'layout.skip-to-content')}
+    </a>
+    <Navigation client:load siteTitle={config.meta.siteTitle} links={navLinks} pathname={Astro.url.pathname} locale={locale} ctaLabel={config.navigationCta} />
+    <main id="main-content" class="flex-1">
+      <slot />
+    </main>
+
+    <Footer />
+
+    <CookieConsent client:idle />
+    {/* T002058: PortalSidekick removed from the public Layout. Astro eagerly links
+        ALL CSS reachable from a client island (regardless of client:idle/only), so
+        the sidekick's drawer-view CSS was render-blocking on every public page for a
+        FAB anonymous visitors rarely use. It stays in PortalLayout/AdminLayout where
+        it is core, authenticated UI. */}
+  </body>
+</html>

@@ -1,0 +1,6122 @@
+[
+  {
+    "id": "ADR-007",
+    "file": "tests/py/spec/remaining_root_specs/test_wsl_exit_docs.py",
+    "category": "ADR",
+    "kind": "pytest"
+  },
+  {
+    "id": "AGENT-LOCK-01",
+    "file": "tests/py/local/test_agent_lock_01_core.py",
+    "category": "AGENT",
+    "kind": "pytest"
+  },
+  {
+    "id": "AGENT-LOCK-02",
+    "file": "tests/py/local/test_agent_lock_02_reap.py",
+    "category": "AGENT",
+    "kind": "pytest"
+  },
+  {
+    "id": "AGENT-LOCK-03",
+    "file": "tests/py/local/test_agent_lock_03_precommit.py",
+    "category": "AGENT",
+    "kind": "pytest"
+  },
+  {
+    "id": "AK-03",
+    "file": "tests/local/AK-03.sh",
+    "category": "AK",
+    "kind": "shell"
+  },
+  {
+    "id": "AK-04",
+    "file": "tests/local/AK-04.sh",
+    "category": "AK",
+    "kind": "shell"
+  },
+  {
+    "id": "E2E:a11y-axe",
+    "file": "tests/e2e/specs/a11y-axe.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:agent-guide-walkthrough",
+    "file": "tests/e2e/specs/agent-guide-walkthrough.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:app-catalog",
+    "file": "tests/e2e/specs/app-catalog.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:brett-art",
+    "file": "tests/e2e/specs/brett-art.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:brett-figure-ownership",
+    "file": "tests/e2e/specs/brett-figure-ownership.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:brett-ground-annotations",
+    "file": "tests/e2e/specs/brett-ground-annotations.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:brett-hidden-figures",
+    "file": "tests/e2e/specs/brett-hidden-figures.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:brett-mannequin",
+    "file": "tests/e2e/specs/brett-mannequin.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:brett-mentolder-auth-setup",
+    "file": "tests/e2e/specs/brett-mentolder-auth-setup.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:brett-mobile",
+    "file": "tests/e2e/specs/brett-mobile.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:brett-moderation",
+    "file": "tests/e2e/specs/brett-moderation.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:brett-replay",
+    "file": "tests/e2e/specs/brett-replay.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:brett-roles",
+    "file": "tests/e2e/specs/brett-roles.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:brett-session-lifecycle",
+    "file": "tests/e2e/specs/brett-session-lifecycle.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:brett-share-link",
+    "file": "tests/e2e/specs/brett-share-link.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:brett-undo-redo",
+    "file": "tests/e2e/specs/brett-undo-redo.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:dashboard-art",
+    "file": "tests/e2e/specs/dashboard-art.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:dev-status-tabs",
+    "file": "tests/e2e/specs/dev-status-tabs.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-backup-ops",
+    "file": "tests/e2e/specs/fa-admin-backup-ops.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-backup-settings",
+    "file": "tests/e2e/specs/fa-admin-backup-settings.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-billing-system",
+    "file": "tests/e2e/specs/fa-admin-billing-system.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-crm",
+    "file": "tests/e2e/specs/fa-admin-crm.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-db-crud-clients",
+    "file": "tests/e2e/specs/fa-admin-db-crud-clients.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-db-crud-projekte",
+    "file": "tests/e2e/specs/fa-admin-db-crud-projekte.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-db-crud-shortcuts",
+    "file": "tests/e2e/specs/fa-admin-db-crud-shortcuts.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-inbox",
+    "file": "tests/e2e/specs/fa-admin-inbox.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-inbox-delete",
+    "file": "tests/e2e/specs/fa-admin-inbox-delete.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-inhalte",
+    "file": "tests/e2e/specs/fa-admin-inhalte.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-knowledge-model-selection",
+    "file": "tests/e2e/specs/fa-admin-knowledge-model-selection.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-live",
+    "file": "tests/e2e/specs/fa-admin-live.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-monitoring",
+    "file": "tests/e2e/specs/fa-admin-monitoring.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-newsletter",
+    "file": "tests/e2e/specs/fa-admin-newsletter.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-admin-settings",
+    "file": "tests/e2e/specs/fa-admin-settings.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-bug-t000368",
+    "file": "tests/e2e/specs/fa-bug-t000368.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-bugs-notifications",
+    "file": "tests/e2e/specs/fa-bugs-notifications.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-client-portal",
+    "file": "tests/e2e/specs/fa-client-portal.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-coaching-drafts",
+    "file": "tests/e2e/specs/fa-coaching-drafts.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-coaching-knowledge",
+    "file": "tests/e2e/specs/fa-coaching-knowledge.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-coaching-publish",
+    "file": "tests/e2e/specs/fa-coaching-publish.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-content-hub-concurrency",
+    "file": "tests/e2e/specs/fa-content-hub-concurrency.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-content-hub-editability",
+    "file": "tests/e2e/specs/fa-content-hub-editability.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-content-hub-editor",
+    "file": "tests/e2e/specs/fa-content-hub-editor.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-content-hub-legal-ssot",
+    "file": "tests/e2e/specs/fa-content-hub-legal-ssot.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-content-hub-price-ssot",
+    "file": "tests/e2e/specs/fa-content-hub-price-ssot.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-content-hub-service-consolidation",
+    "file": "tests/e2e/specs/fa-content-hub-service-consolidation.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-content-hub-versioning",
+    "file": "tests/e2e/specs/fa-content-hub-versioning.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-document-signing",
+    "file": "tests/e2e/specs/fa-document-signing.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-ios-talk",
+    "file": "tests/e2e/specs/fa-ios-talk.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-kommissionierung",
+    "file": "tests/e2e/specs/fa-kommissionierung.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-m3-onboarding-flow",
+    "file": "tests/e2e/specs/fa-m3-onboarding-flow.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-meeting-history",
+    "file": "tests/e2e/specs/fa-meeting-history.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-planning-office",
+    "file": "tests/e2e/specs/fa-planning-office.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-poll",
+    "file": "tests/e2e/specs/fa-poll.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-public-pages",
+    "file": "tests/e2e/specs/fa-public-pages.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-qa-review",
+    "file": "tests/e2e/specs/fa-qa-review.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-scs-scout",
+    "file": "tests/e2e/specs/fa-scs-scout.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:fa-slot-widget",
+    "file": "tests/e2e/specs/fa-slot-widget.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:integration-smoke",
+    "file": "tests/e2e/specs/integration-smoke.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:k8-headed-verify",
+    "file": "tests/e2e/specs/k8-headed-verify.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:korczewski-auth-setup",
+    "file": "tests/e2e/specs/korczewski-auth-setup.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:korczewski-home",
+    "file": "tests/e2e/specs/korczewski-home.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:kundenprofil-admin",
+    "file": "tests/e2e/specs/kundenprofil-admin.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:kundenprofil-portal",
+    "file": "tests/e2e/specs/kundenprofil-portal.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:mentolder-auth-setup",
+    "file": "tests/e2e/specs/mentolder-auth-setup.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:planungsbuero-klaerung",
+    "file": "tests/e2e/specs/planungsbuero-klaerung.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:planungsbuero-smoke",
+    "file": "tests/e2e/specs/planungsbuero-smoke.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:portal-termin-actions",
+    "file": "tests/e2e/specs/portal-termin-actions.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:visual-sweep",
+    "file": "tests/e2e/specs/visual-sweep.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:website-db-decouple",
+    "file": "tests/e2e/specs/website-db-decouple.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "E2E:wissensquellen",
+    "file": "tests/e2e/specs/wissensquellen.spec.ts",
+    "category": "E2E",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-01",
+    "file": "tests/local/FA-01.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-01",
+    "file": "tests/e2e/specs/fa-01-messaging.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-02",
+    "file": "tests/local/FA-02.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-03",
+    "file": "tests/local/FA-03.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-03",
+    "file": "tests/e2e/specs/fa-03-video.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-04",
+    "file": "tests/local/FA-04.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-04",
+    "file": "tests/e2e/specs/fa-04-files.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-05",
+    "file": "tests/local/FA-05.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-05",
+    "file": "tests/e2e/specs/fa-05-user-mgmt.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-06",
+    "file": "tests/local/FA-06.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-07",
+    "file": "tests/local/FA-07.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-07",
+    "file": "tests/e2e/specs/fa-07-search.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-08",
+    "file": "tests/local/FA-08.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-09",
+    "file": "tests/local/FA-09.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-09",
+    "file": "tests/e2e/specs/fa-09-billing.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-10",
+    "file": "tests/local/FA-10.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-10",
+    "file": "tests/e2e/specs/fa-10-website.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-11",
+    "file": "tests/local/FA-11.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-12",
+    "file": "tests/local/FA-12.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-12",
+    "file": "tests/e2e/specs/fa-12-mcp.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-13",
+    "file": "tests/local/FA-13.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-14",
+    "file": "tests/local/FA-14.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-14",
+    "file": "tests/e2e/specs/fa-14-registration.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-15",
+    "file": "tests/local/FA-15.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-15",
+    "file": "tests/e2e/specs/fa-15-oidc.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-16",
+    "file": "tests/local/FA-16.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-16",
+    "file": "tests/e2e/specs/fa-16-booking.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-17",
+    "file": "tests/local/FA-17.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-17",
+    "file": "tests/e2e/specs/fa-17-meeting.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-18",
+    "file": "tests/local/FA-18.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-18",
+    "file": "tests/e2e/specs/fa-18-transcription.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-19",
+    "file": "tests/local/FA-19.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-20",
+    "file": "tests/local/FA-20.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-20",
+    "file": "tests/e2e/specs/fa-20-finalize.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-21",
+    "file": "tests/local/FA-21.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-21",
+    "file": "tests/e2e/specs/fa-21-billing.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-22",
+    "file": "tests/local/FA-22.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-23",
+    "file": "tests/local/FA-23.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-23",
+    "file": "tests/e2e/specs/fa-23-vaultwarden.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-24",
+    "file": "tests/local/FA-24.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-24",
+    "file": "tests/e2e/specs/fa-24-whiteboard.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-25",
+    "file": "tests/local/FA-25.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-25",
+    "file": "tests/e2e/specs/fa-25-mailpit.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-26",
+    "file": "tests/local/FA-26.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-27",
+    "file": "tests/local/FA-27.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-27",
+    "file": "tests/e2e/specs/fa-27-brett.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-28",
+    "file": "tests/local/FA-28.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-28",
+    "file": "tests/e2e/specs/fa-28-messaging.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-30",
+    "file": "tests/py/local/test_fa_30.py",
+    "category": "FA",
+    "kind": "pytest"
+  },
+  {
+    "id": "FA-30",
+    "file": "tests/e2e/specs/fa-30-einvoice.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-31",
+    "file": "tests/prod/FA-31.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-32",
+    "file": "tests/local/FA-32.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-32",
+    "file": "tests/e2e/specs/fa-32-llm-bge-m3.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-33",
+    "file": "tests/local/FA-33.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-33",
+    "file": "tests/e2e/specs/fa-33-llm-voyage.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-34",
+    "file": "tests/local/FA-34.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-34",
+    "file": "tests/e2e/specs/fa-34-llm-strict-fail.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-35",
+    "file": "tests/local/FA-35.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-35",
+    "file": "tests/e2e/specs/fa-35-llm-mixed-error.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-36",
+    "file": "tests/local/FA-36.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-36",
+    "file": "tests/e2e/specs/fa-36-rerank.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-37",
+    "file": "tests/local/FA-37.sh",
+    "category": "FA",
+    "kind": "shell"
+  },
+  {
+    "id": "FA-37",
+    "file": "tests/e2e/specs/fa-37-workspace-chat.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-41",
+    "file": "tests/e2e/specs/fa-41-admin-hub.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-42",
+    "file": "tests/e2e/specs/fa-42-platform-assets.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-44",
+    "file": "tests/e2e/specs/fa-44-platform-health-integrity.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-45",
+    "file": "tests/e2e/specs/fa-45-authenticated-flows.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-47",
+    "file": "tests/e2e/specs/fa-47-brett-figure-pack-assets.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-48",
+    "file": "tests/e2e/specs/fa-48-factory-devflow.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-50",
+    "file": "tests/e2e/specs/fa-50-request-correlation.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-51",
+    "file": "tests/e2e/specs/fa-51-sidekick-navigation.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-53",
+    "file": "tests/e2e/specs/fa-53-systemtest-failure-loop.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-54",
+    "file": "tests/e2e/specs/fa-54-coaching-sessions.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-55",
+    "file": "tests/e2e/specs/fa-55-lmstudio-integration.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-56",
+    "file": "tests/e2e/specs/fa-56-admin-assets.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-57",
+    "file": "tests/e2e/specs/fa-57-homepage-hifi-redesign.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-58",
+    "file": "tests/e2e/specs/fa-58-admin-cockpit.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-59",
+    "file": "tests/e2e/specs/fa-59-systemtest-purge-endpoint.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-60",
+    "file": "tests/e2e/specs/fa-60-realtime-ws.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-61",
+    "file": "tests/e2e/specs/fa-61-sdlc-leitstand-devonly-split.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-62",
+    "file": "tests/e2e/specs/fa-62-massage-pilot.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-63",
+    "file": "tests/e2e/specs/fa-63-massage-mobile.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-64",
+    "file": "tests/e2e/specs/fa-64-massage-keyboard.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-65",
+    "file": "tests/e2e/specs/fa-65-massage-audit.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "FA-66",
+    "file": "tests/e2e/specs/fa-66-sdlc-frontend-sweep.spec.ts",
+    "category": "FA",
+    "kind": "playwright"
+  },
+  {
+    "id": "HWS-1",
+    "file": "tests/py/spec/native_ported/spec/test_harness_workflow_split.py",
+    "category": "HWS",
+    "kind": "pytest"
+  },
+  {
+    "id": "HWS-10",
+    "file": "tests/py/spec/native_ported/spec/test_harness_workflow_split.py",
+    "category": "HWS",
+    "kind": "pytest"
+  },
+  {
+    "id": "HWS-11",
+    "file": "tests/py/spec/native_ported/spec/test_harness_workflow_split.py",
+    "category": "HWS",
+    "kind": "pytest"
+  },
+  {
+    "id": "HWS-12",
+    "file": "tests/py/spec/native_ported/spec/test_harness_workflow_split.py",
+    "category": "HWS",
+    "kind": "pytest"
+  },
+  {
+    "id": "HWS-14",
+    "file": "tests/py/spec/native_ported/spec/test_harness_workflow_split.py",
+    "category": "HWS",
+    "kind": "pytest"
+  },
+  {
+    "id": "HWS-2",
+    "file": "tests/py/spec/native_ported/spec/test_harness_workflow_split.py",
+    "category": "HWS",
+    "kind": "pytest"
+  },
+  {
+    "id": "HWS-3",
+    "file": "tests/py/spec/native_ported/spec/test_harness_workflow_split.py",
+    "category": "HWS",
+    "kind": "pytest"
+  },
+  {
+    "id": "HWS-4",
+    "file": "tests/py/spec/native_ported/spec/test_harness_workflow_split.py",
+    "category": "HWS",
+    "kind": "pytest"
+  },
+  {
+    "id": "HWS-5",
+    "file": "tests/py/spec/native_ported/spec/test_harness_workflow_split.py",
+    "category": "HWS",
+    "kind": "pytest"
+  },
+  {
+    "id": "HWS-8",
+    "file": "tests/py/spec/native_ported/spec/test_harness_workflow_split.py",
+    "category": "HWS",
+    "kind": "pytest"
+  },
+  {
+    "id": "HWS-9",
+    "file": "tests/py/spec/native_ported/spec/test_harness_workflow_split.py",
+    "category": "HWS",
+    "kind": "pytest"
+  },
+  {
+    "id": "LR-01",
+    "file": "tests/py/local/test_learning_db_schema.py",
+    "category": "LR",
+    "kind": "pytest"
+  },
+  {
+    "id": "LR-02",
+    "file": "tests/py/local/test_learning_db_schema.py",
+    "category": "LR",
+    "kind": "pytest"
+  },
+  {
+    "id": "LR-03",
+    "file": "tests/py/local/test_learning_db_schema.py",
+    "category": "LR",
+    "kind": "pytest"
+  },
+  {
+    "id": "LR-04",
+    "file": "tests/py/local/test_learning_db_schema.py",
+    "category": "LR",
+    "kind": "pytest"
+  },
+  {
+    "id": "LR-05",
+    "file": "tests/py/local/test_learning_db_schema.py",
+    "category": "LR",
+    "kind": "pytest"
+  },
+  {
+    "id": "LR-06",
+    "file": "tests/py/local/test_learning_db_schema.py",
+    "category": "LR",
+    "kind": "pytest"
+  },
+  {
+    "id": "LR-07",
+    "file": "tests/py/local/test_learning_db_schema.py",
+    "category": "LR",
+    "kind": "pytest"
+  },
+  {
+    "id": "LR-08",
+    "file": "tests/py/local/test_learning_db_schema.py",
+    "category": "LR",
+    "kind": "pytest"
+  },
+  {
+    "id": "LR-09",
+    "file": "tests/py/local/test_learning_db_schema.py",
+    "category": "LR",
+    "kind": "pytest"
+  },
+  {
+    "id": "LR-10",
+    "file": "tests/py/local/test_learning_db_schema.py",
+    "category": "LR",
+    "kind": "pytest"
+  },
+  {
+    "id": "LR-11",
+    "file": "tests/py/local/test_learning_db_schema.py",
+    "category": "LR",
+    "kind": "pytest"
+  },
+  {
+    "id": "LR-12",
+    "file": "tests/py/local/test_learning_db_schema.py",
+    "category": "LR",
+    "kind": "pytest"
+  },
+  {
+    "id": "LR-13",
+    "file": "tests/py/local/test_learning_db_schema.py",
+    "category": "LR",
+    "kind": "pytest"
+  },
+  {
+    "id": "LR-14",
+    "file": "tests/py/local/test_learning_db_schema.py",
+    "category": "LR",
+    "kind": "pytest"
+  },
+  {
+    "id": "MCP-TASK-RUNNER-001",
+    "file": "tests/py/local/test_mcp_task_runner.py",
+    "category": "MCP",
+    "kind": "pytest"
+  },
+  {
+    "id": "MCP-TASK-RUNNER-001",
+    "file": "tests/py/spec/native_ported/spec/test_mcp_task_runner.py",
+    "category": "MCP",
+    "kind": "pytest"
+  },
+  {
+    "id": "MCP-TASK-RUNNER-002",
+    "file": "tests/py/local/test_mcp_task_runner.py",
+    "category": "MCP",
+    "kind": "pytest"
+  },
+  {
+    "id": "MCP-TASK-RUNNER-002",
+    "file": "tests/py/spec/native_ported/spec/test_mcp_task_runner.py",
+    "category": "MCP",
+    "kind": "pytest"
+  },
+  {
+    "id": "MCP-TASK-RUNNER-003",
+    "file": "tests/py/local/test_mcp_task_runner.py",
+    "category": "MCP",
+    "kind": "pytest"
+  },
+  {
+    "id": "MCP-TASK-RUNNER-003",
+    "file": "tests/py/spec/native_ported/spec/test_mcp_task_runner.py",
+    "category": "MCP",
+    "kind": "pytest"
+  },
+  {
+    "id": "MCP-TASK-RUNNER-004",
+    "file": "tests/py/local/test_mcp_task_runner.py",
+    "category": "MCP",
+    "kind": "pytest"
+  },
+  {
+    "id": "MCP-TASK-RUNNER-004",
+    "file": "tests/py/spec/native_ported/spec/test_mcp_task_runner.py",
+    "category": "MCP",
+    "kind": "pytest"
+  },
+  {
+    "id": "NFA-01",
+    "file": "tests/local/NFA-01.sh",
+    "category": "NFA",
+    "kind": "shell"
+  },
+  {
+    "id": "NFA-01",
+    "file": "tests/prod/NFA-01.sh",
+    "category": "NFA",
+    "kind": "shell"
+  },
+  {
+    "id": "NFA-01",
+    "file": "tests/e2e/specs/nfa-01-dsgvo.spec.ts",
+    "category": "NFA",
+    "kind": "playwright"
+  },
+  {
+    "id": "NFA-02",
+    "file": "tests/local/NFA-02.sh",
+    "category": "NFA",
+    "kind": "shell"
+  },
+  {
+    "id": "NFA-02",
+    "file": "tests/prod/NFA-02.sh",
+    "category": "NFA",
+    "kind": "shell"
+  },
+  {
+    "id": "NFA-02",
+    "file": "tests/e2e/specs/nfa-02-performance.spec.ts",
+    "category": "NFA",
+    "kind": "playwright"
+  },
+  {
+    "id": "NFA-03",
+    "file": "tests/local/NFA-03.sh",
+    "category": "NFA",
+    "kind": "shell"
+  },
+  {
+    "id": "NFA-03",
+    "file": "tests/e2e/specs/nfa-03-availability.spec.ts",
+    "category": "NFA",
+    "kind": "playwright"
+  },
+  {
+    "id": "NFA-04",
+    "file": "tests/local/NFA-04.sh",
+    "category": "NFA",
+    "kind": "shell"
+  },
+  {
+    "id": "NFA-04",
+    "file": "tests/prod/NFA-04.sh",
+    "category": "NFA",
+    "kind": "shell"
+  },
+  {
+    "id": "NFA-04",
+    "file": "tests/e2e/specs/nfa-04-scalability.spec.ts",
+    "category": "NFA",
+    "kind": "playwright"
+  },
+  {
+    "id": "NFA-05",
+    "file": "tests/local/NFA-05.sh",
+    "category": "NFA",
+    "kind": "shell"
+  },
+  {
+    "id": "NFA-05",
+    "file": "tests/e2e/specs/nfa-05-usability.spec.ts",
+    "category": "NFA",
+    "kind": "playwright"
+  },
+  {
+    "id": "NFA-06",
+    "file": "tests/local/NFA-06.sh",
+    "category": "NFA",
+    "kind": "shell"
+  },
+  {
+    "id": "NFA-06",
+    "file": "tests/e2e/specs/nfa-06-website-restart.spec.ts",
+    "category": "NFA",
+    "kind": "playwright"
+  },
+  {
+    "id": "NFA-07",
+    "file": "tests/local/NFA-07.sh",
+    "category": "NFA",
+    "kind": "shell"
+  },
+  {
+    "id": "NFA-07",
+    "file": "tests/e2e/specs/nfa-07-opensource.spec.ts",
+    "category": "NFA",
+    "kind": "playwright"
+  },
+  {
+    "id": "NFA-08",
+    "file": "tests/local/NFA-08.sh",
+    "category": "NFA",
+    "kind": "shell"
+  },
+  {
+    "id": "NFA-09",
+    "file": "tests/local/NFA-09.sh",
+    "category": "NFA",
+    "kind": "shell"
+  },
+  {
+    "id": "NFA-10",
+    "file": "tests/py/local/test_nfa_10.py",
+    "category": "NFA",
+    "kind": "pytest"
+  },
+  {
+    "id": "NFA-11",
+    "file": "tests/local/NFA-11.sh",
+    "category": "NFA",
+    "kind": "shell"
+  },
+  {
+    "id": "NFA-11",
+    "file": "tests/e2e/specs/nfa-11-gpu-vram.spec.ts",
+    "category": "NFA",
+    "kind": "playwright"
+  },
+  {
+    "id": "NFA-12",
+    "file": "tests/py/local/test_nfa_12.py",
+    "category": "NFA",
+    "kind": "pytest"
+  },
+  {
+    "id": "NFA-12",
+    "file": "tests/e2e/specs/nfa-12-brainstorm-tunnel.spec.ts",
+    "category": "NFA",
+    "kind": "playwright"
+  },
+  {
+    "id": "NFA-13",
+    "file": "tests/local/NFA-13.sh",
+    "category": "NFA",
+    "kind": "shell"
+  },
+  {
+    "id": "NFA-14",
+    "file": "tests/py/local/test_nfa_14_devcluster_ha.py",
+    "category": "NFA",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-ASTRO-TC-002",
+    "file": "tests/py/spec/remaining_domain_specs/test_astro_type_check.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-ASTRO-TC-003",
+    "file": "tests/py/spec/remaining_domain_specs/test_astro_type_check.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-ASTRO-TC-004",
+    "file": "tests/py/spec/remaining_domain_specs/test_astro_type_check.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-NETPLAN-001",
+    "file": "tests/py/spec/remaining_root_specs/network_address_plan/test_networks_registry.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-NETPLAN-002",
+    "file": "tests/py/spec/remaining_root_specs/network_address_plan/test_networks_registry.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-NETPLAN-003",
+    "file": "tests/py/spec/remaining_root_specs/network_address_plan/test_networks_registry.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-NETPLAN-004",
+    "file": "tests/py/spec/remaining_root_specs/network_address_plan/test_networks_registry.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-NETPLAN-005",
+    "file": "tests/py/spec/remaining_root_specs/network_address_plan/test_networks_registry.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-VIM-AI-001",
+    "file": "tests/py/spec/native_ported/spec/vim-ai-completion/test_install_config.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-VIM-AI-002",
+    "file": "tests/py/spec/native_ported/spec/vim-ai-completion/test_request_stream.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-VIM-AI-003",
+    "file": "tests/py/spec/native_ported/spec/vim-ai-completion/test_request_stream.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-VIM-AI-004",
+    "file": "tests/py/spec/native_ported/spec/vim-ai-completion/test_request_stream.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-VIM-AI-005",
+    "file": "tests/py/spec/native_ported/spec/vim-ai-completion/test_install_config.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-VIM-AI-006",
+    "file": "tests/py/spec/native_ported/spec/vim-ai-completion/test_context_status.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-VIM-AI-007",
+    "file": "tests/py/spec/native_ported/spec/vim-ai-completion/test_context_status.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-VIM-AI-008",
+    "file": "tests/py/spec/native_ported/spec/vim-ai-completion/test_context_status.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "REQ-VIM-AI-009",
+    "file": "tests/py/spec/native_ported/spec/vim-ai-completion/test_install_config.py",
+    "category": "REQ",
+    "kind": "pytest"
+  },
+  {
+    "id": "SA-01",
+    "file": "tests/prod/SA-01.sh",
+    "category": "SA",
+    "kind": "shell"
+  },
+  {
+    "id": "SA-01",
+    "file": "tests/py/local/test_sa_01.py",
+    "category": "SA",
+    "kind": "pytest"
+  },
+  {
+    "id": "SA-01",
+    "file": "tests/e2e/specs/sa-01-tls.spec.ts",
+    "category": "SA",
+    "kind": "playwright"
+  },
+  {
+    "id": "SA-02",
+    "file": "tests/local/SA-02.sh",
+    "category": "SA",
+    "kind": "shell"
+  },
+  {
+    "id": "SA-02",
+    "file": "tests/e2e/specs/sa-02-auth.spec.ts",
+    "category": "SA",
+    "kind": "playwright"
+  },
+  {
+    "id": "SA-03",
+    "file": "tests/local/SA-03.sh",
+    "category": "SA",
+    "kind": "shell"
+  },
+  {
+    "id": "SA-03",
+    "file": "tests/e2e/specs/sa-03-passwords.spec.ts",
+    "category": "SA",
+    "kind": "playwright"
+  },
+  {
+    "id": "SA-04",
+    "file": "tests/local/SA-04.sh",
+    "category": "SA",
+    "kind": "shell"
+  },
+  {
+    "id": "SA-04",
+    "file": "tests/e2e/specs/sa-04-session-timeout.spec.ts",
+    "category": "SA",
+    "kind": "playwright"
+  },
+  {
+    "id": "SA-05",
+    "file": "tests/local/SA-05.sh",
+    "category": "SA",
+    "kind": "shell"
+  },
+  {
+    "id": "SA-05",
+    "file": "tests/e2e/specs/sa-05-audit-log.spec.ts",
+    "category": "SA",
+    "kind": "playwright"
+  },
+  {
+    "id": "SA-06",
+    "file": "tests/local/SA-06.sh",
+    "category": "SA",
+    "kind": "shell"
+  },
+  {
+    "id": "SA-07",
+    "file": "tests/local/SA-07.sh",
+    "category": "SA",
+    "kind": "shell"
+  },
+  {
+    "id": "SA-07",
+    "file": "tests/prod/SA-07.sh",
+    "category": "SA",
+    "kind": "shell"
+  },
+  {
+    "id": "SA-07",
+    "file": "tests/e2e/specs/sa-07-backup.spec.ts",
+    "category": "SA",
+    "kind": "playwright"
+  },
+  {
+    "id": "SA-08",
+    "file": "tests/local/SA-08.sh",
+    "category": "SA",
+    "kind": "shell"
+  },
+  {
+    "id": "SA-08",
+    "file": "tests/prod/SA-08.sh",
+    "category": "SA",
+    "kind": "shell"
+  },
+  {
+    "id": "SA-08",
+    "file": "tests/e2e/specs/sa-08-sso.spec.ts",
+    "category": "SA",
+    "kind": "playwright"
+  },
+  {
+    "id": "SA-09",
+    "file": "tests/local/SA-09.sh",
+    "category": "SA",
+    "kind": "shell"
+  },
+  {
+    "id": "SA-10",
+    "file": "tests/local/SA-10.sh",
+    "category": "SA",
+    "kind": "shell"
+  },
+  {
+    "id": "SA-10",
+    "file": "tests/e2e/specs/sa-10-mcp-forwardauth.spec.ts",
+    "category": "SA",
+    "kind": "playwright"
+  },
+  {
+    "id": "SA-21",
+    "file": "tests/e2e/specs/sa-21-admin-actions.spec.ts",
+    "category": "SA",
+    "kind": "playwright"
+  },
+  {
+    "id": "SA-22",
+    "file": "tests/local/SA-22.sh",
+    "category": "SA",
+    "kind": "shell"
+  },
+  {
+    "id": "SA-23",
+    "file": "tests/local/SA-23.sh",
+    "category": "SA",
+    "kind": "shell"
+  },
+  {
+    "id": "SA-SEC-01",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_security_cert_hygiene.py",
+    "category": "SA",
+    "kind": "pytest"
+  },
+  {
+    "id": "SA-SEC-02",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_security_cert_hygiene.py",
+    "category": "SA",
+    "kind": "pytest"
+  },
+  {
+    "id": "T002196-1",
+    "file": "tests/py/spec/native_ported/spec/test_website_interfaces.py",
+    "category": "T002196",
+    "kind": "pytest"
+  },
+  {
+    "id": "T002196-3",
+    "file": "tests/py/spec/native_ported/spec/test_website_interfaces.py",
+    "category": "T002196",
+    "kind": "pytest"
+  },
+  {
+    "id": "T002196-4",
+    "file": "tests/py/spec/native_ported/spec/test_website_interfaces.py",
+    "category": "T002196",
+    "kind": "pytest"
+  },
+  {
+    "id": "T002196-5",
+    "file": "tests/py/spec/native_ported/spec/test_website_interfaces.py",
+    "category": "T002196",
+    "kind": "pytest"
+  },
+  {
+    "id": "T002196-6",
+    "file": "tests/py/spec/native_ported/spec/test_website_interfaces.py",
+    "category": "T002196",
+    "kind": "pytest"
+  },
+  {
+    "id": "T002785-7",
+    "file": "tests/py/spec/test_agent_lock_branch_reap_t002785.py",
+    "category": "T002785",
+    "kind": "pytest"
+  },
+  {
+    "id": "T008015-3",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_intel_annotated_target_files.py",
+    "category": "T008015",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901023-1",
+    "file": "tests/py/spec/remaining_root_specs/test_services_calendar.py",
+    "category": "T901023",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901023-2",
+    "file": "tests/py/spec/remaining_root_specs/test_services_calendar.py",
+    "category": "T901023",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901023-3",
+    "file": "tests/py/spec/remaining_root_specs/test_services_calendar.py",
+    "category": "T901023",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901023-4",
+    "file": "tests/py/spec/remaining_root_specs/test_services_calendar.py",
+    "category": "T901023",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901023-5",
+    "file": "tests/py/spec/remaining_root_specs/test_services_calendar.py",
+    "category": "T901023",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901023-6",
+    "file": "tests/py/spec/remaining_root_specs/test_services_calendar.py",
+    "category": "T901023",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901023-7",
+    "file": "tests/py/spec/remaining_root_specs/test_services_calendar.py",
+    "category": "T901023",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901024-1",
+    "file": "tests/py/spec/remaining_domain_specs/test_appointment_requests.py",
+    "category": "T901024",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901024-2",
+    "file": "tests/py/spec/remaining_domain_specs/test_appointment_requests.py",
+    "category": "T901024",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901024-3",
+    "file": "tests/py/spec/remaining_domain_specs/test_appointment_requests.py",
+    "category": "T901024",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901024-4",
+    "file": "tests/py/spec/remaining_domain_specs/test_appointment_requests.py",
+    "category": "T901024",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901024-5",
+    "file": "tests/py/spec/remaining_domain_specs/test_appointment_requests.py",
+    "category": "T901024",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901025-1",
+    "file": "tests/py/spec/native_ported/spec/test_notify_reminders.py",
+    "category": "T901025",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901025-2",
+    "file": "tests/py/spec/native_ported/spec/test_notify_reminders.py",
+    "category": "T901025",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901025-3",
+    "file": "tests/py/spec/native_ported/spec/test_notify_reminders.py",
+    "category": "T901025",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901025-4",
+    "file": "tests/py/spec/native_ported/spec/test_notify_reminders.py",
+    "category": "T901025",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901025-5",
+    "file": "tests/py/spec/native_ported/spec/test_notify_reminders.py",
+    "category": "T901025",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901026-1",
+    "file": "tests/py/spec/native_ported/spec/test_client_directory.py",
+    "category": "T901026",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901026-2",
+    "file": "tests/py/spec/native_ported/spec/test_client_directory.py",
+    "category": "T901026",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901026-3",
+    "file": "tests/py/spec/native_ported/spec/test_client_directory.py",
+    "category": "T901026",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901026-4",
+    "file": "tests/py/spec/native_ported/spec/test_client_directory.py",
+    "category": "T901026",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901026-5",
+    "file": "tests/py/spec/native_ported/spec/test_client_directory.py",
+    "category": "T901026",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901027-1",
+    "file": "tests/py/spec/native_ported/spec/test_basic_invoices.py",
+    "category": "T901027",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901027-2",
+    "file": "tests/py/spec/native_ported/spec/test_basic_invoices.py",
+    "category": "T901027",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901027-3",
+    "file": "tests/py/spec/native_ported/spec/test_basic_invoices.py",
+    "category": "T901027",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901027-4",
+    "file": "tests/py/spec/native_ported/spec/test_basic_invoices.py",
+    "category": "T901027",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901027-5",
+    "file": "tests/py/spec/native_ported/spec/test_basic_invoices.py",
+    "category": "T901027",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901028-1",
+    "file": "tests/py/spec/native_ported/spec/test_business_homepage.py",
+    "category": "T901028",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901028-2",
+    "file": "tests/py/spec/native_ported/spec/test_business_homepage.py",
+    "category": "T901028",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901028-3",
+    "file": "tests/py/spec/native_ported/spec/test_business_homepage.py",
+    "category": "T901028",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901028-4",
+    "file": "tests/py/spec/native_ported/spec/test_business_homepage.py",
+    "category": "T901028",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901028-5",
+    "file": "tests/py/spec/native_ported/spec/test_business_homepage.py",
+    "category": "T901028",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901028-6",
+    "file": "tests/py/spec/native_ported/spec/test_business_homepage.py",
+    "category": "T901028",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901263-1",
+    "file": "tests/py/spec/native_ported/spec/test_client_directory.py",
+    "category": "T901263",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901310-1",
+    "file": "tests/py/spec/native_ported/spec/test_navigation_responsive.py",
+    "category": "T901310",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901310-2",
+    "file": "tests/py/spec/native_ported/spec/test_navigation_responsive.py",
+    "category": "T901310",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901312-1",
+    "file": "tests/py/spec/native_ported/spec/test_massage_a11y.py",
+    "category": "T901312",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901312-2",
+    "file": "tests/py/spec/native_ported/spec/test_massage_a11y.py",
+    "category": "T901312",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901312-3",
+    "file": "tests/py/spec/native_ported/spec/test_massage_a11y.py",
+    "category": "T901312",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901312-4",
+    "file": "tests/py/spec/native_ported/spec/test_massage_a11y.py",
+    "category": "T901312",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901312-5",
+    "file": "tests/py/spec/native_ported/spec/test_massage_a11y.py",
+    "category": "T901312",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901370-1",
+    "file": "tests/py/spec/native_ported/spec/test_cookie_consent.py",
+    "category": "T901370",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901431-1",
+    "file": "tests/py/spec/native_ported/spec/test_massage_header_cta.py",
+    "category": "T901431",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901431-2",
+    "file": "tests/py/spec/native_ported/spec/test_massage_header_cta.py",
+    "category": "T901431",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901431-3",
+    "file": "tests/py/spec/native_ported/spec/test_massage_header_cta.py",
+    "category": "T901431",
+    "kind": "pytest"
+  },
+  {
+    "id": "T901431-4",
+    "file": "tests/py/spec/native_ported/spec/test_massage_header_cta.py",
+    "category": "T901431",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub",
+    "file": "tests/py/spec/native_ported/spec/test_active_sessions_hub.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub/agent-lock-main-checkout-reclaim",
+    "file": "tests/py/spec/native_ported/spec/active-sessions-hub/test_agent_lock_main_checkout_reclaim.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub/agent-lock-release-cwd",
+    "file": "tests/py/spec/native_ported/spec/active-sessions-hub/test_agent_lock_release_cwd.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub/agent-lock-s1-budget-T900023",
+    "file": "tests/py/spec/native_static/active-sessions-hub/test_agent_lock_s1_budget_T900023.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub/agent-lock-scope-regelwerk",
+    "file": "tests/py/spec/native_ported/spec/active-sessions-hub/test_agent_lock_scope_regelwerk.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub/agent-lock-windows-drive-path-T900023",
+    "file": "tests/py/spec/native_ported/spec/active-sessions-hub/test_agent_lock_windows_drive_path_T900023.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub/agy-session-id-stable",
+    "file": "tests/py/spec/native_ported/spec/active-sessions-hub/test_agy_session_id_stable.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub/claim-persistence-verified-T002826",
+    "file": "tests/py/spec/native_ported/spec/active-sessions-hub/test_claim_persistence_verified_T002826.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub/lock-ownership-cwd-independent-T003110",
+    "file": "tests/py/spec/native_ported/spec/active-sessions-hub/test_lock_ownership_cwd_independent_T003110.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub/opencode-session-id-stable",
+    "file": "tests/py/spec/native_ported/spec/active-sessions-hub/test_opencode_session_id_stable.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub/partial-claims-T900024",
+    "file": "tests/py/spec/native_ported/spec/active-sessions-hub/test_partial_claims_T900024.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub/release-foreign-lock-guard",
+    "file": "tests/py/spec/native_ported/spec/active-sessions-hub/test_release_foreign_lock_guard.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub/session-activity-visibility-T003098",
+    "file": "tests/py/spec/native_ported/spec/active-sessions-hub/test_session_activity_visibility_T003098.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub/ssot-harness-stable-session",
+    "file": "tests/py/spec/native_ported/spec/active-sessions-hub/test_ssot_harness_stable_session.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "active-sessions-hub/ticket-lock-closure-T003102",
+    "file": "tests/py/spec/native_ported/spec/active-sessions-hub/test_ticket_lock_closure_T003102.py",
+    "category": "active-sessions-hub",
+    "kind": "pytest"
+  },
+  {
+    "id": "admin-actions-schema",
+    "file": "tests/py/local/test_admin_actions_schema.py",
+    "category": "admin-actions-schema",
+    "kind": "pytest"
+  },
+  {
+    "id": "admin-cockpit",
+    "file": "tests/py/spec/native_ported/spec/test_admin_cockpit.py",
+    "category": "admin-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "admin-token-consolidation",
+    "file": "tests/py/spec/remaining_domain_specs/test_admin_token_consolidation.py",
+    "category": "admin-token-consolidation",
+    "kind": "pytest"
+  },
+  {
+    "id": "admin-ui-modal-drawer",
+    "file": "tests/py/spec/remaining_domain_specs/test_admin_ui_modal_drawer.py",
+    "category": "admin-ui-modal-drawer",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-behavior/collision-own-worktree",
+    "file": "tests/py/spec/native_ported/spec/agent-behavior/test_collision_own_worktree.py",
+    "category": "agent-behavior",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-behavior/no-tools-allowlist",
+    "file": "tests/py/spec/native_ported/spec/agent-behavior/test_no_tools_allowlist.py",
+    "category": "agent-behavior",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-bench/fixtures/cases/no-source/base/nothing",
+    "file": "tests/spec/agent-bench/fixtures/cases/no-source/base/nothing.sh",
+    "category": "agent-bench",
+    "kind": "shell"
+  },
+  {
+    "id": "agent-bench/fixtures/cases/no-source/variants/v1/checks/run",
+    "file": "tests/spec/agent-bench/fixtures/cases/no-source/variants/v1/checks/run.sh",
+    "category": "agent-bench",
+    "kind": "shell"
+  },
+  {
+    "id": "agent-bench/fixtures/cases/tiny-eval/base/app",
+    "file": "tests/spec/agent-bench/fixtures/cases/tiny-eval/base/app.sh",
+    "category": "agent-bench",
+    "kind": "shell"
+  },
+  {
+    "id": "agent-bench/fixtures/cases/tiny-eval/variants/v1/checks/run",
+    "file": "tests/spec/agent-bench/fixtures/cases/tiny-eval/variants/v1/checks/run.sh",
+    "category": "agent-bench",
+    "kind": "shell"
+  },
+  {
+    "id": "agent-bench/fixtures/cases/tiny-train/base/greet",
+    "file": "tests/spec/agent-bench/fixtures/cases/tiny-train/base/greet.sh",
+    "category": "agent-bench",
+    "kind": "shell"
+  },
+  {
+    "id": "agent-bench/fixtures/cases/tiny-train/variants/v1/checks/run",
+    "file": "tests/spec/agent-bench/fixtures/cases/tiny-train/variants/v1/checks/run.sh",
+    "category": "agent-bench",
+    "kind": "shell"
+  },
+  {
+    "id": "agent-bench/fixtures/fake-bin/gpu-lock",
+    "file": "tests/spec/agent-bench/fixtures/fake-bin/gpu-lock.sh",
+    "category": "agent-bench",
+    "kind": "shell"
+  },
+  {
+    "id": "agent-bench/fixtures/fake-opencode",
+    "file": "tests/spec/agent-bench/fixtures/fake-opencode.sh",
+    "category": "agent-bench",
+    "kind": "shell"
+  },
+  {
+    "id": "agent-bench/fixtures/mkresult",
+    "file": "tests/spec/agent-bench/fixtures/mkresult.sh",
+    "category": "agent-bench",
+    "kind": "shell"
+  },
+  {
+    "id": "agent-bench/fixtures/mktrace",
+    "file": "tests/spec/agent-bench/fixtures/mktrace.sh",
+    "category": "agent-bench",
+    "kind": "shell"
+  },
+  {
+    "id": "agent-bench/loadouts",
+    "file": "tests/py/spec/native_ported/spec/agent-bench/test_loadouts.py",
+    "category": "agent-bench",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-bench/matrix-cli",
+    "file": "tests/py/spec/native_ported/spec/agent-bench/test_matrix_cli.py",
+    "category": "agent-bench",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-bench/orchestrator-dispatch",
+    "file": "tests/py/spec/native_ported/spec/agent-bench/test_orchestrator_dispatch.py",
+    "category": "agent-bench",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-bench/orchestrator-marker",
+    "file": "tests/py/spec/native_ported/spec/agent-bench/test_orchestrator_marker.py",
+    "category": "agent-bench",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-bench/recorder",
+    "file": "tests/py/spec/remaining_domain_specs/agent-bench/test_recorder.py",
+    "category": "agent-bench",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-bench/report-corpus",
+    "file": "tests/py/spec/native_ported/spec/agent-bench/test_report_corpus.py",
+    "category": "agent-bench",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-bench/scoring",
+    "file": "tests/py/spec/native_ported/spec/agent-bench/test_scoring.py",
+    "category": "agent-bench",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-collision-false-positives",
+    "file": "tests/py/spec/test_agent_collision_false_positives.py",
+    "category": "agent-collision-false-positives",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-library",
+    "file": "tests/py/spec/native_ported/spec/test_agent_library.py",
+    "category": "agent-library",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-lock-claim-persist",
+    "file": "tests/py/spec/test_agent_lock_claim_persist.py",
+    "category": "agent-lock-claim-persist",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-lock-fetch-guard",
+    "file": "tests/py/spec/test_agent_lock_fetch_guard.py",
+    "category": "agent-lock-fetch-guard",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-lock-force-claim",
+    "file": "tests/py/spec/test_agent_lock_force_claim.py",
+    "category": "agent-lock-force-claim",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-lock-liveness-heartbeat",
+    "file": "tests/py/spec/test_agent_lock_liveness_heartbeat.py",
+    "category": "agent-lock-liveness-heartbeat",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-lock-lsp-reap-T900306",
+    "file": "tests/py/spec/test_agent_lock_lsp_reap_t900306.py",
+    "category": "agent-lock-lsp-reap-T900306",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-lock-reclaim/pid-dead-worktree-match-T002849",
+    "file": "tests/py/spec/native_ported/spec/agent-lock-reclaim/test_pid_dead_worktree_match_T002849.py",
+    "category": "agent-lock-reclaim",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-lock-session-identity",
+    "file": "tests/py/spec/native_ported/spec/test_agent_lock_session_identity.py",
+    "category": "agent-lock-session-identity",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-roster",
+    "file": "tests/py/spec/native_ported/spec/test_agent_roster.py",
+    "category": "agent-roster",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills",
+    "file": "tests/py/spec/native_ported/spec/test_agent_skills.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/agent-lock-claim-help-flag",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_agent_lock_claim_help_flag.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/automerge-preflight-check",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_automerge_preflight_check.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/check-pr-automerge-fail-closed",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_check_pr_automerge_fail_closed.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/dev-flow-chore-step0-foreign-guard",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_dev_flow_chore_step0_foreign_guard.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/dev-flow-lifecycle-contract",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_dev_flow_lifecycle_contract.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/devflow-worktree-cwd-guard",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_devflow_worktree_cwd_guard.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/executor-post-merge-death",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_executor_post_merge_death.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/finalize-archive-frontmatter",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_finalize_archive_frontmatter.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/finalize-hardening",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_finalize_hardening.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/finalize-worktree-branch-validation",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_finalize_worktree_branch_validation.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/guard-semantics-konvention",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_guard_semantics_konvention.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/harness-guard-registration-T900024",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_harness_guard_registration_T900024.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/interaction-contract",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_interaction_contract.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/messung-mit-befehl",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_messung_mit_befehl.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/nightly-vendor-sync",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_nightly_vendor_sync.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/plugin-activation",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_plugin_activation.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/portable-inventory",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_portable_inventory_part1.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/post-merge-finalize-guards",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_post_merge_finalize_guards.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/post-merge-finalize-t900096",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_post_merge_finalize_t900096.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/repo-hygiene-auto-close-merged-mandatory",
+    "file": "tests/py/spec/native_static/agent-skills/test_repo_hygiene_auto_close_merged_mandatory.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/repo-hygiene-tick-snapshot-guard",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_repo_hygiene_tick_snapshot_guard.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/review-gate-before-auto-merge",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_review_gate_before_auto_merge.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/skill-path-references",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_skill_path_references.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/skill-symlink-targets",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_skill_symlink_targets.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/superpowers-harness-parity",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_superpowers_harness_parity.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/vendor-sync",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_vendor_sync.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/worktree-git-op-finish",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_worktree_git_op_finish.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/worktree-mid-rebase-guard",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_worktree_mid_rebase_guard.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/worktree-remove-managed",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_worktree_remove_managed.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/worktree-write-guard-abspath-T900047",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_worktree_write_guard_abspath_T900047.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/worktree-write-guard-phase-a-allowlist",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_worktree_write_guard_phase_a_allowlist.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agent-skills/worktree-write-guard-session-propagation",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_worktree_write_guard_session_propagation.py",
+    "category": "agent-skills",
+    "kind": "pytest"
+  },
+  {
+    "id": "agentic-tooling-quality-goals",
+    "file": "tests/py/spec/native_ported/spec/test_agentic_tooling_quality_goals.py",
+    "category": "agentic-tooling-quality-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "agentic-tooling-quality-goals/g-agentic01-unresolved-tools",
+    "file": "tests/py/spec/native_ported/spec/agentic-tooling-quality-goals/test_g_agentic01_unresolved_tools.py",
+    "category": "agentic-tooling-quality-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "agentic-trends-radar",
+    "file": "tests/py/spec/native_ported/spec/test_agentic_trends_radar.py",
+    "category": "agentic-trends-radar",
+    "kind": "pytest"
+  },
+  {
+    "id": "application-pipeline/auto-sync",
+    "file": "tests/py/spec/native_ported/spec/application-pipeline/test_auto_sync.py",
+    "category": "application-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "application-pipeline/evidence-catalog",
+    "file": "tests/py/spec/native_ported/spec/application-pipeline/test_evidence_catalog.py",
+    "category": "application-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "application-pipeline/import-bootstrap",
+    "file": "tests/py/spec/native_ported/spec/application-pipeline/test_import_bootstrap.py",
+    "category": "application-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "application-pipeline/ingest-cli",
+    "file": "tests/py/spec/native_ported/spec/application-pipeline/test_ingest_cli.py",
+    "category": "application-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "application-pipeline/match-scoring",
+    "file": "tests/py/spec/native_ported/spec/application-pipeline/test_match_scoring.py",
+    "category": "application-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "application-pipeline/render-cli",
+    "file": "tests/py/spec/native_ported/spec/application-pipeline/test_render_cli.py",
+    "category": "application-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "application-pipeline/schema",
+    "file": "tests/py/spec/native_ported/spec/application-pipeline/test_schema.py",
+    "category": "application-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "application-pipeline/theme-validation",
+    "file": "tests/py/spec/native_ported/spec/application-pipeline/test_theme_validation.py",
+    "category": "application-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "art-library-webapp",
+    "file": "tests/py/spec/remaining_domain_specs/test_art_library_webapp.py",
+    "category": "art-library-webapp",
+    "kind": "pytest"
+  },
+  {
+    "id": "ast-toolchain",
+    "file": "tests/py/spec/remaining_domain_specs/test_ast_toolchain.py",
+    "category": "ast-toolchain",
+    "kind": "pytest"
+  },
+  {
+    "id": "auth-sso",
+    "file": "tests/py/spec/native_ported/spec/test_auth_sso.py",
+    "category": "auth-sso",
+    "kind": "pytest"
+  },
+  {
+    "id": "autodocs-removal-guard",
+    "file": "tests/py/spec/remaining_domain_specs/test_autodocs_removal_guard.py",
+    "category": "autodocs-removal-guard",
+    "kind": "pytest"
+  },
+  {
+    "id": "background-agents-fallback",
+    "file": "tests/py/spec/remaining_domain_specs/test_background_agents_fallback.py",
+    "category": "background-agents-fallback",
+    "kind": "pytest"
+  },
+  {
+    "id": "backup-pipeline/filen-remote-retention",
+    "file": "tests/py/spec/native_ported/spec/backup-pipeline/test_filen_remote_retention.py",
+    "category": "backup-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "backup-pipeline/pvc-backup-multinode",
+    "file": "tests/py/spec/remaining_domain_specs/backup-pipeline/test_pvc_backup_multinode.py",
+    "category": "backup-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "backup-pipeline/render-escaping",
+    "file": "tests/py/spec/native_ported/spec/backup-pipeline/test_render_escaping.py",
+    "category": "backup-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "batch-git-worktree-integrity",
+    "file": "tests/py/spec/native_ported/spec/test_batch_git_worktree_integrity.py",
+    "category": "batch-git-worktree-integrity",
+    "kind": "pytest"
+  },
+  {
+    "id": "batch-local-test-runner-fixes/runner-fixes",
+    "file": "tests/py/spec/remaining_domain_specs/batch-local-test-runner-fixes/test_runner_fixes.py",
+    "category": "batch-local-test-runner-fixes",
+    "kind": "pytest"
+  },
+  {
+    "id": "batch-repo-hygiene-ops-fixes",
+    "file": "tests/py/spec/native_ported/spec/test_batch_repo_hygiene_ops_fixes.py",
+    "category": "batch-repo-hygiene-ops-fixes",
+    "kind": "pytest"
+  },
+  {
+    "id": "batch-repo-hygiene-ops-fixes/reaper-worktree-checkout-keep",
+    "file": "tests/py/spec/remaining_domain_specs/batch-repo-hygiene-ops-fixes/test_reaper_worktree_checkout_keep.py",
+    "category": "batch-repo-hygiene-ops-fixes",
+    "kind": "pytest"
+  },
+  {
+    "id": "batch-repo-hygiene-ops-fixes/runtime-drift-auto-kill",
+    "file": "tests/py/spec/native_ported/spec/batch-repo-hygiene-ops-fixes/test_runtime_drift_auto_kill.py",
+    "category": "batch-repo-hygiene-ops-fixes",
+    "kind": "pytest"
+  },
+  {
+    "id": "batch-repo-hygiene-ops-fixes/runtime-drift-check",
+    "file": "tests/py/spec/native_ported/spec/batch-repo-hygiene-ops-fixes/test_runtime_drift_check.py",
+    "category": "batch-repo-hygiene-ops-fixes",
+    "kind": "pytest"
+  },
+  {
+    "id": "batch-worktree-guard-tooling-fixes/deploy-route-sdlc-exclusion",
+    "file": "tests/py/spec/native_ported/spec/batch-worktree-guard-tooling-fixes/test_deploy_route_sdlc_exclusion.py",
+    "category": "batch-worktree-guard-tooling-fixes",
+    "kind": "pytest"
+  },
+  {
+    "id": "batch-worktree-guard-tooling-fixes/precommit-accepts-batch-branches",
+    "file": "tests/py/spec/native_ported/spec/batch-worktree-guard-tooling-fixes/test_precommit_accepts_batch_branches.py",
+    "category": "batch-worktree-guard-tooling-fixes",
+    "kind": "pytest"
+  },
+  {
+    "id": "batch-worktree-guard-tooling-fixes/write-guard-suffix-normalization",
+    "file": "tests/py/spec/remaining_domain_specs/batch-worktree-guard-tooling-fixes/test_write_guard_suffix_normalization.py",
+    "category": "batch-worktree-guard-tooling-fixes",
+    "kind": "pytest"
+  },
+  {
+    "id": "billing-pipeline",
+    "file": "tests/py/spec/remaining_domain_specs/test_billing_pipeline.py",
+    "category": "billing-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "brain-auto-memory",
+    "file": "tests/py/spec/native_ported/spec/test_brain_auto_memory.py",
+    "category": "brain-auto-memory",
+    "kind": "pytest"
+  },
+  {
+    "id": "brain-foundation",
+    "file": "tests/py/spec/native_ported/spec/test_brain_foundation.py",
+    "category": "brain-foundation",
+    "kind": "pytest"
+  },
+  {
+    "id": "brain-foundation/k1-vector-db-doc",
+    "file": "tests/py/spec/remaining_domain_specs/brain-foundation/test_k1_vector_db_doc.py",
+    "category": "brain-foundation",
+    "kind": "pytest"
+  },
+  {
+    "id": "brain-gekko-inbox",
+    "file": "tests/py/spec/remaining_domain_specs/test_brain_gekko_inbox.py",
+    "category": "brain-gekko-inbox",
+    "kind": "pytest"
+  },
+  {
+    "id": "brain-k4-brain-wiki/chunking",
+    "file": "tests/py/spec/native_ported/spec/brain-k4-brain-wiki/test_chunking.py",
+    "category": "brain-k4-brain-wiki",
+    "kind": "pytest"
+  },
+  {
+    "id": "brain-k4-brain-wiki/parent-moc",
+    "file": "tests/py/spec/native_ported/spec/brain-k4-brain-wiki/test_parent_moc.py",
+    "category": "brain-k4-brain-wiki",
+    "kind": "pytest"
+  },
+  {
+    "id": "brain-k4-brain-wiki/retrieval-eval",
+    "file": "tests/py/spec/native_ported/spec/brain-k4-brain-wiki/test_retrieval_eval.py",
+    "category": "brain-k4-brain-wiki",
+    "kind": "pytest"
+  },
+  {
+    "id": "brain-quality-goals",
+    "file": "tests/py/spec/native_ported/spec/test_brain_quality_goals.py",
+    "category": "brain-quality-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "branch-reaper-netzausfall",
+    "file": "tests/py/spec/remaining_domain_specs/test_branch_reaper_netzausfall.py",
+    "category": "branch-reaper-netzausfall",
+    "kind": "pytest"
+  },
+  {
+    "id": "brett",
+    "file": "tests/py/spec/native_ported/spec/test_brett.py",
+    "category": "brett",
+    "kind": "pytest"
+  },
+  {
+    "id": "cbm-embed-store",
+    "file": "tests/py/spec/native_ported/spec/test_cbm_embed_store.py",
+    "category": "cbm-embed-store",
+    "kind": "pytest"
+  },
+  {
+    "id": "cbm-embed-sync-A2",
+    "file": "tests/py/spec/native_ported/spec/test_cbm_embed_sync_a2.py",
+    "category": "cbm-embed-sync-A2",
+    "kind": "pytest"
+  },
+  {
+    "id": "cbm-eval",
+    "file": "tests/py/spec/native_ported/spec/test_cbm_eval.py",
+    "category": "cbm-eval",
+    "kind": "pytest"
+  },
+  {
+    "id": "cbm-freshness-probe",
+    "file": "tests/py/spec/native_ported/spec/test_cbm_freshness_probe.py",
+    "category": "cbm-freshness-probe",
+    "kind": "pytest"
+  },
+  {
+    "id": "cbm-graph-rerank",
+    "file": "tests/py/spec/test_cbm_graph_rerank_and_hybrid.py",
+    "category": "cbm-graph-rerank",
+    "kind": "pytest"
+  },
+  {
+    "id": "cbm-health-goals",
+    "file": "tests/py/spec/native_ported/spec/test_cbm_health_goals.py",
+    "category": "cbm-health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "cbm-hybrid-search",
+    "file": "tests/py/spec/test_cbm_graph_rerank_and_hybrid.py",
+    "category": "cbm-hybrid-search",
+    "kind": "pytest"
+  },
+  {
+    "id": "cbm-reconcile",
+    "file": "tests/py/spec/native_ported/spec/test_cbm_reconcile.py",
+    "category": "cbm-reconcile",
+    "kind": "pytest"
+  },
+  {
+    "id": "cbm-refresh-cron-A4",
+    "file": "tests/py/spec/native_ported/spec/test_cbm_refresh_cron_A4.py",
+    "category": "cbm-refresh-cron-A4",
+    "kind": "pytest"
+  },
+  {
+    "id": "cbm-stampede-guard",
+    "file": "tests/py/spec/native_ported/spec/test_cbm_stampede_guard.py",
+    "category": "cbm-stampede-guard",
+    "kind": "pytest"
+  },
+  {
+    "id": "cbm/begin_exit_status",
+    "file": "tests/py/spec/cbm/test_begin_exit_status.py",
+    "category": "cbm",
+    "kind": "pytest"
+  },
+  {
+    "id": "centralized-logging",
+    "file": "tests/py/spec/remaining_domain_specs/test_centralized_logging.py",
+    "category": "centralized-logging",
+    "kind": "pytest"
+  },
+  {
+    "id": "chat-inbox",
+    "file": "tests/py/spec/remaining_domain_specs/test_chat_inbox.py",
+    "category": "chat-inbox",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd",
+    "file": "tests/py/spec/native_ported/spec/test_ci_cd_part1.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/actionlint-workflow-gate",
+    "file": "tests/py/spec/ci_cd_specs/test_actionlint_workflow_gate.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/arbitration-scoped-kubeconfig",
+    "file": "tests/py/spec/ci_cd_specs/test_arbitration_scoped_kubeconfig.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/automerge-run-scope",
+    "file": "tests/py/spec/ci_cd_specs/test_automerge_run_scope.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/awk-interval-portability",
+    "file": "tests/py/spec/ci_cd_specs/test_awk_interval_portability.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/baseline-guard-read-pr-body",
+    "file": "tests/py/spec/ci_cd_specs/test_baseline_guard_read_pr_body.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/bats-no-live-branch-assertion",
+    "file": "tests/py/spec/ci_cd_specs/test_bats_no_live_branch_assertion.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/brainstorm-firewall-namespace",
+    "file": "tests/py/spec/ci_cd_specs/test_brainstorm_firewall_namespace.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/branch-reaper",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_branch_reaper.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/branch-reaper-empty-answer",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_branch_reaper_empty_answer.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/branch-reaper-freshness-regen",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_branch_reaper_freshness_regen.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/branch-reaper-local-ref",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_branch_reaper_local_ref.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/branch-reaper-merged-pr-signal",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_branch_reaper_merged_pr_signal.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/branch-reaper-sweep",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_branch_reaper_sweep.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/branch-reaper-undecided",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_branch_reaper_undecided.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/branch-reaper-unknown-ticket-merged-pr",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_branch_reaper_unknown_ticket_merged_pr.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/branch-reaper-unmerged-keep",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_branch_reaper_unmerged_keep.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/cfr-trend-window",
+    "file": "tests/py/spec/ci_cd_specs/test_cfr_trend_window.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/ci-wait-loop-nonempty-guard",
+    "file": "tests/py/spec/ci_cd_specs/test_ci_wait_loop_nonempty_guard.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/devflow-ci-watch-merged-exit",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_devflow_ci_watch_merged_exit.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/devflow-ci-watch-rollup-headsha",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_devflow_ci_watch_rollup_headsha.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/devflow-ci-watch-run-lookup",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_devflow_ci_watch_run_lookup.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/devflow-execute-hardening-t002365",
+    "file": "tests/py/spec/ci_cd_specs/test_devflow_execute_hardening_t002365.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/e2e-project-selection",
+    "file": "tests/py/spec/ci_cd_specs/test_e2e_project_selection.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/fetch-refspec-forced",
+    "file": "tests/py/spec/ci_cd_specs/test_fetch_refspec_forced.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/freshness-check-base-mismatch",
+    "file": "tests/py/spec/ci_cd_specs/test_freshness_check_base_mismatch.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/freshness-paths-exist",
+    "file": "tests/py/spec/ci_cd_specs/test_freshness_paths_exist.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/freshness-regen-rebase-guard",
+    "file": "tests/py/spec/ci_cd_specs/test_freshness_regen_rebase_guard.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/generated-artifacts-registry",
+    "file": "tests/py/spec/ci_cd_specs/test_generated_artifacts_registry.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/generated-path-separators",
+    "file": "tests/py/spec/ci_cd_specs/test_generated_path_separators.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/gh-repo-context-guard",
+    "file": "tests/py/spec/ci_cd_specs/test_gh_repo_context_guard.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/ghcr-digest-auth",
+    "file": "tests/py/spec/ci_cd_specs/test_ghcr_digest_auth.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/git-flow-poll-and-branch-order",
+    "file": "tests/py/spec/ci_cd_specs/test_git_flow_poll_and_branch_order.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/github-only-ci",
+    "file": "tests/py/spec/ci_cd_specs/test_github_only_ci.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/health-goals-pr-path",
+    "file": "tests/py/spec/ci_cd_specs/test_health_goals_pr_path.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/hybrid-runner-placement",
+    "file": "tests/py/spec/ci_cd_specs/test_hybrid_runner_placement.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/main-direct-push-guard",
+    "file": "tests/py/spec/ci_cd_specs/test_main_direct_push_guard.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/mishap-t002425",
+    "file": "tests/py/spec/ci_cd_specs/test_mishap_t002425.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/pr-auto-title-scope-extraction",
+    "file": "tests/py/spec/ci_cd_specs/test_pr_auto_title_scope_extraction.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/pr-refresh-batch",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_pr_refresh_batch.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/pre-push-artifact-guard",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_pre_push_artifact_guard.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/pre-push-scope-base",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_pre_push_scope_base.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/preflight-multi-ticket-id",
+    "file": "tests/py/spec/ci_cd_specs/test_preflight_multi_ticket_id.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/runner-role-assignment",
+    "file": "tests/py/spec/ci_cd_specs/test_runner_role_assignment.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/self-hosted-fork-guard",
+    "file": "tests/py/spec/ci_cd_specs/test_self_hosted_fork_guard.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/self-hosted-no-root-install",
+    "file": "tests/py/spec/ci_cd_specs/test_self_hosted_no_root_install.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/skip-ci-marker-guard",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_skip_ci_marker_guard.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/spec-shard-optimization",
+    "file": "tests/py/spec/ci_cd_specs/test_spec_shard_optimization.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/spec-test-no-fixed-sleep-polling",
+    "file": "tests/py/spec/ci_cd_specs/test_spec_test_no_fixed_sleep_polling.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/spec-test-no-tracked-file-mutation",
+    "file": "tests/py/spec/ci_cd_specs/test_spec_test_no_tracked_file_mutation.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/spec-tracked-file-guard",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_spec_tracked_file_guard.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/spec-tracked-file-guard-isolation",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_spec_tracked_file_guard_isolation.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/taskfile-no-stale-website-root",
+    "file": "tests/py/spec/ci_cd_specs/test_taskfile_no_stale_website_root.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/taskfile-shebang-portability",
+    "file": "tests/py/spec/ci_cd_specs/test_taskfile_shebang_portability.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/taskfiles-dir-convention",
+    "file": "tests/py/spec/ci_cd_specs/test_taskfiles_dir_convention.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/test-inventory-coverage",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_test_inventory_coverage.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/unit-tests-no-dependency-skips",
+    "file": "tests/py/spec/ci_cd_specs/test_unit_tests_no_dependency_skips.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/unknown-scope-names-source",
+    "file": "tests/py/spec/ci_cd_specs/test_unknown_scope_names_source.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/website-fast-path",
+    "file": "tests/py/spec/ci_cd_specs/test_website_fast_path.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/windows-path-portability",
+    "file": "tests/py/spec/ci_cd_specs/test_windows_path_portability.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/workflow-self-trigger",
+    "file": "tests/py/spec/ci_cd_specs/test_workflow_self_trigger.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-cd/worktrees-not-tracked",
+    "file": "tests/py/spec/ci_cd_specs/test_worktrees_not_tracked.py",
+    "category": "ci-cd",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci-red-intake-autoresolve",
+    "file": "tests/py/spec/native_ported/spec/test_ci_red_intake_autoresolve.py",
+    "category": "ci-red-intake-autoresolve",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci/ai_code_review",
+    "file": "tests/py/spec/ci/test_ai_code_review.py",
+    "category": "ci",
+    "kind": "pytest"
+  },
+  {
+    "id": "ci_cd_specs/commit_vs_diff_scope",
+    "file": "tests/py/spec/ci_cd_specs/test_commit_vs_diff_scope.py",
+    "category": "ci_cd_specs",
+    "kind": "pytest"
+  },
+  {
+    "id": "coaching-sessions-polish-guide",
+    "file": "tests/py/spec/native_ported/spec/test_coaching_sessions_polish_guide.py",
+    "category": "coaching-sessions-polish-guide",
+    "kind": "pytest"
+  },
+  {
+    "id": "coaching/questionnaire-insights",
+    "file": "tests/py/spec/native_ported/spec/coaching/test_questionnaire_insights.py",
+    "category": "coaching",
+    "kind": "pytest"
+  },
+  {
+    "id": "coaching/session-summaries",
+    "file": "tests/py/spec/native_ported/spec/coaching/test_session_summaries.py",
+    "category": "coaching",
+    "kind": "pytest"
+  },
+  {
+    "id": "code-quality",
+    "file": "tests/py/spec/test_code_quality_and_gates.py",
+    "category": "code-quality",
+    "kind": "pytest"
+  },
+  {
+    "id": "code-quality/s2-madge-invocation",
+    "file": "tests/py/spec/test_code_quality_and_gates.py",
+    "category": "code-quality",
+    "kind": "pytest"
+  },
+  {
+    "id": "collabora-integration",
+    "file": "tests/py/spec/remaining_domain_specs/test_collabora_integration.py",
+    "category": "collabora-integration",
+    "kind": "pytest"
+  },
+  {
+    "id": "commit-scope-vokabular/mcp-gateway-alias",
+    "file": "tests/py/spec/remaining_domain_specs/commit-scope-vokabular/test_mcp_gateway_alias.py",
+    "category": "commit-scope-vokabular",
+    "kind": "pytest"
+  },
+  {
+    "id": "commit-signing",
+    "file": "tests/py/spec/native_ported/spec/test_commit_signing.py",
+    "category": "commit-signing",
+    "kind": "pytest"
+  },
+  {
+    "id": "coverage-gate",
+    "file": "tests/py/spec/test_code_quality_and_gates.py",
+    "category": "coverage-gate",
+    "kind": "pytest"
+  },
+  {
+    "id": "database",
+    "file": "tests/py/spec/native_ported/spec/test_database.py",
+    "category": "database",
+    "kind": "pytest"
+  },
+  {
+    "id": "database-migrations-runner",
+    "file": "tests/py/spec/remaining_domain_specs/test_database_migrations_runner.py",
+    "category": "database-migrations-runner",
+    "kind": "pytest"
+  },
+  {
+    "id": "datev-export",
+    "file": "tests/py/spec/remaining_domain_specs/test_datev_export.py",
+    "category": "datev-export",
+    "kind": "pytest"
+  },
+  {
+    "id": "db-quality-goals",
+    "file": "tests/py/spec/native_ported/spec/test_db_quality_goals.py",
+    "category": "db-quality-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "db-restore-verification/generation-lookup",
+    "file": "tests/py/spec/remaining_domain_specs/db-restore-verification/test_generation_lookup.py",
+    "category": "db-restore-verification",
+    "kind": "pytest"
+  },
+  {
+    "id": "db-restore-verification/restore-verify-cronjob",
+    "file": "tests/py/spec/remaining_domain_specs/db-restore-verification/test_restore_verify_cronjob.py",
+    "category": "db-restore-verification",
+    "kind": "pytest"
+  },
+  {
+    "id": "decommission/decommission-guard",
+    "file": "tests/py/spec/native_ported/spec/decommission/test_decommission_guard.py",
+    "category": "decommission",
+    "kind": "pytest"
+  },
+  {
+    "id": "design_assets/inventory",
+    "file": "tests/py/spec/design_assets/test_inventory.py",
+    "category": "design_assets",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-brett-auth/oidc_provision",
+    "file": "tests/py/spec/dev-brett-auth/test_oidc_provision.py",
+    "category": "dev-brett-auth",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-e2e",
+    "file": "tests/py/spec/native_ported/spec/test_dev_flow_e2e.py",
+    "category": "dev-flow-e2e",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-execute",
+    "file": "tests/py/spec/native_ported/spec/test_dev_flow_execute.py",
+    "category": "dev-flow-execute",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan",
+    "file": "tests/py/spec/native_ported/spec/test_dev_flow_plan.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/domains-vocabulary",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_domains_vocabulary.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/guard-parity",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_guard_parity.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-commit-scope-guard",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_commit_scope_guard.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-dir-resolution",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_dir_resolution.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-intel-risks-dedupe",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_intel_risks_dedupe.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-lint-b1b-prose-path",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_lint_b1b_prose_path.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-lint-node-test",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_lint_node_test.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-lint-resourcing",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_lint_resourcing.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-lint-rules",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_lint_rules.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-lint-task-count",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_lint_task_count.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-lint-w3-prose-path",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_lint_w3_prose_path.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-preflight",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_preflight.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-preflight-repo-index-hint",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_preflight_repo_index_hint.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-preflight-staged-set",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_preflight_staged_set.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-qa-livez-probe",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_qa_livez_probe.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-qa-parse-and-outcome",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_qa_parse_and_outcome.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/plan-qa-payload",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_plan_qa_payload.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/red-phase-and-handoff-conventions",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_red_phase_and_handoff_conventions.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/skill-worktree-create-aufruf",
+    "file": "tests/py/spec/native_static/dev-flow-plan/test_skill_worktree_create_aufruf.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/task-context",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_task_context.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/tcc-fixture-orphan-reap",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_tcc_fixture_orphan_reap.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-flow-plan/worktree-remove-claim-guard",
+    "file": "tests/py/spec/native_ported/spec/dev-flow-plan/test_worktree_remove_claim_guard.py",
+    "category": "dev-flow-plan",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-machine-onboarding/git-crypt-gpg",
+    "file": "tests/py/spec/remaining_domain_specs/dev-machine-onboarding/test_git_crypt_gpg.py",
+    "category": "dev-machine-onboarding",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-machine-onboarding/install-dev-tools-user",
+    "file": "tests/py/spec/remaining_domain_specs/dev-machine-onboarding/test_install_dev_tools_user.py",
+    "category": "dev-machine-onboarding",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-machine-onboarding/key-register",
+    "file": "tests/py/spec/remaining_domain_specs/dev-machine-onboarding/test_key_register.py",
+    "category": "dev-machine-onboarding",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-machine-onboarding/onboard-machine",
+    "file": "tests/py/spec/native_ported/spec/dev-machine-onboarding/test_onboard_machine.py",
+    "category": "dev-machine-onboarding",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-pod-mcp-bundle/dev-pod",
+    "file": "tests/py/spec/native_ported/spec/dev-pod-mcp-bundle/test_dev_pod.py",
+    "category": "dev-pod-mcp-bundle",
+    "kind": "pytest"
+  },
+  {
+    "id": "dev-stack-tmp-mounts",
+    "file": "tests/py/spec/remaining_domain_specs/test_dev_stack_tmp_mounts.py",
+    "category": "dev-stack-tmp-mounts",
+    "kind": "pytest"
+  },
+  {
+    "id": "devflow-mcp/graph-index",
+    "file": "tests/py/spec/native_ported/spec/devflow-mcp/test_graph_index.py",
+    "category": "devflow-mcp",
+    "kind": "pytest"
+  },
+  {
+    "id": "devflow-mcp/plan-stage",
+    "file": "tests/py/spec/native_ported/spec/devflow-mcp/test_plan_stage.py",
+    "category": "devflow-mcp",
+    "kind": "pytest"
+  },
+  {
+    "id": "devflow-mcp/retrieval",
+    "file": "tests/py/spec/native_ported/spec/devflow-mcp/test_retrieval.py",
+    "category": "devflow-mcp",
+    "kind": "pytest"
+  },
+  {
+    "id": "devflow-selection-archive-hardening",
+    "file": "tests/py/spec/native_ported/spec/test_devflow_selection_archive_hardening.py",
+    "category": "devflow-selection-archive-hardening",
+    "kind": "pytest"
+  },
+  {
+    "id": "devflow-selection-archive-hardening/merge-commit-selection",
+    "file": "tests/py/spec/native_ported/spec/devflow-selection-archive-hardening/test_merge_commit_selection.py",
+    "category": "devflow-selection-archive-hardening",
+    "kind": "pytest"
+  },
+  {
+    "id": "divergence-guard",
+    "file": "tests/py/spec/remaining_domain_specs/test_divergence_guard.py",
+    "category": "divergence-guard",
+    "kind": "pytest"
+  },
+  {
+    "id": "divergence-guard/branch-name-guard",
+    "file": "tests/py/spec/native_ported/spec/divergence-guard/test_branch_name_guard.py",
+    "category": "divergence-guard",
+    "kind": "pytest"
+  },
+  {
+    "id": "divergence-guard/branch-prefix-suggestion",
+    "file": "tests/py/spec/native_ported/spec/divergence-guard/test_branch_prefix_suggestion.py",
+    "category": "divergence-guard",
+    "kind": "pytest"
+  },
+  {
+    "id": "divergence-guard/main-checkout-foreign-guard",
+    "file": "tests/py/spec/native_ported/spec/divergence-guard/test_main_checkout_foreign_guard.py",
+    "category": "divergence-guard",
+    "kind": "pytest"
+  },
+  {
+    "id": "divergence-guard/stash-drop-by-message",
+    "file": "tests/py/spec/native_ported/spec/divergence-guard/test_stash_drop_by_message.py",
+    "category": "divergence-guard",
+    "kind": "pytest"
+  },
+  {
+    "id": "divergence-guard/worktree-create-git-op-guard",
+    "file": "tests/py/spec/native_ported/spec/divergence-guard/test_worktree_create_git_op_guard.py",
+    "category": "divergence-guard",
+    "kind": "pytest"
+  },
+  {
+    "id": "docker-build-speedup",
+    "file": "tests/py/spec/native_ported/spec/test_docker_build_speedup.py",
+    "category": "docker-build-speedup",
+    "kind": "pytest"
+  },
+  {
+    "id": "dora-dashboard",
+    "file": "tests/py/spec/remaining_domain_specs/test_dora_dashboard.py",
+    "category": "dora-dashboard",
+    "kind": "pytest"
+  },
+  {
+    "id": "dsh-harness-integration/bundle",
+    "file": "tests/py/spec/remaining_domain_specs/dsh-harness-integration/test_bundle.py",
+    "category": "dsh-harness-integration",
+    "kind": "pytest"
+  },
+  {
+    "id": "dsh-harness-integration/hook-bridge",
+    "file": "tests/py/spec/remaining_domain_specs/dsh-harness-integration/test_hook_bridge.py",
+    "category": "dsh-harness-integration",
+    "kind": "pytest"
+  },
+  {
+    "id": "dsh-harness-integration/repo-guard-behavior",
+    "file": "tests/py/spec/remaining_domain_specs/dsh-harness-integration/test_repo_guard_behavior.py",
+    "category": "dsh-harness-integration",
+    "kind": "pytest"
+  },
+  {
+    "id": "dsh-harness-integration/taskfile-runtime",
+    "file": "tests/py/spec/native_ported/spec/dsh-harness-integration/test_taskfile_runtime.py",
+    "category": "dsh-harness-integration",
+    "kind": "pytest"
+  },
+  {
+    "id": "e2e-skill-selfpatch",
+    "file": "tests/py/local/test_e2e_skill_selfpatch.py",
+    "category": "e2e-skill-selfpatch",
+    "kind": "pytest"
+  },
+  {
+    "id": "e2e-test-infrastructure",
+    "file": "tests/py/spec/native_ported/spec/test_e2e_test_infrastructure.py",
+    "category": "e2e-test-infrastructure",
+    "kind": "pytest"
+  },
+  {
+    "id": "e2e-test-infrastructure/no-group-modifiers",
+    "file": "tests/py/spec/native_ported/spec/e2e-test-infrastructure/test_no_group_modifiers.py",
+    "category": "e2e-test-infrastructure",
+    "kind": "pytest"
+  },
+  {
+    "id": "e2e-test-infrastructure/no-wrong-reporoot-resolution",
+    "file": "tests/py/spec/native_ported/spec/e2e-test-infrastructure/test_no_wrong_reporoot_resolution.py",
+    "category": "e2e-test-infrastructure",
+    "kind": "pytest"
+  },
+  {
+    "id": "e2e-test-infrastructure/purge-fn-website-sync",
+    "file": "tests/py/spec/native_ported/spec/e2e-test-infrastructure/test_purge_fn_website_sync.py",
+    "category": "e2e-test-infrastructure",
+    "kind": "pytest"
+  },
+  {
+    "id": "e2e-test-infrastructure/purge-test-data-missing-table",
+    "file": "tests/py/spec/native_ported/spec/e2e-test-infrastructure/test_purge_test_data_missing_table.py",
+    "category": "e2e-test-infrastructure",
+    "kind": "pytest"
+  },
+  {
+    "id": "e2e-test-infrastructure/vision-sweep",
+    "file": "tests/py/spec/native_ported/spec/e2e-test-infrastructure/test_vision_sweep.py",
+    "category": "e2e-test-infrastructure",
+    "kind": "pytest"
+  },
+  {
+    "id": "e2e-testing",
+    "file": "tests/py/spec/remaining_domain_specs/test_e2e_testing.py",
+    "category": "e2e-testing",
+    "kind": "pytest"
+  },
+  {
+    "id": "e2e-vision-agent/api_state",
+    "file": "tests/py/spec/e2e-vision-agent/test_api_state.py",
+    "category": "e2e-vision-agent",
+    "kind": "pytest"
+  },
+  {
+    "id": "env-seal-empty-value-keys",
+    "file": "tests/py/spec/native_ported/spec/test_env_seal_empty_value_keys.py",
+    "category": "env-seal-empty-value-keys",
+    "kind": "pytest"
+  },
+  {
+    "id": "feature-product-linking",
+    "file": "tests/py/spec/native_ported/spec/test_feature_product_linking.py",
+    "category": "feature-product-linking",
+    "kind": "pytest"
+  },
+  {
+    "id": "finetune-hf-jobs",
+    "file": "tests/py/spec/remaining_domain_specs/test_finetune_hf_jobs.py",
+    "category": "finetune-hf-jobs",
+    "kind": "pytest"
+  },
+  {
+    "id": "finetune/model-registry",
+    "file": "tests/py/spec/native_ported/spec/finetune/test_model_registry.py",
+    "category": "finetune",
+    "kind": "pytest"
+  },
+  {
+    "id": "fix-ci-concurrency",
+    "file": "tests/py/spec/remaining_domain_specs/test_fix_ci_concurrency.py",
+    "category": "fix-ci-concurrency",
+    "kind": "pytest"
+  },
+  {
+    "id": "fix-ticket-tracking-T002279",
+    "file": "tests/py/spec/native_ported/spec/test_fix_ticket_tracking_T002279.py",
+    "category": "fix-ticket-tracking-T002279",
+    "kind": "pytest"
+  },
+  {
+    "id": "fixtures/make-partial-plan",
+    "file": "tests/spec/fixtures/make-partial-plan.sh",
+    "category": "fixtures",
+    "kind": "shell"
+  },
+  {
+    "id": "fleet-operations",
+    "file": "tests/py/spec/test_fleet_operations.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/cronjob-hygiene",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_cronjob_hygiene.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/dev-env-split",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_dev_env_split.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/dev-node-binding",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_dev_node_binding.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/firewall-program-match",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_firewall_program_match.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/ghcr-pull-secret",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_ghcr_pull_secret.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/internal-endpoints",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_internal_endpoints.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/legacy-secrets-fleet",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_legacy_secrets_fleet.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/membership-drift",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_membership_drift.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/monitoring-ready",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_monitoring_ready.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/penpot-secret-keys",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_penpot_secret_keys.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/powershell-ascii-only",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_powershell_ascii_only.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/reflector-annotations",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_reflector_annotations.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/sdlc-console-fleet",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_sdlc_console_fleet.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/staging-flux-wiring",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_staging_flux_wiring.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet-operations/vaultwarden-smtp-from",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_vaultwarden_smtp_from.py",
+    "category": "fleet-operations",
+    "kind": "pytest"
+  },
+  {
+    "id": "fleet/ai_services_scale_zero",
+    "file": "tests/py/spec/fleet/test_ai_services_scale_zero.py",
+    "category": "fleet",
+    "kind": "pytest"
+  },
+  {
+    "id": "flux-artifact-versioning/flux-artifact-versioning",
+    "file": "tests/py/spec/remaining_domain_specs/flux-artifact-versioning/test_flux_artifact_versioning.py",
+    "category": "flux-artifact-versioning",
+    "kind": "pytest"
+  },
+  {
+    "id": "flux-render-security/bootstrap-envsubst",
+    "file": "tests/py/spec/native_ported/spec/flux-render-security/test_bootstrap_envsubst.py",
+    "category": "flux-render-security",
+    "kind": "pytest"
+  },
+  {
+    "id": "flux-render-security/immutable-image-refs",
+    "file": "tests/py/spec/native_ported/spec/flux-render-security/test_immutable_image_refs.py",
+    "category": "flux-render-security",
+    "kind": "pytest"
+  },
+  {
+    "id": "flux-render-security/no-default-secrets",
+    "file": "tests/py/spec/native_ported/spec/flux-render-security/test_no_default_secrets.py",
+    "category": "flux-render-security",
+    "kind": "pytest"
+  },
+  {
+    "id": "flux-render-security/runtime-var-unwrapping",
+    "file": "tests/py/spec/native_ported/spec/flux-render-security/test_runtime_var_unwrapping.py",
+    "category": "flux-render-security",
+    "kind": "pytest"
+  },
+  {
+    "id": "flux_render_and_security",
+    "file": "tests/py/spec/test_flux_render_and_security.py",
+    "category": "flux_render_and_security",
+    "kind": "pytest"
+  },
+  {
+    "id": "g-cq02-any-types",
+    "file": "tests/py/spec/test_code_quality_and_gates.py",
+    "category": "g-cq02-any-types",
+    "kind": "pytest"
+  },
+  {
+    "id": "g-cq08-knip-dead-code",
+    "file": "tests/py/spec/test_code_quality_and_gates.py",
+    "category": "g-cq08-knip-dead-code",
+    "kind": "pytest"
+  },
+  {
+    "id": "g-dep01-npm-vuln",
+    "file": "tests/py/spec/test_code_quality_and_gates.py",
+    "category": "g-dep01-npm-vuln",
+    "kind": "pytest"
+  },
+  {
+    "id": "g-fe02-bundle-budget",
+    "file": "tests/py/spec/test_code_quality_and_gates.py",
+    "category": "g-fe02-bundle-budget",
+    "kind": "pytest"
+  },
+  {
+    "id": "g-fe03-structured-logger",
+    "file": "tests/py/spec/test_code_quality_and_gates.py",
+    "category": "g-fe03-structured-logger",
+    "kind": "pytest"
+  },
+  {
+    "id": "g-size02-large-files",
+    "file": "tests/py/spec/test_code_quality_and_gates.py",
+    "category": "g-size02-large-files",
+    "kind": "pytest"
+  },
+  {
+    "id": "gen-goals-data",
+    "file": "tests/py/spec/remaining_domain_specs/test_gen_goals_data.py",
+    "category": "gen-goals-data",
+    "kind": "pytest"
+  },
+  {
+    "id": "githooks-worktree-fallback",
+    "file": "tests/py/spec/native_ported/spec/test_githooks_worktree_fallback.py",
+    "category": "githooks-worktree-fallback",
+    "kind": "pytest"
+  },
+  {
+    "id": "grilling-flow",
+    "file": "tests/py/spec/remaining_domain_specs/test_grilling_flow.py",
+    "category": "grilling-flow",
+    "kind": "pytest"
+  },
+  {
+    "id": "guard-preconditions/guard-preconditions",
+    "file": "tests/py/spec/native_ported/spec/guard-preconditions/test_guard_preconditions.py",
+    "category": "guard-preconditions",
+    "kind": "pytest"
+  },
+  {
+    "id": "harness-workflow-split/harness-enum",
+    "file": "tests/py/spec/remaining_domain_specs/harness-workflow-split/test_harness_enum.py",
+    "category": "harness-workflow-split",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goal-latest-image-exclusions",
+    "file": "tests/py/spec/remaining_domain_specs/test_health_goal_latest_image_exclusions.py",
+    "category": "health-goal-latest-image-exclusions",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals",
+    "file": "tests/py/spec/native_ported/spec/test_health_goals.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals-erden",
+    "file": "tests/py/spec/native_ported/spec/test_health_goals_erden.py",
+    "category": "health-goals-erden",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/dashboard-rescan",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_dashboard_rescan.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/g-git03",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_g_git03.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/goal-integrity",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_goal_integrity.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/goals-data-path-consistency",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_goals_data_path_consistency.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/goals-data-sdlc-target",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_goals_data_sdlc_target.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/health_pipeline_integrity",
+    "file": "tests/py/spec/health-goals/test_health_pipeline_integrity.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/id-parity",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_id_parity.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/knowledge-goals",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_knowledge_goals.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/korczewski-brand-pause",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_korczewski_brand_pause.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/llm-stack-goals",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_llm_stack_goals.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/measured-at-field",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_measured_at_field.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/measurement-integrity",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_measurement_integrity.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/quality_db_schema",
+    "file": "tests/py/spec/health-goals/test_quality_db_schema.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/runtime-health-goals",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_runtime_health_goals.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/runtime-measure-execution",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_runtime_measure_execution.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/service-health-goals",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_service_health_goals.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/worktree-hygiene-goals",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_worktree_hygiene_goals.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "health-goals/zielfamilien-audit",
+    "file": "tests/py/spec/native_ported/spec/health-goals/test_zielfamilien_audit.py",
+    "category": "health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "hermes-mcp-access",
+    "file": "tests/py/spec/native_ported/spec/test_hermes_mcp_access.py",
+    "category": "hermes-mcp-access",
+    "kind": "pytest"
+  },
+  {
+    "id": "image-drift",
+    "file": "tests/py/spec/remaining_domain_specs/test_image_drift.py",
+    "category": "image-drift",
+    "kind": "pytest"
+  },
+  {
+    "id": "k3d_netpol_cidrs",
+    "file": "tests/py/spec/test_k3d_netpol_cidrs.py",
+    "category": "k3d_netpol_cidrs",
+    "kind": "pytest"
+  },
+  {
+    "id": "k4-surgery-guard",
+    "file": "tests/py/spec/native_ported/spec/test_k4_surgery_guard.py",
+    "category": "k4-surgery-guard",
+    "kind": "pytest"
+  },
+  {
+    "id": "k8-headed-tests/headed-verify-not-in-ci-path",
+    "file": "tests/py/spec/remaining_domain_specs/k8-headed-tests/test_headed_verify_not_in_ci_path.py",
+    "category": "k8-headed-tests",
+    "kind": "pytest"
+  },
+  {
+    "id": "kv-budget",
+    "file": "tests/py/spec/remaining_domain_specs/test_kv_budget.py",
+    "category": "kv-budget",
+    "kind": "pytest"
+  },
+  {
+    "id": "lavish",
+    "file": "tests/py/spec/remaining_domain_specs/test_lavish.py",
+    "category": "lavish",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev",
+    "file": "tests/py/spec/native_ported/spec/test_llm_local_dev.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev/comfy-image-mcp",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_comfy_image_mcp.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev/comfy-image-postprocess",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_comfy_image_postprocess.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev/fit-ngl-conflict",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_fit_ngl_conflict.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev/fixtures/plan-runner-fake-opencode",
+    "file": "tests/spec/llm-local-dev/fixtures/plan-runner-fake-opencode.sh",
+    "category": "llm-local-dev",
+    "kind": "shell"
+  },
+  {
+    "id": "llm-local-dev/fixtures/plan-vector-routing-fake-retrieve",
+    "file": "tests/spec/llm-local-dev/fixtures/plan-vector-routing-fake-retrieve.sh",
+    "category": "llm-local-dev",
+    "kind": "shell"
+  },
+  {
+    "id": "llm-local-dev/glimmer-serving-profile",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_glimmer_serving_profile.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev/glimmer-worker-mcp",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_glimmer_worker_mcp.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev/opencode-compaction",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_opencode_compaction.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev/plan-runner",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_plan_runner.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev/plan-runner-ticket-ref",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_plan_runner_ticket_ref.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev/qwen-tensor-split",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_qwen_tensor_split.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev/qwen35-08b-training",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_qwen35_08b_training.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev/qwen35-2b-training",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_qwen35_2b_training.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev/qwen35-4b-training",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_qwen35_4b_training.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev/single-static-model",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_single_static_model.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-local-dev/system-message-merge",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_system_message_merge.py",
+    "category": "llm-local-dev",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-pipeline/bge-bulk-pool",
+    "file": "tests/py/spec/native_ported/spec/llm-pipeline/test_bge_bulk_pool.py",
+    "category": "llm-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-pipeline/bge-thread-quota",
+    "file": "tests/py/spec/native_ported/spec/llm-pipeline/test_bge_thread_quota.py",
+    "category": "llm-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-pipeline/bge-usecase-reachability",
+    "file": "tests/py/spec/native_ported/spec/llm-pipeline/test_bge_usecase_reachability.py",
+    "category": "llm-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-pipeline/index-repo-embed-port",
+    "file": "tests/py/spec/native_ported/spec/llm-pipeline/test_index_repo_embed_port.py",
+    "category": "llm-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-pipeline/knowledge-ingest-live-sources",
+    "file": "tests/py/spec/native_ported/spec/llm-pipeline/test_knowledge_ingest_live_sources.py",
+    "category": "llm-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-pipeline/kv-offload",
+    "file": "tests/py/spec/native_ported/spec/llm-pipeline/test_kv_offload.py",
+    "category": "llm-pipeline",
+    "kind": "pytest"
+  },
+  {
+    "id": "llm-proxy-embed-mitte",
+    "file": "tests/py/spec/test_llm_proxy_embed_mitte.py",
+    "category": "llm-proxy-embed-mitte",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/db-backup-retention",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_db_backup_retention.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/dev-local-render",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_dev_local_render.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/dev-stack-tasks",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_dev_stack_tasks.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/devmesh-networks",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_devmesh_networks.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/devmesh-taskfile",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_devmesh_taskfile.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/gpu-enable",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_gpu_enable.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/k3d-acceptance-gate",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_k3d_acceptance_gate.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/k3d-tooling-removed",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_k3d_tooling_removed.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/k3s-install",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_k3s_install.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/kubeconfig",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_kubeconfig.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/llm-services",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_llm_services.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/longhorn-storage",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_longhorn_storage.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/migrate-from-k3d",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_migrate_from_k3d.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/no-k3d-context",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_no_k3d_context.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/preflight",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_preflight.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/status",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_status.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/tailnet-check",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_tailnet_check.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-dev-mesh/ticket-devmesh-guard",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_ticket_devmesh_guard.py",
+    "category": "local-dev-mesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy",
+    "file": "tests/py/spec/native_ported/spec/test_local_llm_proxy.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/bge-chain-order",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_bge_chain_order.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/bge-cpu-parallel-start",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_bge_cpu_parallel_start.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/bge-loadout-cpu-bound",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_bge_loadout_cpu_bound.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/bge-mcp-upstream-timeout",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_bge_mcp_upstream_timeout.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/bge-no-probe-import",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_bge_no_probe_import.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/bge-registry-roles",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_bge_registry_roles.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/bge-role-routes",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_bge_role_routes.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/bge-token-ssot",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_bge_token_ssot.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/brain-ingest-port",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_brain_ingest_port.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/dev-pod-loadouts-path",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_dev_pod_loadouts_path.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/dispatch-capture",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_dispatch_capture.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/embed-bge-fallback",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_embed_bge_fallback.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/gateway-consumer-lint",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_gateway_consumer_lint.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/gemma-kv-quant",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_gemma_kv_quant.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/gemma-loadout-autorestart-queue",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_gemma_loadout_autorestart_queue.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/glimmer-default-backend",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_glimmer_default_backend.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/gpu-lock",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_gpu_lock.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/host-listener-auth",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_host_listener_auth.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/kv-probe-endpoint-guard",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_kv_probe_endpoint_guard.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/lib/pick-small-model",
+    "file": "tests/spec/local-llm-proxy/lib/pick-small-model.sh",
+    "category": "local-llm-proxy",
+    "kind": "shell"
+  },
+  {
+    "id": "local-llm-proxy/llama-tool-names-match-binary",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_llama_tool_names_match_binary.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/loadout-aux-files-exist",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_loadout_aux_files_exist.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/loadout-enabled-flag",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_loadout_enabled_flag.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/loadout-env-property",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_loadout_env_property.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/loadout-model-files-exist",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_loadout_model_files_exist.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/loadout-model-lock",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_loadout_model_lock.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/loadouts-format",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_loadouts_format.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/model-path-large-file",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_model_path_large_file.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/opencode-agent-model-drift",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_opencode_agent_model_drift.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/opencode-routes-via-proxy",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_opencode_routes_via_proxy.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/pick-small-model-deterministic",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_pick_small_model_deterministic.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/proxy-env-token-guard",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_proxy_env_token_guard.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/proxy-tests-registered",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_proxy_tests_registered.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/readiness-primary-tier",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_readiness_primary_tier.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/retire-service-guard",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_retire_service_guard.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/support-model-slots",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_support_model_slots.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/tools-runtime-sandbox",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_tools_runtime_sandbox.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "local-llm-proxy/ui-config-seed",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_ui_config_seed.py",
+    "category": "local-llm-proxy",
+    "kind": "pytest"
+  },
+  {
+    "id": "lockfile-drift",
+    "file": "tests/py/spec/remaining_domain_specs/test_lockfile_drift.py",
+    "category": "lockfile-drift",
+    "kind": "pytest"
+  },
+  {
+    "id": "mandatory-sequences",
+    "file": "tests/py/local/test_mandatory_sequences.py",
+    "category": "mandatory-sequences",
+    "kind": "pytest"
+  },
+  {
+    "id": "massage-tenant/brand_migration",
+    "file": "tests/py/spec/massage-tenant/test_brand_migration.py",
+    "category": "massage-tenant",
+    "kind": "pytest"
+  },
+  {
+    "id": "massage-tenant/db_network_policy",
+    "file": "tests/py/spec/massage-tenant/test_db_network_policy.py",
+    "category": "massage-tenant",
+    "kind": "pytest"
+  },
+  {
+    "id": "massage-tenant/flux_freeze",
+    "file": "tests/py/spec/massage-tenant/test_flux_freeze.py",
+    "category": "massage-tenant",
+    "kind": "pytest"
+  },
+  {
+    "id": "massage-tenant/render_topology",
+    "file": "tests/py/spec/massage-tenant/test_render_topology.py",
+    "category": "massage-tenant",
+    "kind": "pytest"
+  },
+  {
+    "id": "massage-tenant/shared_db_roles",
+    "file": "tests/py/spec/massage-tenant/test_shared_db_roles.py",
+    "category": "massage-tenant",
+    "kind": "pytest"
+  },
+  {
+    "id": "massage_devmesh",
+    "file": "tests/py/spec/test_massage_devmesh.py",
+    "category": "massage_devmesh",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway",
+    "file": "tests/py/spec/native_ported/spec/test_mcp_gateway.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/agy-mcp-permissions",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_agy_mcp_permissions.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/agy-token-expansion",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_agy_token_expansion.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/authenticated-http-headers",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_authenticated_http_headers.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/authenticated-http-headers-isolation",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_authenticated_http_headers_isolation.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/bge-host-routing",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_bge_host_routing.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/bge-http-only-get",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_bge_http_only_get.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/bge-mcp-windows-esm-url",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_bge_mcp_windows_esm_url.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/client-env-check",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_client_env_check.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/dev-shell-ssh",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_dev_shell_ssh.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/guarded-proxy-streaming",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_guarded_proxy_streaming.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/http-security-boundary",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_http_security_boundary.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/mcp-postgres-multistatement",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_mcp_postgres_multistatement.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/mcp-postgres-readonly-role",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_mcp_postgres_readonly_role.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/mcp-sync-drift-no-secret-leak",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_mcp_sync_drift_no_secret_leak.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/mcp-sync-qwen-drift-no-secret-leak",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_mcp_sync_qwen_drift_no_secret_leak.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/native-server-startup-token",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_native_server_startup_token.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/opencode-env-placeholder",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_opencode_env_placeholder.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/qwen-token-expansion",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_qwen_token_expansion.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/start-windows-unc",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_start_windows_unc.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/token-drift-auto-sync",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_token_drift_auto_sync.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-gateway/watchdog-tunnel-liveness",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_watchdog_tunnel_liveness.py",
+    "category": "mcp-gateway",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-skill-integration",
+    "file": "tests/py/spec/native_ported/spec/test_mcp_skill_integration.py",
+    "category": "mcp-skill-integration",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-skill-integration/psql-fallback-ticket-ssot",
+    "file": "tests/py/spec/remaining_domain_specs/mcp-skill-integration/test_psql_fallback_ticket_ssot.py",
+    "category": "mcp-skill-integration",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-task-runner/planner-sees-real-deps",
+    "file": "tests/py/spec/remaining_domain_specs/mcp-task-runner/test_planner_sees_real_deps.py",
+    "category": "mcp-task-runner",
+    "kind": "pytest"
+  },
+  {
+    "id": "mcp-tooling",
+    "file": "tests/py/spec/native_ported/spec/test_mcp_tooling.py",
+    "category": "mcp-tooling",
+    "kind": "pytest"
+  },
+  {
+    "id": "mediaviewer",
+    "file": "tests/py/spec/remaining_root_specs/test_mediaviewer.py",
+    "category": "mediaviewer",
+    "kind": "pytest"
+  },
+  {
+    "id": "mentolder-prod/office_flux",
+    "file": "tests/py/spec/mentolder-prod/test_office_flux.py",
+    "category": "mentolder-prod",
+    "kind": "pytest"
+  },
+  {
+    "id": "merge-arbitration/apply-escalation",
+    "file": "tests/py/spec/native_ported/spec/merge-arbitration/test_apply_escalation.py",
+    "category": "merge-arbitration",
+    "kind": "pytest"
+  },
+  {
+    "id": "merge-arbitration/apply-idempotency",
+    "file": "tests/py/spec/native_ported/spec/merge-arbitration/test_apply_idempotency.py",
+    "category": "merge-arbitration",
+    "kind": "pytest"
+  },
+  {
+    "id": "merge-arbitration/detect-clustering",
+    "file": "tests/py/spec/native_ported/spec/merge-arbitration/test_detect_clustering.py",
+    "category": "merge-arbitration",
+    "kind": "pytest"
+  },
+  {
+    "id": "merge-arbitration/detect-generated-exclusion",
+    "file": "tests/py/spec/native_ported/spec/merge-arbitration/test_detect_generated_exclusion.py",
+    "category": "merge-arbitration",
+    "kind": "pytest"
+  },
+  {
+    "id": "merge-arbitration/detect-threshold",
+    "file": "tests/py/spec/native_ported/spec/merge-arbitration/test_detect_threshold.py",
+    "category": "merge-arbitration",
+    "kind": "pytest"
+  },
+  {
+    "id": "merge-arbitration/synthesize-syntax-gate",
+    "file": "tests/py/spec/native_ported/spec/merge-arbitration/test_synthesize_syntax_gate.py",
+    "category": "merge-arbitration",
+    "kind": "pytest"
+  },
+  {
+    "id": "mishap-bundle-2026-06-30",
+    "file": "tests/py/spec/remaining_root_specs/test_mishap_bundle_2026_06_30.py",
+    "category": "mishap-bundle-2026-06-30",
+    "kind": "pytest"
+  },
+  {
+    "id": "mishap-bundle-T002506",
+    "file": "tests/py/spec/native_ported/spec/test_mishap_bundle_T002506.py",
+    "category": "mishap-bundle-T002506",
+    "kind": "pytest"
+  },
+  {
+    "id": "mishap-bundle-infra-testspec-ci",
+    "file": "tests/py/spec/native_ported/spec/test_mishap_bundle_infra_testspec_ci.py",
+    "category": "mishap-bundle-infra-testspec-ci",
+    "kind": "pytest"
+  },
+  {
+    "id": "mishap-bundle/ci-test-agentlock",
+    "file": "tests/py/spec/native_ported/spec/mishap-bundle/test_ci_test_agentlock.py",
+    "category": "mishap-bundle",
+    "kind": "pytest"
+  },
+  {
+    "id": "mishap-categorize-erden",
+    "file": "tests/py/spec/remaining_root_specs/test_mishap_categorize_erden.py",
+    "category": "mishap-categorize-erden",
+    "kind": "pytest"
+  },
+  {
+    "id": "monitoring-alerts",
+    "file": "tests/py/spec/remaining_root_specs/test_monitoring_alerts.py",
+    "category": "monitoring-alerts",
+    "kind": "pytest"
+  },
+  {
+    "id": "monitoring-alerts/backup-alerting",
+    "file": "tests/py/spec/remaining_root_specs/monitoring_alerts/test_backup_alerting.py",
+    "category": "monitoring-alerts",
+    "kind": "pytest"
+  },
+  {
+    "id": "monitoring-alerts/backup-recipient-daily-repeat",
+    "file": "tests/py/spec/remaining_root_specs/monitoring_alerts/test_backup_recipient_daily_repeat.py",
+    "category": "monitoring-alerts",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/scripts_tests/prod_write_guard",
+    "file": "tests/py/spec/native_ported/scripts_tests/test_prod_write_guard.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/agent-skills/post_merge_finalize_safety",
+    "file": "tests/py/spec/native_ported/spec/agent-skills/test_post_merge_finalize_safety.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/ci-cd/branch_reaper_ticketless_merged_pr",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_branch_reaper_ticketless_merged_pr.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/ci-cd/devflow_ciwatch_ticket_path",
+    "file": "tests/py/spec/native_ported/spec/ci-cd/test_devflow_ciwatch_ticket_path.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/env_seal_singleline_values",
+    "file": "tests/py/spec/native_ported/spec/test_env_seal_singleline_values.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/fleet-operations/fleet_no_wireguard",
+    "file": "tests/py/spec/native_ported/spec/fleet-operations/test_fleet_no_wireguard.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/flux-render-security/envsubst_whitelist",
+    "file": "tests/py/spec/native_ported/spec/flux-render-security/test_envsubst_whitelist.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/langfuse_agent_tracing",
+    "file": "tests/py/spec/native_ported/spec/test_langfuse_agent_tracing.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/llm-local-dev/agent_sandbox",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_agent_sandbox.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/llm-local-dev/plan_runner_direct_worker",
+    "file": "tests/py/spec/native_ported/spec/llm-local-dev/test_plan_runner_direct_worker.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/local-dev-mesh/lan_dns",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_lan_dns.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/local-dev-mesh/tailnet_policy",
+    "file": "tests/py/spec/native_ported/spec/local-dev-mesh/test_tailnet_policy.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/local-llm-proxy/devflow_backend",
+    "file": "tests/py/spec/native_ported/spec/local-llm-proxy/test_devflow_backend.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/mcp-gateway/mcp_central_launcher",
+    "file": "tests/py/spec/native_ported/spec/mcp-gateway/test_mcp_central_launcher.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/migrate_target_safety",
+    "file": "tests/py/spec/native_ported/spec/test_migrate_target_safety.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/neovim_dashboard_pages",
+    "file": "tests/py/spec/native_ported/spec/test_neovim_dashboard_pages.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/neovim_dashboard_tui",
+    "file": "tests/py/spec/native_ported/spec/test_neovim_dashboard_tui.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/pocket_id_client_seed_auth_code",
+    "file": "tests/py/spec/native_ported/spec/test_pocket_id_client_seed_auth_code.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "native_ported/spec/pocket_id_client_seed_secret_endpoint",
+    "file": "tests/py/spec/native_ported/spec/test_pocket_id_client_seed_secret_endpoint.py",
+    "category": "native_ported",
+    "kind": "pytest"
+  },
+  {
+    "id": "neovim-dashboard",
+    "file": "tests/py/spec/native_ported/spec/test_neovim_dashboard.py",
+    "category": "neovim-dashboard",
+    "kind": "pytest"
+  },
+  {
+    "id": "newsletter-system",
+    "file": "tests/py/spec/remaining_root_specs/test_newsletter_system.py",
+    "category": "newsletter-system",
+    "kind": "pytest"
+  },
+  {
+    "id": "nextcloud-integration",
+    "file": "tests/py/spec/remaining_root_specs/test_nextcloud_integration.py",
+    "category": "nextcloud-integration",
+    "kind": "pytest"
+  },
+  {
+    "id": "omp-harness",
+    "file": "tests/py/spec/native_ported/spec/test_omp_harness.py",
+    "category": "omp-harness",
+    "kind": "pytest"
+  },
+  {
+    "id": "openclaw-harness",
+    "file": "tests/py/spec/native_ported/spec/test_openclaw_harness.py",
+    "category": "openclaw-harness",
+    "kind": "pytest"
+  },
+  {
+    "id": "openclaw-ops-bot",
+    "file": "tests/py/spec/native_ported/spec/test_openclaw_ops_bot.py",
+    "category": "openclaw-ops-bot",
+    "kind": "pytest"
+  },
+  {
+    "id": "opencode-config-ssot",
+    "file": "tests/py/spec/native_ported/spec/test_opencode_config_ssot.py",
+    "category": "opencode-config-ssot",
+    "kind": "pytest"
+  },
+  {
+    "id": "opencode-local-model-runner",
+    "file": "tests/py/spec/remaining_root_specs/test_opencode_local_model_runner.py",
+    "category": "opencode-local-model-runner",
+    "kind": "pytest"
+  },
+  {
+    "id": "os-retirement-code",
+    "file": "tests/py/spec/native_ported/spec/test_os_retirement_code.py",
+    "category": "os-retirement-code",
+    "kind": "pytest"
+  },
+  {
+    "id": "os-retirement-dir",
+    "file": "tests/py/spec/native_ported/spec/test_os_retirement_dir.py",
+    "category": "os-retirement-dir",
+    "kind": "pytest"
+  },
+  {
+    "id": "os-retirement-prose",
+    "file": "tests/py/spec/native_ported/spec/test_os_retirement_prose.py",
+    "category": "os-retirement-prose",
+    "kind": "pytest"
+  },
+  {
+    "id": "p0min-freeze-embed",
+    "file": "tests/py/spec/native_ported/spec/test_p0min_freeze_embed.py",
+    "category": "p0min-freeze-embed",
+    "kind": "pytest"
+  },
+  {
+    "id": "pipeline-interface",
+    "file": "tests/py/spec/native_ported/spec/test_pipeline_interface.py",
+    "category": "pipeline-interface",
+    "kind": "pytest"
+  },
+  {
+    "id": "plan-context",
+    "file": "tests/py/spec/native_ported/spec/test_plan_context.py",
+    "category": "plan-context",
+    "kind": "pytest"
+  },
+  {
+    "id": "plan-lifecycle",
+    "file": "tests/py/spec/native_ported/spec/test_plan_lifecycle.py",
+    "category": "plan-lifecycle",
+    "kind": "pytest"
+  },
+  {
+    "id": "plan-partials-embedding/size-gate",
+    "file": "tests/py/spec/native_ported/spec/plan-partials-embedding/test_size_gate.py",
+    "category": "plan-partials-embedding",
+    "kind": "pytest"
+  },
+  {
+    "id": "pocket-id-client-seed-auth-header",
+    "file": "tests/py/spec/native_ported/spec/test_pocket_id_client_seed_auth_header.py",
+    "category": "pocket-id-client-seed-auth-header",
+    "kind": "pytest"
+  },
+  {
+    "id": "pocket-id-client-seed-early-abort",
+    "file": "tests/py/spec/native_ported/spec/test_pocket_id_client_seed_early_abort.py",
+    "category": "pocket-id-client-seed-early-abort",
+    "kind": "pytest"
+  },
+  {
+    "id": "pocket-id-client-seed-group-lookup",
+    "file": "tests/py/spec/native_ported/spec/test_pocket_id_client_seed_group_lookup.py",
+    "category": "pocket-id-client-seed-group-lookup",
+    "kind": "pytest"
+  },
+  {
+    "id": "pocket-id-client-seed-pagination",
+    "file": "tests/py/spec/native_ported/spec/test_pocket_id_client_seed_pagination.py",
+    "category": "pocket-id-client-seed-pagination",
+    "kind": "pytest"
+  },
+  {
+    "id": "pocket-id-client-seed-secret-writeback",
+    "file": "tests/py/spec/native_ported/spec/test_pocket_id_client_seed_secret_writeback.py",
+    "category": "pocket-id-client-seed-secret-writeback",
+    "kind": "pytest"
+  },
+  {
+    "id": "pocket-id-client-seed-skip-secret",
+    "file": "tests/py/spec/native_ported/spec/test_pocket_id_client_seed_skip_secret.py",
+    "category": "pocket-id-client-seed-skip-secret",
+    "kind": "pytest"
+  },
+  {
+    "id": "pocket-id-client-seed-timeout",
+    "file": "tests/py/spec/native_ported/spec/test_pocket_id_client_seed_timeout.py",
+    "category": "pocket-id-client-seed-timeout",
+    "kind": "pytest"
+  },
+  {
+    "id": "pocket-id-migration",
+    "file": "tests/py/spec/native_ported/spec/test_pocket_id_migration.py",
+    "category": "pocket-id-migration",
+    "kind": "pytest"
+  },
+  {
+    "id": "pocket-id-proxy-ip",
+    "file": "tests/py/spec/native_ported/spec/test_pocket_id_proxy_ip.py",
+    "category": "pocket-id-proxy-ip",
+    "kind": "pytest"
+  },
+  {
+    "id": "pocket-id-seed-label-isolation/client-seed-service-endpoint-isolation",
+    "file": "tests/py/spec/native_ported/spec/pocket-id-seed-label-isolation/test_client_seed_service_endpoint_isolation.py",
+    "category": "pocket-id-seed-label-isolation",
+    "kind": "pytest"
+  },
+  {
+    "id": "pocket_id_client_seed",
+    "file": "tests/py/spec/test_pocket_id_client_seed.py",
+    "category": "pocket_id_client_seed",
+    "kind": "pytest"
+  },
+  {
+    "id": "pr-refresh",
+    "file": "tests/py/spec/native_ported/spec/test_pr_refresh.py",
+    "category": "pr-refresh",
+    "kind": "pytest"
+  },
+  {
+    "id": "pre-commit-freshness",
+    "file": "tests/py/spec/native_ported/spec/test_pre_commit_freshness.py",
+    "category": "pre-commit-freshness",
+    "kind": "pytest"
+  },
+  {
+    "id": "primary-agents-omo",
+    "file": "tests/py/spec/native_ported/spec/test_primary_agents_omo.py",
+    "category": "primary-agents-omo",
+    "kind": "pytest"
+  },
+  {
+    "id": "public-symlinks-resolve-in-image",
+    "file": "tests/py/spec/native_ported/spec/test_public_symlinks_resolve_in_image.py",
+    "category": "public-symlinks-resolve-in-image",
+    "kind": "pytest"
+  },
+  {
+    "id": "questionnaire-system",
+    "file": "tests/py/spec/remaining_root_specs/test_questionnaire_system.py",
+    "category": "questionnaire-system",
+    "kind": "pytest"
+  },
+  {
+    "id": "qwen35-worker-modes",
+    "file": "tests/py/spec/remaining_root_specs/test_qwen35_worker_modes.py",
+    "category": "qwen35-worker-modes",
+    "kind": "pytest"
+  },
+  {
+    "id": "react-homepage-blocks",
+    "file": "tests/py/spec/native_ported/spec/test_react_homepage_blocks.py",
+    "category": "react-homepage-blocks",
+    "kind": "pytest"
+  },
+  {
+    "id": "react-login-edit-homepage",
+    "file": "tests/py/spec/native_ported/spec/test_react_login_edit_homepage.py",
+    "category": "react-login-edit-homepage",
+    "kind": "pytest"
+  },
+  {
+    "id": "release-notes-erden",
+    "file": "tests/py/spec/native_ported/spec/test_release_notes_erden.py",
+    "category": "release-notes-erden",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-health-goals",
+    "file": "tests/py/spec/native_ported/spec/test_repo_health_goals.py",
+    "category": "repo-health-goals",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-hygiene/dead-path-references",
+    "file": "tests/py/spec/native_ported/spec/repo-hygiene/test_dead_path_references.py",
+    "category": "repo-hygiene",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-hygiene/precheck-foreign-session",
+    "file": "tests/py/spec/native_ported/spec/repo-hygiene/test_precheck_foreign_session.py",
+    "category": "repo-hygiene",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-hygiene/signal-gaps",
+    "file": "tests/py/spec/native_ported/spec/repo-hygiene/test_signal_gaps.py",
+    "category": "repo-hygiene",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-hygiene/windows-guards",
+    "file": "tests/py/spec/native_ported/spec/repo-hygiene/test_windows_guards.py",
+    "category": "repo-hygiene",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-hygiene/worktree-clean-check-existence",
+    "file": "tests/py/spec/native_ported/spec/repo-hygiene/test_worktree_clean_check_existence.py",
+    "category": "repo-hygiene",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-hygiene/worktree-remove-generat-allowlist",
+    "file": "tests/py/spec/native_ported/spec/repo-hygiene/test_worktree_remove_generat_allowlist.py",
+    "category": "repo-hygiene",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-hygiene/worktree-stash-inspection",
+    "file": "tests/py/spec/native_ported/spec/repo-hygiene/test_worktree_stash_inspection.py",
+    "category": "repo-hygiene",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-structure/components-group",
+    "file": "tests/py/spec/native_ported/spec/repo-structure/test_components_group.py",
+    "category": "repo-structure",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-structure/inventory-registered",
+    "file": "tests/py/spec/native_ported/spec/repo-structure/test_inventory_registered.py",
+    "category": "repo-structure",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-structure/packages-assets",
+    "file": "tests/py/spec/native_static/repo-structure/test_packages_assets.py",
+    "category": "repo-structure",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-structure/release-please-paths",
+    "file": "tests/py/spec/native_ported/spec/repo-structure/test_release_please_paths.py",
+    "category": "repo-structure",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-structure/root-agent-md",
+    "file": "tests/py/spec/native_ported/spec/repo-structure/test_root_agent_md.py",
+    "category": "repo-structure",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-structure/spec-suite-website-leak",
+    "file": "tests/py/spec/native_ported/spec/repo-structure/test_spec_suite_website_leak.py",
+    "category": "repo-structure",
+    "kind": "pytest"
+  },
+  {
+    "id": "repo-structure/website-moved",
+    "file": "tests/py/spec/native_ported/spec/repo-structure/test_website_moved.py",
+    "category": "repo-structure",
+    "kind": "pytest"
+  },
+  {
+    "id": "routing-check-freetoken",
+    "file": "tests/py/spec/native_ported/spec/test_routing_check_freetoken.py",
+    "category": "routing-check-freetoken",
+    "kind": "pytest"
+  },
+  {
+    "id": "rustdesk-server",
+    "file": "tests/py/spec/native_ported/spec/test_rustdesk_server.py",
+    "category": "rustdesk-server",
+    "kind": "pytest"
+  },
+  {
+    "id": "rustdesk-server/on-demand-lifecycle",
+    "file": "tests/py/spec/native_ported/spec/rustdesk-server/test_on_demand_lifecycle.py",
+    "category": "rustdesk-server",
+    "kind": "pytest"
+  },
+  {
+    "id": "s1-violations",
+    "file": "tests/py/spec/remaining_root_specs/test_s1_violations.py",
+    "category": "s1-violations",
+    "kind": "pytest"
+  },
+  {
+    "id": "s1-violations-batch2",
+    "file": "tests/py/spec/remaining_root_specs/test_s1_violations_batch2.py",
+    "category": "s1-violations-batch2",
+    "kind": "pytest"
+  },
+  {
+    "id": "s2-cycles-g-cq07",
+    "file": "tests/py/spec/native_ported/spec/test_s2_cycles_g_cq07.py",
+    "category": "s2-cycles-g-cq07",
+    "kind": "pytest"
+  },
+  {
+    "id": "scripts/agent-lock-stale-holder",
+    "file": "tests/py/spec/native_ported/spec/scripts/test_agent_lock_stale_holder.py",
+    "category": "scripts",
+    "kind": "pytest"
+  },
+  {
+    "id": "scripts/check-worktree-live-no-env",
+    "file": "tests/py/spec/native_ported/spec/scripts/test_check_worktree_live_no_env.py",
+    "category": "scripts",
+    "kind": "pytest"
+  },
+  {
+    "id": "scripts/wip-finish",
+    "file": "tests/py/spec/native_ported/spec/scripts/test_wip_finish.py",
+    "category": "scripts",
+    "kind": "pytest"
+  },
+  {
+    "id": "scripts/wip-glance",
+    "file": "tests/py/spec/native_ported/spec/scripts/test_wip_glance.py",
+    "category": "scripts",
+    "kind": "pytest"
+  },
+  {
+    "id": "scripts/worktree-list",
+    "file": "tests/py/spec/native_ported/spec/scripts/test_worktree_list.py",
+    "category": "scripts",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/action-inventory",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_action_inventory.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/adapter-contract",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_adapter_contract.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/adapter-sdlc-paths",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_adapter_sdlc_paths.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/api-inventory-drift",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_api_inventory_drift.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/build-target-runtime-env",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_build_target_runtime_env.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/daemon-endpoints",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_daemon_endpoints.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/daemon-port-binding",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_daemon_port_binding.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/daemon-runtime-contract",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_daemon_runtime_contract.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/daemon-runtime-files",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_daemon_runtime_files.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/daemon-test-no-leak",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_daemon_test_no_leak.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/daemon-token-endpoint-removed",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_daemon_token_endpoint_removed.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/daemon-token-mode",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_daemon_token_mode.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/deck-kompakt-layout",
+    "file": "tests/py/spec/native_static/sdlc-cockpit/test_deck_kompakt_layout.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/deck-resize",
+    "file": "tests/py/spec/native_static/sdlc-cockpit/test_deck_resize.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/deck-resize-freeze-fix",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_deck_resize_freeze_fix.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/deck-resize-handle-fix",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_deck_resize_handle_fix.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/document-tokens-only",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_document_tokens_only.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/endpoint-host-map",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_endpoint_host_map.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/freshness-timestamp",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_freshness_timestamp.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/imagepullpolicy-always",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_imagepullpolicy_always.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/k5-epic-canvas",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_k5_epic_canvas.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/k9-stil-datenbank",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_k9_stil_datenbank.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/ki-deck-eine-tabelle",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_ki_deck_eine_tabelle.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/kit-artifacts-exist",
+    "file": "tests/py/spec/native_static/sdlc-cockpit/test_kit_artifacts_exist.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/kit-assets-in-image",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_kit_assets_in_image.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/kit-binding",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_kit_binding.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/layout-buildfree",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_layout_buildfree.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/layout-kit-asset-wiring",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_layout_kit_asset_wiring.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/layout-rail-fixed",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_layout_rail_fixed.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/leitstand-absorption",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_leitstand_absorption.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/leitstand-ds-tokens",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_leitstand_ds_tokens.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/leitstand-help-overlay",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_leitstand_help_overlay.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/leitstand-livedaten",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_leitstand_livedaten.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/leitstand-purpose-registry",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_leitstand_purpose_registry.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/leitstand-url-scheme",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_leitstand_url_scheme.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/login-redirect-all-pages",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_login_redirect_all_pages.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/navigation-no-dead-links",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_navigation_no_dead_links.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/no-direct-fetch",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_no_direct_fetch.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/no-silent-fallback",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_no_silent_fallback.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/panel-type-declaration",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_panel_type_declaration.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/pipeline-slot-uebernahme",
+    "file": "tests/py/spec/native_static/sdlc-cockpit/test_pipeline_slot_uebernahme.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/proxy-unreachable-vs-stopped",
+    "file": "tests/py/spec/native_static/sdlc-cockpit/test_proxy_unreachable_vs_stopped.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/public-assets-no-server-code",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_public_assets_no_server_code.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/rail-representation",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_rail_representation.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/redesign-struktur",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_redesign_struktur.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/sdlc-leitstand-tokens",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_sdlc_leitstand_tokens.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-cockpit/write-token-removed",
+    "file": "tests/py/spec/native_ported/spec/sdlc-cockpit/test_write_token_removed.py",
+    "category": "sdlc-cockpit",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-isolation/build-target-split",
+    "file": "tests/py/spec/native_ported/spec/sdlc-isolation/test_build_target_split.py",
+    "category": "sdlc-isolation",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-isolation/e2-local-stack",
+    "file": "tests/py/spec/native_ported/spec/sdlc-isolation/test_e2_local_stack.py",
+    "category": "sdlc-isolation",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-isolation/e3-backup",
+    "file": "tests/py/spec/native_ported/spec/sdlc-isolation/test_e3_backup.py",
+    "category": "sdlc-isolation",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-isolation/fleet-sequence-split",
+    "file": "tests/py/spec/native_ported/spec/sdlc-isolation/test_fleet_sequence_split.py",
+    "category": "sdlc-isolation",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-isolation/llm-up-health",
+    "file": "tests/py/spec/native_ported/spec/sdlc-isolation/test_llm_up_health.py",
+    "category": "sdlc-isolation",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-isolation/sdlc-default-loadout",
+    "file": "tests/py/spec/native_ported/spec/sdlc-isolation/test_sdlc_default_loadout.py",
+    "category": "sdlc-isolation",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc-isolation/sdlc-up-command",
+    "file": "tests/py/spec/native_ported/spec/sdlc-isolation/test_sdlc_up_command.py",
+    "category": "sdlc-isolation",
+    "kind": "pytest"
+  },
+  {
+    "id": "sdlc/dev-admin-session-guards",
+    "file": "tests/py/spec/remaining_root_specs/sdlc/test_dev_admin_session_guards.py",
+    "category": "sdlc",
+    "kind": "pytest"
+  },
+  {
+    "id": "sealed-secret-cluster-drift",
+    "file": "tests/py/spec/native_ported/spec/test_sealed_secret_cluster_drift.py",
+    "category": "sealed-secret-cluster-drift",
+    "kind": "pytest"
+  },
+  {
+    "id": "secret-rotation",
+    "file": "tests/py/spec/native_ported/spec/test_secret_rotation.py",
+    "category": "secret-rotation",
+    "kind": "pytest"
+  },
+  {
+    "id": "secret-rotation-exposure",
+    "file": "tests/py/spec/native_ported/spec/test_secret_rotation_exposure.py",
+    "category": "secret-rotation-exposure",
+    "kind": "pytest"
+  },
+  {
+    "id": "secrets-deploy-automation",
+    "file": "tests/py/spec/native_ported/spec/test_secrets_deploy_automation.py",
+    "category": "secrets-deploy-automation",
+    "kind": "pytest"
+  },
+  {
+    "id": "secrets-deploy-automation/schema-dev-secrets-sync",
+    "file": "tests/py/spec/native_ported/spec/secrets-deploy-automation/test_schema_dev_secrets_sync.py",
+    "category": "secrets-deploy-automation",
+    "kind": "pytest"
+  },
+  {
+    "id": "security",
+    "file": "tests/py/spec/native_ported/spec/test_security.py",
+    "category": "security",
+    "kind": "pytest"
+  },
+  {
+    "id": "security/alibaba-token-key-guard",
+    "file": "tests/py/spec/native_ported/spec/security/test_alibaba_token_key_guard.py",
+    "category": "security",
+    "kind": "pytest"
+  },
+  {
+    "id": "security/cluster-admin-audit",
+    "file": "tests/py/spec/native_ported/spec/security/test_cluster_admin_audit.py",
+    "category": "security",
+    "kind": "pytest"
+  },
+  {
+    "id": "security/githooks-installed-guard",
+    "file": "tests/py/spec/native_ported/spec/security/test_githooks_installed_guard.py",
+    "category": "security",
+    "kind": "pytest"
+  },
+  {
+    "id": "security/stray-secret-dump-guard",
+    "file": "tests/py/spec/native_ported/spec/security/test_stray_secret_dump_guard.py",
+    "category": "security",
+    "kind": "pytest"
+  },
+  {
+    "id": "security/website-clusterrole-least-privilege",
+    "file": "tests/py/spec/native_ported/spec/security/test_website_clusterrole_least_privilege.py",
+    "category": "security",
+    "kind": "pytest"
+  },
+  {
+    "id": "security/workload-exec-rbac",
+    "file": "tests/py/spec/native_ported/spec/security/test_workload_exec_rbac.py",
+    "category": "security",
+    "kind": "pytest"
+  },
+  {
+    "id": "sessions-server",
+    "file": "tests/py/spec/remaining_root_specs/test_sessions_server.py",
+    "category": "sessions-server",
+    "kind": "pytest"
+  },
+  {
+    "id": "sessions-server/deregister-reap",
+    "file": "tests/py/spec/native_ported/spec/sessions-server/test_deregister_reap.py",
+    "category": "sessions-server",
+    "kind": "pytest"
+  },
+  {
+    "id": "sessions-server/domain-config",
+    "file": "tests/py/spec/native_ported/spec/sessions-server/test_domain_config.py",
+    "category": "sessions-server",
+    "kind": "pytest"
+  },
+  {
+    "id": "sessions-server/form-lifecycle",
+    "file": "tests/py/spec/native_ported/spec/sessions-server/test_form_lifecycle.py",
+    "category": "sessions-server",
+    "kind": "pytest"
+  },
+  {
+    "id": "sessions-server/reap-untracked",
+    "file": "tests/py/spec/native_ported/spec/sessions-server/test_reap_untracked.py",
+    "category": "sessions-server",
+    "kind": "pytest"
+  },
+  {
+    "id": "sessions-server/register-list",
+    "file": "tests/py/spec/native_ported/spec/sessions-server/test_register_list.py",
+    "category": "sessions-server",
+    "kind": "pytest"
+  },
+  {
+    "id": "sessions-server/wildcard-render-guard",
+    "file": "tests/py/spec/native_ported/spec/sessions-server/test_wildcard_render_guard.py",
+    "category": "sessions-server",
+    "kind": "pytest"
+  },
+  {
+    "id": "sf-retirement-rest",
+    "file": "tests/py/spec/native_ported/spec/test_sf_retirement_rest.py",
+    "category": "sf-retirement-rest",
+    "kind": "pytest"
+  },
+  {
+    "id": "sf-retirement-web",
+    "file": "tests/py/spec/native_ported/spec/test_sf_retirement_web.py",
+    "category": "sf-retirement-web",
+    "kind": "pytest"
+  },
+  {
+    "id": "sidekick-assistant",
+    "file": "tests/py/spec/remaining_root_specs/test_sidekick_assistant.py",
+    "category": "sidekick-assistant",
+    "kind": "pytest"
+  },
+  {
+    "id": "staging-stack-repair",
+    "file": "tests/py/spec/remaining_root_specs/test_staging_stack_repair.py",
+    "category": "staging-stack-repair",
+    "kind": "pytest"
+  },
+  {
+    "id": "studio-sessions-reorganize",
+    "file": "tests/py/spec/remaining_root_specs/test_studio_sessions_reorganize.py",
+    "category": "studio-sessions-reorganize",
+    "kind": "pytest"
+  },
+  {
+    "id": "systemd-units/unit-install-copy-guard",
+    "file": "tests/py/spec/remaining_root_specs/systemd_units/test_unit_install_copy_guard.py",
+    "category": "systemd-units",
+    "kind": "pytest"
+  },
+  {
+    "id": "t001353-mishap-bundle-ci-tickets",
+    "file": "tests/py/spec/native_ported/spec/test_t001353_mishap_bundle_ci_tickets.py",
+    "category": "t001353-mishap-bundle-ci-tickets",
+    "kind": "pytest"
+  },
+  {
+    "id": "t001356-git02-conventional-commit",
+    "file": "tests/py/spec/native_ported/spec/test_t001356_git02_conventional_commit.py",
+    "category": "t001356-git02-conventional-commit",
+    "kind": "pytest"
+  },
+  {
+    "id": "t001363-mishap-bundle",
+    "file": "tests/py/spec/native_ported/spec/test_t001363_mishap_bundle.py",
+    "category": "t001363-mishap-bundle",
+    "kind": "pytest"
+  },
+  {
+    "id": "t001408-mishap-bundle",
+    "file": "tests/py/spec/native_ported/spec/test_t001408_mishap_bundle.py",
+    "category": "t001408-mishap-bundle",
+    "kind": "pytest"
+  },
+  {
+    "id": "t001582-mishap-bundle",
+    "file": "tests/py/spec/native_ported/spec/test_t001582_mishap_bundle.py",
+    "category": "t001582-mishap-bundle",
+    "kind": "pytest"
+  },
+  {
+    "id": "t001586",
+    "file": "tests/py/spec/native_ported/spec/test_t001586.py",
+    "category": "t001586",
+    "kind": "pytest"
+  },
+  {
+    "id": "t001591",
+    "file": "tests/py/spec/native_ported/spec/test_t001591.py",
+    "category": "t001591",
+    "kind": "pytest"
+  },
+  {
+    "id": "t002204-mishap-bundle",
+    "file": "tests/py/spec/native_ported/spec/test_t002204_mishap_bundle.py",
+    "category": "t002204-mishap-bundle",
+    "kind": "pytest"
+  },
+  {
+    "id": "t002374-mishap-bundle",
+    "file": "tests/py/spec/native_ported/spec/test_t002374_mishap_bundle.py",
+    "category": "t002374-mishap-bundle",
+    "kind": "pytest"
+  },
+  {
+    "id": "terminal-sidekick",
+    "file": "tests/py/spec/remaining_root_specs/test_terminal_sidekick.py",
+    "category": "terminal-sidekick",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/agentic-resource-lookup",
+    "file": "tests/py/spec/native_ported/spec/toolset-registry/test_agentic_resource_lookup.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/agy-expected-proxy",
+    "file": "tests/py/spec/native_static/toolset-registry/test_agy_expected_proxy.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/bp-roles",
+    "file": "tests/py/spec/native_ported/spec/toolset-registry/test_bp_roles.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/check-drift-detection",
+    "file": "tests/py/spec/native_ported/spec/toolset-registry/test_check_drift_detection.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/check-offline",
+    "file": "tests/py/spec/native_static/toolset-registry/test_check_offline.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/collect-kinds",
+    "file": "tests/py/spec/native_ported/spec/toolset-registry/test_collect_kinds.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/context-injection",
+    "file": "tests/py/spec/native_ported/spec/toolset-registry/test_context_injection.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/harness-specialization",
+    "file": "tests/py/spec/native_ported/spec/toolset-registry/test_harness_specialization.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/lock-summary",
+    "file": "tests/py/spec/native_ported/spec/toolset-registry/test_lock_summary.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/schema-gate",
+    "file": "tests/py/spec/native_ported/spec/toolset-registry/test_schema_gate.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/sync-all-harnesses",
+    "file": "tests/py/spec/native_ported/spec/toolset-registry/test_sync_all_harnesses.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/sync-surgical",
+    "file": "tests/py/spec/native_ported/spec/toolset-registry/test_sync_surgical.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/tool-level",
+    "file": "tests/py/spec/native_ported/spec/toolset-registry/test_tool_level.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/tools-suppressed",
+    "file": "tests/py/spec/native_ported/spec/toolset-registry/test_tools_suppressed.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "toolset-registry/unreviewed-quarantine",
+    "file": "tests/py/spec/native_ported/spec/toolset-registry/test_unreviewed_quarantine.py",
+    "category": "toolset-registry",
+    "kind": "pytest"
+  },
+  {
+    "id": "traefik-access-log",
+    "file": "tests/py/spec/remaining_root_specs/test_traefik_access_log.py",
+    "category": "traefik-access-log",
+    "kind": "pytest"
+  },
+  {
+    "id": "ts-suppression",
+    "file": "tests/py/spec/remaining_root_specs/test_ts_suppression.py",
+    "category": "ts-suppression",
+    "kind": "pytest"
+  },
+  {
+    "id": "unsloth-eval-harness/clarify-question",
+    "file": "tests/py/spec/native_ported/spec/unsloth-eval-harness/test_clarify_question.py",
+    "category": "unsloth-eval-harness",
+    "kind": "pytest"
+  },
+  {
+    "id": "unsloth-eval-harness/gguf-fixture-bridge",
+    "file": "tests/py/spec/native_ported/spec/unsloth-eval-harness/test_gguf_fixture_bridge.py",
+    "category": "unsloth-eval-harness",
+    "kind": "pytest"
+  },
+  {
+    "id": "unsloth-eval-harness/regression-gate",
+    "file": "tests/py/spec/native_ported/spec/unsloth-eval-harness/test_regression_gate.py",
+    "category": "unsloth-eval-harness",
+    "kind": "pytest"
+  },
+  {
+    "id": "unsloth-eval-harness/scoring-rules",
+    "file": "tests/py/spec/native_ported/spec/unsloth-eval-harness/test_scoring_rules.py",
+    "category": "unsloth-eval-harness",
+    "kind": "pytest"
+  },
+  {
+    "id": "unsloth-eval-harness/tandem-candidates",
+    "file": "tests/py/spec/native_ported/spec/unsloth-eval-harness/test_tandem_candidates.py",
+    "category": "unsloth-eval-harness",
+    "kind": "pytest"
+  },
+  {
+    "id": "unsloth-eval-harness/testset-shape",
+    "file": "tests/py/spec/native_ported/spec/unsloth-eval-harness/test_testset_shape.py",
+    "category": "unsloth-eval-harness",
+    "kind": "pytest"
+  },
+  {
+    "id": "unsloth-eval-harness/worker-testset",
+    "file": "tests/py/spec/native_ported/spec/unsloth-eval-harness/test_worker_testset.py",
+    "category": "unsloth-eval-harness",
+    "kind": "pytest"
+  },
+  {
+    "id": "unsloth-training-env/agent-discovery",
+    "file": "tests/py/spec/native_ported/spec/unsloth-training-env/test_agent_discovery.py",
+    "category": "unsloth-training-env",
+    "kind": "pytest"
+  },
+  {
+    "id": "unsloth-training-env/measure-corpus",
+    "file": "tests/py/spec/native_ported/spec/unsloth-training-env/test_measure_corpus.py",
+    "category": "unsloth-training-env",
+    "kind": "pytest"
+  },
+  {
+    "id": "unsloth-training-env/template-guard",
+    "file": "tests/py/spec/native_ported/spec/unsloth-training-env/test_template_guard.py",
+    "category": "unsloth-training-env",
+    "kind": "pytest"
+  },
+  {
+    "id": "unsloth-training-env/train-config",
+    "file": "tests/py/spec/native_ported/spec/unsloth-training-env/test_train_config.py",
+    "category": "unsloth-training-env",
+    "kind": "pytest"
+  },
+  {
+    "id": "unsloth-training-env/vision-route",
+    "file": "tests/py/spec/native_ported/spec/unsloth-training-env/test_vision_route.py",
+    "category": "unsloth-training-env",
+    "kind": "pytest"
+  },
+  {
+    "id": "vaultwarden-integration",
+    "file": "tests/py/spec/remaining_root_specs/test_vaultwarden_integration.py",
+    "category": "vaultwarden-integration",
+    "kind": "pytest"
+  },
+  {
+    "id": "vda-frontmatter",
+    "file": "tests/py/spec/native_ported/spec/test_vda_frontmatter.py",
+    "category": "vda-frontmatter",
+    "kind": "pytest"
+  },
+  {
+    "id": "videovault/no_star_routes",
+    "file": "tests/py/spec/videovault/test_no_star_routes.py",
+    "category": "videovault",
+    "kind": "pytest"
+  },
+  {
+    "id": "videovault/picker_depth_guard",
+    "file": "tests/py/spec/videovault/test_picker_depth_guard.py",
+    "category": "videovault",
+    "kind": "pytest"
+  },
+  {
+    "id": "videovault/type_gate_green",
+    "file": "tests/py/spec/videovault/test_type_gate_green.py",
+    "category": "videovault",
+    "kind": "pytest"
+  },
+  {
+    "id": "warden-mcp/config-guards",
+    "file": "tests/py/spec/native_ported/spec/warden-mcp/test_config_guards.py",
+    "category": "warden-mcp",
+    "kind": "pytest"
+  },
+  {
+    "id": "warden-mcp/launcher",
+    "file": "tests/py/spec/native_ported/spec/warden-mcp/test_launcher.py",
+    "category": "warden-mcp",
+    "kind": "pytest"
+  },
+  {
+    "id": "website-core",
+    "file": "tests/py/spec/native_ported/spec/test_website_core.py",
+    "category": "website-core",
+    "kind": "pytest"
+  },
+  {
+    "id": "website-core/admin-nav-no-sdlc-routes",
+    "file": "tests/py/spec/native_ported/spec/website-core/test_admin_nav_no_sdlc_routes.py",
+    "category": "website-core",
+    "kind": "pytest"
+  },
+  {
+    "id": "website-core/email-notifications",
+    "file": "tests/py/spec/native_ported/spec/website-core/test_email_notifications.py",
+    "category": "website-core",
+    "kind": "pytest"
+  },
+  {
+    "id": "website-core/portrait-derivate-crop",
+    "file": "tests/py/spec/native_ported/spec/website-core/test_portrait_derivate_crop.py",
+    "category": "website-core",
+    "kind": "pytest"
+  },
+  {
+    "id": "website-core/web-audit",
+    "file": "tests/py/spec/native_ported/spec/website-core/test_web_audit.py",
+    "category": "website-core",
+    "kind": "pytest"
+  },
+  {
+    "id": "website-migrate/portforward_runner",
+    "file": "tests/py/spec/website-migrate/test_portforward_runner.py",
+    "category": "website-migrate",
+    "kind": "pytest"
+  },
+  {
+    "id": "website-schema/fk-targets-unique",
+    "file": "tests/py/spec/native_ported/spec/website-schema/test_fk_targets_unique.py",
+    "category": "website-schema",
+    "kind": "pytest"
+  },
+  {
+    "id": "website-svelte-check",
+    "file": "tests/py/spec/native_ported/spec/test_website_svelte_check.py",
+    "category": "website-svelte-check",
+    "kind": "pytest"
+  },
+  {
+    "id": "workspace-deploy",
+    "file": "tests/py/spec/native_ported/spec/test_workspace_deploy.py",
+    "category": "workspace-deploy",
+    "kind": "pytest"
+  },
+  {
+    "id": "workspace-deploy-secrets-scope",
+    "file": "tests/py/spec/native_ported/spec/test_workspace_deploy_secrets_scope.py",
+    "category": "workspace-deploy-secrets-scope",
+    "kind": "pytest"
+  },
+  {
+    "id": "workspace-deploy/flux-secrets-ordering",
+    "file": "tests/py/spec/native_ported/spec/workspace-deploy/test_flux_secrets_ordering.py",
+    "category": "workspace-deploy",
+    "kind": "pytest"
+  },
+  {
+    "id": "workspace-deploy/ntfy-token-escaping-T900059",
+    "file": "tests/py/spec/native_ported/spec/workspace-deploy/test_ntfy_token_escaping_T900059.py",
+    "category": "workspace-deploy",
+    "kind": "pytest"
+  },
+  {
+    "id": "workspace-foundation",
+    "file": "tests/py/spec/native_ported/spec/test_workspace_foundation.py",
+    "category": "workspace-foundation",
+    "kind": "pytest"
+  },
+  {
+    "id": "workspace-staging-db-tables",
+    "file": "tests/py/spec/native_ported/spec/test_workspace_staging_db_tables.py",
+    "category": "workspace-staging-db-tables",
+    "kind": "pytest"
+  },
+  {
+    "id": "workstation-cluster-iso/assign-identity",
+    "file": "tests/py/spec/native_ported/spec/workstation-cluster-iso/test_assign_identity.py",
+    "category": "workstation-cluster-iso",
+    "kind": "pytest"
+  },
+  {
+    "id": "workstation-cluster-iso/build-node-iso-guards",
+    "file": "tests/py/spec/remaining_root_specs/workstation_cluster_iso/test_build_node_iso_guards.py",
+    "category": "workstation-cluster-iso",
+    "kind": "pytest"
+  },
+  {
+    "id": "workstation-cluster-iso/k3s-join-guards",
+    "file": "tests/py/spec/remaining_root_specs/workstation_cluster_iso/test_k3s_join_guards.py",
+    "category": "workstation-cluster-iso",
+    "kind": "pytest"
+  },
+  {
+    "id": "workstation-cluster-pxe/setup-pxe-guards",
+    "file": "tests/py/spec/remaining_root_specs/workstation_cluster_pxe/test_setup_pxe_guards.py",
+    "category": "workstation-cluster-pxe",
+    "kind": "pytest"
+  },
+  {
+    "id": "worktree-create-real-path-T004604",
+    "file": "tests/py/spec/native_ported/spec/test_worktree_create_real_path_T004604.py",
+    "category": "worktree-create-real-path-T004604",
+    "kind": "pytest"
+  },
+  {
+    "id": "worktree-cross-platform",
+    "file": "tests/py/spec/native_ported/spec/test_worktree_cross_platform.py",
+    "category": "worktree-cross-platform",
+    "kind": "pytest"
+  },
+  {
+    "id": "worktree-divergence-guard-T002387",
+    "file": "tests/py/spec/native_ported/spec/test_worktree_divergence_guard_T002387.py",
+    "category": "worktree-divergence-guard-T002387",
+    "kind": "pytest"
+  },
+  {
+    "id": "worktree-divergence-guard/main-sync-optout",
+    "file": "tests/py/spec/native_ported/spec/worktree-divergence-guard/test_main_sync_optout.py",
+    "category": "worktree-divergence-guard",
+    "kind": "pytest"
+  },
+  {
+    "id": "worktree-divergence-guard/stash-restore-visible",
+    "file": "tests/py/spec/native_ported/spec/worktree-divergence-guard/test_stash_restore_visible.py",
+    "category": "worktree-divergence-guard",
+    "kind": "pytest"
+  },
+  {
+    "id": "worktree-gitdir-guard",
+    "file": "tests/py/spec/remaining_root_specs/test_worktree_gitdir_guard.py",
+    "category": "worktree-gitdir-guard",
+    "kind": "pytest"
+  }
+]

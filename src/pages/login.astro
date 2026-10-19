@@ -1,0 +1,10 @@
+---
+// Force-redirect to Keycloak SSO — /login is a stable public entry point
+// that SA-02 T4 and any external link can use.
+// T003036: Reicht returnTo an den Auth-Endpoint weiter, damit der User
+// nach dem Login zum ursprünglichen Ziel zurückkehrt.
+import { forwardReturnTo } from '../lib/login-redirect';
+export const prerender = false;
+
+return Astro.redirect(forwardReturnTo(Astro.url), 302);
+---

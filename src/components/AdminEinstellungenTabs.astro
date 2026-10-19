@@ -1,0 +1,20 @@
+---
+import AdminTabs from '../components/admin/ui/AdminTabs.svelte';
+
+interface Props {
+  current: string;
+}
+const { current } = Astro.props;
+const tabs = [
+  { id: '/admin/einstellungen/benachrichtigungen', label: 'Benachrichtigungen', href: '/admin/einstellungen/benachrichtigungen' },
+  { id: '/admin/einstellungen/email',               label: 'E-Mail',             href: '/admin/einstellungen/email' },
+  { id: '/admin/einstellungen/rechnungen',          label: 'Rechnungen',         href: '/admin/einstellungen/rechnungen' },
+  { id: '/admin/einstellungen/branding',            label: 'Branding',           href: '/admin/einstellungen/branding' },
+  { id: '/admin/einstellungen/backup',              label: 'Backup',             href: '/admin/einstellungen/backup' },
+  { id: '/admin/einstellungen/ordner-templates',    label: 'Ordner-Templates',   href: '/admin/einstellungen/ordner-templates' },
+  { id: '/admin/coaching/settings',                 label: 'Coaching & KI',      href: '/admin/coaching/settings' },
+];
+---
+<div style="border-bottom: 1px solid var(--line); padding: 0 2rem; flex-shrink: 0;">
+  <AdminTabs {tabs} active={current} client:load />
+</div>

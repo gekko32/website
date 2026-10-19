@@ -1,0 +1,427 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+vi.mock('./logger', () => ({
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn(), child: vi.fn() },
+  createRequestLogger: vi.fn(() => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn() })),
+}));
+
+vi.mock('pg', () => {
+  const store = new Map<string, unknown>();
+  function MockPool() {
+    return {
+      query: vi.fn(async (sql: string, params?: unknown[]) => {
+        if (sql.includes('CREATE TABLE')) return { rows: [] };
+        if (sql.includes('INSERT INTO web_sessions')) {
+          store.set(String(params![0]), JSON.parse(String(params![1])));
+          return { rows: [] };
+        }
+        if (sql.includes('SELECT data FROM web_sessions')) {
+          const data = store.get(String(params![0]));
+          return { rows: data ? [{ data }] : [] };
+        }
+        if (sql.includes('UPDATE web_sessions')) {
+          store.set(String(params![2]), JSON.parse(String(params![0])));
+          return { rows: [] };
+        }
+        if (sql.includes('DELETE FROM web_sessions')) {
+          store.delete(String(params![0]));
+          return { rows: [] };
+        }
+        return { rows: [] };
+      }),
+    };
+  }
+  return {
+    default: {
+      Pool: MockPool,
+    },
+    Pool: MockPool,
+  };
+});
+
+const ORIGINAL_POCKET = process.env.POCKET_ID_FRONTEND_URL;
+const ORIGINAL_INTERNAL = process.env.POCKET_ID_URL;
+const ORIGINAL_SECRET = process.env.POCKET_ID_WEBSITE_SECRET;
+const ORIGINAL_SITE = process.env.SITE_URL;
+const ORIGINAL_FETCH = globalThis.fetch;
+
+beforeEach(() => {
+  process.env.POCKET_ID_FRONTEND_URL = 'https://auth.example.com';
+  process.env.POCKET_ID_URL = 'https://pocket-id.internal';
+  process.env.POCKET_ID_WEBSITE_SECRET = 'secret-12345';
+  process.env.SITE_URL = 'https://mentolder.de';
+  vi.resetModules();
+});
+
+afterEach(() => {
+  globalThis.fetch = ORIGINAL_FETCH;
+  if (ORIGINAL_POCKET === undefined) delete process.env.POCKET_ID_FRONTEND_URL;
+  else process.env.POCKET_ID_FRONTEND_URL = ORIGINAL_POCKET;
+  if (ORIGINAL_INTERNAL === undefined) delete process.env.POCKET_ID_URL;
+  else process.env.POCKET_ID_URL = ORIGINAL_INTERNAL;
+  if (ORIGINAL_SECRET === undefined) delete process.env.POCKET_ID_WEBSITE_SECRET;
+  else process.env.POCKET_ID_WEBSITE_SECRET = ORIGINAL_SECRET;
+  if (ORIGINAL_SITE === undefined) delete process.env.SITE_URL;
+  else process.env.SITE_URL = ORIGINAL_SITE;
+});
+
+async function loadModule() {
+  return import('./auth');
+}
+
+describe('getLoginUrl', () => {
+  it('builds an OIDC authorize URL with the default state', async () => {
+    const m = await loadModule();
+    const url = m.getLoginUrl();
+    expect(url).toContain('https://auth.example.com/authorize');
+    expect(url).toContain('client_id=website');
+    expect(url).toContain('response_type=code');
+    expect(url).toContain('redirect_uri=');
+    expect(url).toContain(encodeURIComponent('/api/auth/callback'));
+  });
+
+  // Der lokale SDLC-Stack meldet sich im Prod-Auth-Modus gegen die
+  // Prod-Pocket-ID an, damit dort registrierte Passkeys nutzbar sind. Dort ist
+  // der `website`-Client fuer web.<PROD_DOMAIN> reserviert, die localhost-
+  // Console braucht also einen eigenen client_id. Ohne die Env-Ueberschreibung
+  // sendet sie client_id=website mit einer redirect_uri, die dieser Client
+  // nicht kennt — Pocket ID weist den Authorize-Request ab.
+  it('nimmt den client_id aus POCKET_ID_CLIENT_ID, wenn gesetzt', async () => {
+    process.env.POCKET_ID_CLIENT_ID = 'website-local';
+    vi.resetModules();
+    try {
+      const m = await loadModule();
+      const url = m.getLoginUrl();
+      expect(new URL(url).searchParams.get('client_id')).toBe('website-local');
+    } finally {
+      delete process.env.POCKET_ID_CLIENT_ID;
+      vi.resetModules();
+    }
+  });
+
+  // Positiv-Anker zum Test darueber: ohne gesetzte Variable bleibt es bei
+  // 'website'. Sonst koennte die Ueberschreibung auch dadurch "gruen" sein,
+  // dass der Default versehentlich mitgeaendert wurde.
+  it('faellt ohne POCKET_ID_CLIENT_ID auf website zurueck', async () => {
+    delete process.env.POCKET_ID_CLIENT_ID;
+    vi.resetModules();
+    const m = await loadModule();
+    expect(new URL(m.getLoginUrl()).searchParams.get('client_id')).toBe('website');
+  });
+
+  // [T002497] Bis 372729d7d reichte getLoginUrl das Argument als state-Parameter
+  // durch; der Test hiess entsprechend "echoes the supplied state parameter".
+  // Seither ist das Argument ein returnTo, das INTERN unter einem zufällig
+  // erzeugten state hinterlegt wird — Pocket ID v2.11.0 weist states unter
+  // 8 Zeichen ab. Der alte Test blieb stehen und war seit dem 27.07. rot.
+  it('erzeugt einen zufälligen state und echot das returnTo NICHT', async () => {
+    const m = await loadModule();
+    const url = m.getLoginUrl('/admin/tickets');
+    const state = new URL(url).searchParams.get('state');
+
+    // Positiv-Anker: ohne state wäre die Negativ-Aussage unten vakuos.
+    expect(state).toBeTruthy();
+    expect(state!.length).toBeGreaterThanOrEqual(8); // Pocket-ID-v2.11-Mindestlänge
+    expect(url).not.toContain('/admin/tickets');
+    expect(url).not.toContain(encodeURIComponent('/admin/tickets'));
+  });
+
+  it('zwei Aufrufe erzeugen verschiedene states', async () => {
+    const m = await loadModule();
+    const a = new URL(m.getLoginUrl('/a')).searchParams.get('state');
+    const b = new URL(m.getLoginUrl('/b')).searchParams.get('state');
+    expect(a).not.toBe(b);
+  });
+
+  // Der eigentliche Vertrag zwischen getLoginUrl und dem Callback — bisher
+  // ungetestet, obwohl er entscheidet, wohin ein Nutzer nach dem Login landet.
+  it('hinterlegt das returnTo abrufbar unter dem erzeugten state, einmalig', async () => {
+    const m = await loadModule();
+    const state = new URL(m.getLoginUrl('/admin/tickets')).searchParams.get('state')!;
+
+    expect(m.consumeReturnTo(state)).toBe('/admin/tickets');
+    // consume heisst consume: der zweite Abruf muss leer ausgehen, sonst wäre
+    // ein state wiederverwendbar.
+    expect(m.consumeReturnTo(state)).toBeUndefined();
+  });
+
+  it('ohne returnTo wird nichts hinterlegt', async () => {
+    const m = await loadModule();
+    const state = new URL(m.getLoginUrl()).searchParams.get('state')!;
+    expect(m.consumeReturnTo(state)).toBeUndefined();
+  });
+});
+
+describe('isAdmin', () => {
+  it('returns true when realmRoles contains "admin"', async () => {
+    const m = await loadModule();
+    expect(m.isAdmin({ sub: 'u', email: 'a@b', name: 'A', preferred_username: 'a', realmRoles: ['admin'], brand: null, access_token: '', refresh_token: '', expires_at: 0 })).toBe(true);
+  });
+
+  it('returns false for empty realm roles', async () => {
+    const m = await loadModule();
+    expect(m.isAdmin({ sub: 'u', email: 'a@b', name: 'A', preferred_username: 'a', realmRoles: [], brand: null, access_token: '', refresh_token: '', expires_at: 0 })).toBe(false);
+  });
+
+  it('returns false for unknown roles', async () => {
+    const m = await loadModule();
+    expect(m.isAdmin({ sub: 'u', email: 'a@b', name: 'A', preferred_username: 'a', realmRoles: ['editor'], brand: null, access_token: '', refresh_token: '', expires_at: 0 })).toBe(false);
+  });
+});
+
+describe('getSessionId / setSessionCookie / clearSessionCookie', () => {
+  it('extracts the session id from a cookie header', async () => {
+    const m = await loadModule();
+    expect(m.getSessionId('workspace_session=abc-123; path=/')).toBe('abc-123');
+    expect(m.getSessionId('foo=bar; workspace_session=xyz')).toBe('xyz');
+  });
+
+  it('returns undefined when no session cookie is present', async () => {
+    const m = await loadModule();
+    expect(m.getSessionId('foo=bar')).toBeUndefined();
+    expect(m.getSessionId(null)).toBeUndefined();
+  });
+
+  it('builds a Set-Cookie header with HttpOnly + SameSite=Lax', async () => {
+    const m = await loadModule();
+    const out = m.setSessionCookie('sess-1');
+    expect(out).toContain('workspace_session=sess-1');
+    expect(out).toContain('HttpOnly');
+    expect(out.toLowerCase()).toContain('samesite=lax');
+  });
+
+  it('clearSessionCookie expires the session cookie', async () => {
+    const m = await loadModule();
+    const out = m.clearSessionCookie();
+    expect(out).toContain('workspace_session=');
+    expect(out.toLowerCase()).toContain('max-age=0');
+  });
+});
+
+describe('getSession (in-memory session lookup)', () => {
+  it('returns null when no session id is present in the cookie', async () => {
+    const m = await loadModule();
+    expect(await m.getSession('foo=bar')).toBeNull();
+    expect(await m.getSession(null)).toBeNull();
+  });
+
+  it('retrieves synthetic/e2e sessions with empty tokens without attempting refresh', async () => {
+    const m = await loadModule();
+    const sessionId = await m.issueSession({
+      sub: 'test-id',
+      email: 'test@example.com',
+      name: 'Test User',
+      preferred_username: 'paddione',
+      realmRoles: ['admin'],
+      brand: null,
+      access_token: '',
+      refresh_token: '',
+      expires_at: Date.now() + 3600000,
+    });
+    const session = await m.getSession(`workspace_session=${sessionId}`);
+    expect(session).not.toBeNull();
+    expect(session?.preferred_username).toBe('paddione');
+  });
+});
+
+describe('exchangeCode', () => {
+  it('returns null when Pocket ID token endpoint returns a non-OK response', async () => {
+    globalThis.fetch = (async () => new Response('nope', { status: 500 })) as typeof fetch;
+    const m = await loadModule();
+    expect(await m.exchangeCode('code-123')).toBeNull();
+  });
+
+  it('returns null when the auth provider is unreachable (fail-closed)', async () => {
+    globalThis.fetch = (async () => {
+      throw new Error('network down');
+    }) as typeof fetch;
+    const m = await loadModule();
+    expect(await m.exchangeCode('code-123')).toBeNull();
+  });
+
+  it('returns null when userinfo endpoint returns a non-OK response', async () => {
+    let call = 0;
+    globalThis.fetch = (async () => {
+      call++;
+      if (call === 1) {
+        return new Response(
+          JSON.stringify({
+            access_token: 'x', refresh_token: 'r', expires_in: 3600,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return new Response('nope', { status: 500 });
+    }) as typeof fetch;
+    const m = await loadModule();
+    expect(await m.exchangeCode('code-123')).toBeNull();
+  });
+});
+
+describe('client secret guard (T001593)', () => {
+  const ORIGINAL_LEGACY = process.env.WEBSITE_OIDC_SECRET;
+
+  afterEach(() => {
+    if (ORIGINAL_LEGACY === undefined) delete process.env.WEBSITE_OIDC_SECRET;
+    else process.env.WEBSITE_OIDC_SECRET = ORIGINAL_LEGACY;
+  });
+
+  it('throws at import when no OIDC client secret is set', async () => {
+    delete process.env.POCKET_ID_WEBSITE_SECRET;
+    delete process.env.WEBSITE_OIDC_SECRET;
+    vi.resetModules();
+    await expect(loadModule()).rejects.toThrow(/OIDC client secret/);
+  });
+
+  it('accepts the legacy WEBSITE_OIDC_SECRET variable', async () => {
+    delete process.env.POCKET_ID_WEBSITE_SECRET;
+    process.env.WEBSITE_OIDC_SECRET = 'legacy-secret';
+    vi.resetModules();
+    await expect(loadModule()).resolves.toBeDefined();
+  });
+});
+
+describe('isAdmin PORTAL_ADMIN_USERNAME fallback', () => {
+  const ORIGINAL_ADMINS = process.env.PORTAL_ADMIN_USERNAME;
+
+  afterEach(() => {
+    if (ORIGINAL_ADMINS === undefined) delete process.env.PORTAL_ADMIN_USERNAME;
+    else process.env.PORTAL_ADMIN_USERNAME = ORIGINAL_ADMINS;
+  });
+
+  function sessionFor(username: string) {
+    return { sub: 'u', email: 'a@b', name: 'A', preferred_username: username, realmRoles: [], brand: null, access_token: '', refresh_token: '', expires_at: 0 };
+  }
+
+  it('treats the default admin username as admin even without the role', async () => {
+    delete process.env.PORTAL_ADMIN_USERNAME;
+    vi.resetModules();
+    const m = await loadModule();
+    expect(m.isAdmin(sessionFor('admin'))).toBe(true);
+  });
+
+  it('matches the fallback list case-insensitively', async () => {
+    delete process.env.PORTAL_ADMIN_USERNAME;
+    vi.resetModules();
+    const m = await loadModule();
+    expect(m.isAdmin(sessionFor('Admin'))).toBe(true);
+    expect(m.isAdmin(sessionFor('ADMIN'))).toBe(true);
+  });
+
+  it('honours a custom comma-separated admin list', async () => {
+    process.env.PORTAL_ADMIN_USERNAME = 'alice, bob';
+    vi.resetModules();
+    try {
+      const m = await loadModule();
+      expect(m.isAdmin(sessionFor('alice'))).toBe(true);
+      expect(m.isAdmin(sessionFor('bob'))).toBe(true);
+      expect(m.isAdmin(sessionFor('carol'))).toBe(false);
+    } finally {
+      if (ORIGINAL_ADMINS === undefined) delete process.env.PORTAL_ADMIN_USERNAME;
+      else process.env.PORTAL_ADMIN_USERNAME = ORIGINAL_ADMINS;
+      vi.resetModules();
+    }
+  });
+});
+
+describe('getSession refresh (T901934)', () => {
+  function jwt(payload: Record<string, unknown>): string {
+    const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+    return `${b64({ alg: 'none' })}.${b64(payload)}.sig`;
+  }
+
+  function baseUser() {
+    return {
+      sub: 'refresh-id',
+      email: 'refresh@example.com',
+      name: 'Refresh User',
+      preferred_username: 'refresher',
+      realmRoles: [] as string[],
+      brand: null,
+    };
+  }
+
+  it('returns null for an unknown session id', async () => {
+    const m = await loadModule();
+    expect(await m.getSession('workspace_session=does-not-exist-1')).toBeNull();
+  });
+
+  it('refreshes an expired access token and persists the renewed session', async () => {
+    const freshAccess = jwt({ exp: Math.floor(Date.now() / 1000) + 3600, isAdmin: true, groups: ['g1', 42, 'g2'] });
+    let tokenCalls = 0;
+    globalThis.fetch = (async (url: unknown) => {
+      const u = String(url);
+      if (u.includes('openid-configuration')) return new Response('{}', { status: 200 });
+      if (u.includes('/api/oidc/token')) {
+        tokenCalls++;
+        return new Response(
+          JSON.stringify({ access_token: freshAccess, refresh_token: 'rt-2', expires_in: 300 }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return new Response('nope', { status: 500 });
+    }) as typeof fetch;
+
+    const m = await loadModule();
+    const sessionId = await m.issueSession({
+      ...baseUser(),
+      access_token: jwt({ exp: Math.floor(Date.now() / 1000) - 100 }),
+      refresh_token: 'rt-1',
+      expires_at: Date.now() + 3600000,
+    });
+
+    const session = await m.getSession(`workspace_session=${sessionId}`);
+    expect(session).not.toBeNull();
+    expect(session?.access_token).toBe(freshAccess);
+    expect(session?.refresh_token).toBe('rt-2');
+    expect(session?.realmRoles).toEqual(['admin']);
+    // Nicht-String-Einträge werden verworfen statt übernommen.
+    expect(session?.groups).toEqual(['g1', 'g2']);
+    expect(session?.expires_at).toBeGreaterThan(Date.now() + 7 * 3600 * 1000);
+
+    // Zweiter Abruf: Token ist jetzt frisch — kein weiterer Refresh.
+    const again = await m.getSession(`workspace_session=${sessionId}`);
+    expect(again?.access_token).toBe(freshAccess);
+    expect(tokenCalls).toBe(1);
+  });
+
+  it('returns null and deletes the session when the refresh fails', async () => {
+    globalThis.fetch = (async (url: unknown) => {
+      if (String(url).includes('openid-configuration')) return new Response('{}', { status: 200 });
+      return new Response('nope', { status: 500 });
+    }) as typeof fetch;
+
+    const m = await loadModule();
+    const sessionId = await m.issueSession({
+      ...baseUser(),
+      access_token: jwt({ exp: Math.floor(Date.now() / 1000) - 100 }),
+      refresh_token: 'rt-bad',
+      expires_at: Date.now() + 3600000,
+    });
+
+    expect(await m.getSession(`workspace_session=${sessionId}`)).toBeNull();
+    // Die Sitzung wurde gelöscht, nicht nur abgewiesen.
+    expect(await m.getSession(`workspace_session=${sessionId}`)).toBeNull();
+  });
+});
+
+describe('decodeGroupsClaim', () => {
+  function jwt(payload: Record<string, unknown>): string {
+    const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+    return `${b64({ alg: 'none' })}.${b64(payload)}.sig`;
+  }
+
+  it('reads string groups from the access token', async () => {
+    const m = await loadModule();
+    expect(m.decodeGroupsClaim(jwt({ groups: ['a', 'b'] }))).toEqual(['a', 'b']);
+  });
+
+  it('fails closed on missing, malformed or non-string claims', async () => {
+    const m = await loadModule();
+    expect(m.decodeGroupsClaim(jwt({}))).toEqual([]);
+    expect(m.decodeGroupsClaim(jwt({ groups: 'nope' }))).toEqual([]);
+    expect(m.decodeGroupsClaim(jwt({ groups: ['a', 1, null, 'b'] }))).toEqual(['a', 'b']);
+    expect(m.decodeGroupsClaim('not-a-jwt')).toEqual([]);
+    expect(m.decodeGroupsClaim('')).toEqual([]);
+  });
+});

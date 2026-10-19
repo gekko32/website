@@ -1,0 +1,67 @@
+---
+import fs from 'fs';
+import path from 'path';
+import YAML from 'yaml';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../components/admin/ui/AdminPageHeader.svelte';
+import AppCatalog from '../../components/admin/AppCatalog.svelte';
+import { getSession, isAdmin } from '../../lib/auth';
+import { buildLoginRedirect } from '../../lib/login-redirect';
+import { logger } from '../../lib/logger';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session || !isAdmin(session)) return Astro.redirect(buildLoginRedirect(Astro.url));
+
+const env = process.env.CLUSTER_ENV ?? 'dev';
+const brandId = process.env.BRAND_ID ?? 'mentolder';
+
+const appsDir = path.resolve('apps');
+const apps = [];
+
+if (fs.existsSync(appsDir)) {
+  const dirs = fs.readdirSync(appsDir);
+  for (const dir of dirs) {
+    const appYamlPath = path.join(appsDir, dir, 'app.yaml');
+    if (fs.existsSync(appYamlPath)) {
+      try {
+        const content = fs.readFileSync(appYamlPath, 'utf8');
+        const parsed = YAML.parse(content);
+        apps.push({
+          name: parsed.name,
+          title: parsed.title,
+          description: parsed.description,
+          kustomize: parsed.kustomize,
+          domains: parsed.domains || [],
+          oidc: parsed.oidc || null,
+          secrets: parsed.secrets || [],
+          requires: parsed.requires || [],
+          resources: parsed.resources || null
+        });
+      } catch (err) {
+        logger.error({ err, dir }, `Error parsing manifest for ${dir}`);
+      }
+    }
+  }
+}
+
+// Read installed status
+let installedApps = [];
+const registryPath = path.resolve(`apps/installed-${env}.json`);
+if (fs.existsSync(registryPath)) {
+  try {
+    const registryContent = fs.readFileSync(registryPath, 'utf8');
+    if (registryContent.trim()) {
+      installedApps = JSON.parse(registryContent);
+    }
+  } catch (err) {
+    logger.error({ err }, 'Error reading installed apps registry');
+  }
+}
+---
+
+<AdminLayout title="App-Katalog">
+  <div style="max-width:72rem; margin:0 auto; padding:1.5rem 1.5rem 0;">
+    <AdminPageHeader title="App-Katalog" description={`${apps.length} Apps verfügbar · Umgebung: ${env}`} />
+  </div>
+  <AppCatalog {apps} {installedApps} {env} {brandId} client:load />
+</AdminLayout>

@@ -1,0 +1,745 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
+import { getUserById, getUserRealmRoles, listRealmRoles } from '../../lib/identity';
+import type { KcRole } from '../../lib/identity';
+import BookingsTab from '../../components/portal/BookingsTab.astro';
+import InvoicesTab from '../../components/portal/InvoicesTab.astro';
+import ClientNotesTab from '../../components/portal/ClientNotesTab.astro';
+import FilesTab from '../../components/portal/FilesTab.astro';
+import SignaturesTab from '../../components/portal/SignaturesTab.astro';
+import MeetingsAdminTab from '../../components/portal/MeetingsAdminTab.astro';
+import OnboardingTab from '../../components/portal/OnboardingTab.astro';
+import AdminBookingModal from '../../components/admin/AdminBookingModal.svelte';
+import ClientContractsPanel from '../../components/admin/ClientContractsPanel.svelte';
+import ClientQuestionnairesPanel from '../../components/admin/ClientQuestionnairesPanel.svelte';
+import CrmStatusPanel from '../../components/admin/CrmStatusPanel.svelte';
+import ContactHistoryTimeline from '../../components/admin/ContactHistoryTimeline.svelte';
+import { listProjectsForCustomer, getCustomerByEmail } from '../../lib/projects-db';
+import { getSubscriberByEmail } from '../../lib/newsletter-db';
+import { getCustomerProfile, getContactHistory } from '../../lib/customer-crm-db';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) {
+  return Astro.redirect(getLoginUrl(Astro.url.pathname));
+}
+if (!isAdmin(session)) {
+  return Astro.redirect('/portal');
+}
+
+const { clientId } = Astro.params;
+if (!clientId) return Astro.redirect('/admin');
+const client = await getUserById(clientId);
+if (!client) {
+  return Astro.redirect('/admin');
+}
+
+const tab = Astro.url.searchParams.get('tab') ?? 'bookings';
+
+let userRoles: KcRole[] = [];
+let allRoles: KcRole[] = [];
+try {
+  [userRoles, allRoles] = await Promise.all([
+    getUserRealmRoles(clientId),
+    listRealmRoles(),
+  ]);
+} catch {
+  // Keycloak unavailable
+}
+const userRoleIds = new Set(userRoles.map(r => r.id));
+
+let clientProjects: { id: string; name: string }[] = [];
+let clientFullProjects: Awaited<ReturnType<typeof listProjectsForCustomer>> = [];
+try {
+  clientFullProjects = await listProjectsForCustomer(clientId);
+  clientProjects = clientFullProjects.map(p => ({ id: p.id, name: p.name }));
+} catch {
+  // Projekte-Dropdown bleibt leer
+}
+
+let customerRecord: { id: string; customer_number?: string; admin_number?: string; is_admin?: boolean } | null = null;
+try {
+  if (client.email) customerRecord = await getCustomerByEmail(client.email);
+} catch {
+  // DB unavailable
+}
+
+let isNewsletterSubscribed = false;
+try {
+  if (client.email) {
+    const sub = await getSubscriberByEmail(client.email);
+    isNewsletterSubscribed = sub?.status === 'confirmed';
+  }
+} catch {
+  // newsletter DB unavailable
+}
+
+let crmProfile: Awaited<ReturnType<typeof getCustomerProfile>> = null;
+let contactHistory: Awaited<ReturnType<typeof getContactHistory>> = [];
+try {
+  crmProfile = await getCustomerProfile(clientId);
+  contactHistory = await getContactHistory(clientId, 100);
+} catch {
+  // CRM-Tab bleibt leer, falls DB nicht erreichbar
+}
+---
+
+<AdminLayout title={`Admin — ${client.firstName ?? client.username}`}>
+  <section class="pt-10 pb-20 bg-dark min-h-screen">
+    <div class="max-w-5xl mx-auto px-6">
+
+      <!-- Header mit Usermanagement-Aktionen -->
+      <div class="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div class="flex items-center gap-3">
+            <h1 class="text-3xl font-bold text-light font-serif">{client.firstName} {client.lastName}</h1>
+            {client.enabled === false && (
+              <span class="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">Deaktiviert</span>
+            )}
+          </div>
+          <p class="text-muted mt-1">{client.username} · {client.email ?? '—'}</p>
+        </div>
+        <div class="flex gap-2 flex-wrap">
+          <button
+            id="edit-user-btn"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-dark-light border border-dark-lighter text-light rounded-lg text-sm hover:border-gold/40 transition-colors"
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5" aria-hidden="true"><path d="M11 2l3 3-8.5 8.5H2v-3.5z"/><path d="M9.5 3.5l3 3"/></svg>
+            Bearbeiten
+          </button>
+          <button
+            id="toggle-enabled-btn"
+            data-user-id={clientId}
+            data-enabled={client.enabled !== false ? 'true' : 'false'}
+            class={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${client.enabled !== false ? 'bg-dark-light border border-dark-lighter text-muted hover:border-red-500/40 hover:text-red-400' : 'bg-green-500/20 border border-green-500/30 text-green-400 hover:bg-green-500/30'}`}
+          >
+            {client.enabled !== false ? (
+              <>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5" aria-hidden="true"><rect x="3" y="7" width="10" height="8" rx="1"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/></svg>
+                Deaktivieren
+              </>
+            ) : (
+              <>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5" aria-hidden="true"><path d="M2.5 8.5l4 4 7-8"/></svg>
+                Aktivieren
+              </>
+            )}
+          </button>
+          <button
+            id="reset-password-btn"
+            data-user-id={clientId}
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-dark-light border border-dark-lighter text-muted rounded-lg text-sm hover:border-gold/40 hover:text-light transition-colors"
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5" aria-hidden="true"><circle cx="5.5" cy="7" r="3.5"/><path d="M8.5 9.5l5.5 5.5M11 12l2-2"/></svg>
+            Passwort-Reset
+          </button>
+          <button
+            id="delete-user-btn"
+            data-user-id={clientId}
+            data-user-name={`${client.firstName} ${client.lastName}`}
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-dark-light border border-dark-lighter text-muted rounded-lg text-sm hover:border-red-500/40 hover:text-red-400 transition-colors"
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5" aria-hidden="true"><path d="M2.5 4.5h11M6 4.5V3h4v1.5M5 4.5l.5 9h5l.5-9"/><path d="M7 7v4.5M9 7v4.5"/></svg>
+            Löschen
+          </button>
+        </div>
+      </div>
+
+      <!-- Edit Modal (versteckt) -->
+      <div id="edit-modal" class="hidden mb-6 p-6 bg-dark-light rounded-xl border border-gold/30">
+        <h2 class="text-lg font-semibold text-light mb-4">Benutzer bearbeiten</h2>
+        <div id="edit-error" class="hidden mb-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm"></div>
+        <form id="edit-form" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm text-muted mb-1">Vorname</label>
+            <input type="text" name="firstName" value={client.firstName ?? ''} class="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-light text-sm focus:border-gold outline-none" />
+          </div>
+          <div>
+            <label class="block text-sm text-muted mb-1">Nachname</label>
+            <input type="text" name="lastName" value={client.lastName ?? ''} class="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-light text-sm focus:border-gold outline-none" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-sm text-muted mb-1">E-Mail</label>
+            <input type="email" name="email" value={client.email ?? ''} class="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-light text-sm focus:border-gold outline-none" />
+          </div>
+          <div class="sm:col-span-2 flex gap-3 justify-end">
+            <button type="button" id="cancel-edit" class="px-4 py-2 text-sm text-muted hover:text-light transition-colors">Abbrechen</button>
+            <button type="submit" id="save-edit" class="px-5 py-2 bg-gold text-dark rounded-lg text-sm font-semibold hover:bg-gold/80 transition-colors">Speichern</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Rollen -->
+      {allRoles.length > 0 && (
+        <div class="mb-6 p-4 bg-dark-light rounded-xl border border-dark-lighter">
+          <h2 class="text-sm font-medium text-muted mb-3 uppercase tracking-wide">Rollen</h2>
+          <div class="flex flex-wrap gap-2" id="roles-container">
+            {allRoles.map(role => (
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  class="role-checkbox accent-gold"
+                  data-user-id={clientId}
+                  data-role-id={role.id}
+                  data-role-name={role.name}
+                  checked={userRoleIds.has(role.id)}
+                />
+                <span class="text-sm text-light">{role.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <!-- Rolle zuweisen (kein DB-Eintrag vorhanden) -->
+      {!customerRecord && client.email && (
+        <div class="mb-6 p-4 bg-dark-light rounded-xl border border-amber-700/40">
+          <h2 class="text-sm font-medium text-muted mb-2 uppercase tracking-wide">Rolle</h2>
+          <p class="text-sm text-muted mb-3">Noch keine Rolle zugewiesen.</p>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button
+              id="flag-as-customer-btn"
+              data-keycloak-user-id={clientId}
+              data-email={client.email}
+              data-name={`${client.firstName ?? ''} ${client.lastName ?? ''}`.trim() || client.email}
+              data-is-admin="false"
+              class="px-3 py-1.5 bg-dark border border-dark-lighter text-muted rounded-lg text-sm hover:border-gold/40 hover:text-light transition-colors"
+            >
+              Als Kunde markieren
+            </button>
+            <button
+              id="flag-as-admin-btn"
+              data-keycloak-user-id={clientId}
+              data-email={client.email}
+              data-name={`${client.firstName ?? ''} ${client.lastName ?? ''}`.trim() || client.email}
+              data-is-admin="true"
+              class="px-3 py-1.5 bg-blue-900/30 border border-blue-700/40 text-blue-300 rounded-lg text-sm hover:bg-blue-900/50 transition-colors"
+            >
+              Als Admin markieren
+            </button>
+            <span id="flag-user-error" class="text-xs text-red-400 hidden"></span>
+          </div>
+        </div>
+      )}
+
+
+      <!-- Kundennummer / Admin-Nummer -->
+      {customerRecord && (
+        <div class="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Kundennummer (nur für Nicht-Admins) -->
+          {!customerRecord.is_admin && (
+            <div class="p-4 bg-dark-light rounded-xl border border-dark-lighter" id="customer-number-section">
+              <h2 class="text-sm font-medium text-muted mb-3 uppercase tracking-wide">Kundennummer</h2>
+              <div class="flex items-center gap-3">
+                <span id="customer-number-display" class="font-mono text-light text-sm">
+                  {customerRecord.customer_number ?? '—'}
+                </span>
+                <button
+                  id="edit-customer-number-btn"
+                  class="px-2 py-1 text-xs text-muted border border-dark-lighter rounded hover:border-gold/40 hover:text-light transition-colors"
+                >
+                  Bearbeiten
+                </button>
+              </div>
+              <div id="customer-number-edit" class="hidden mt-3 flex items-center gap-2">
+                <input
+                  id="customer-number-input"
+                  type="text"
+                  placeholder="M0020"
+                  maxlength="5"
+                  value={customerRecord.customer_number ?? ''}
+                  data-customer-id={customerRecord.id}
+                  class="w-28 bg-dark border border-dark-lighter rounded-lg px-3 py-1.5 text-light text-sm font-mono focus:border-gold focus:ring-1 focus:ring-gold/20 outline-none"
+                />
+                <button id="save-customer-number-btn" class="px-3 py-1.5 bg-gold text-dark rounded-lg text-xs font-semibold hover:bg-gold/80 transition-colors">Speichern</button>
+                <button id="clear-customer-number-btn" class="px-3 py-1.5 text-xs text-muted hover:text-red-400 transition-colors">Entfernen</button>
+                <button id="cancel-customer-number-btn" class="px-3 py-1.5 text-xs text-muted hover:text-light transition-colors">Abbrechen</button>
+                <span id="customer-number-error" class="text-xs text-red-400 hidden"></span>
+              </div>
+            </div>
+          )}
+
+          <!-- Admin-Nummer (nur für Admins) -->
+          {customerRecord.is_admin && (
+            <div class="p-4 bg-dark-light rounded-xl border border-dark-lighter" id="admin-number-section">
+              <h2 class="text-sm font-medium text-muted mb-3 uppercase tracking-wide">Admin-Nummer</h2>
+              <div class="flex items-center gap-3">
+                <span id="admin-number-display" class="font-mono text-light text-sm">
+                  {customerRecord.admin_number ?? '—'}
+                </span>
+                <button
+                  id="edit-admin-number-btn"
+                  class="px-2 py-1 text-xs text-muted border border-dark-lighter rounded hover:border-gold/40 hover:text-light transition-colors"
+                >
+                  Bearbeiten
+                </button>
+              </div>
+              <div id="admin-number-edit" class="hidden mt-3 flex items-center gap-2">
+                <input
+                  id="admin-number-input"
+                  type="text"
+                  placeholder="A0001"
+                  maxlength="5"
+                  value={customerRecord.admin_number ?? ''}
+                  data-customer-id={customerRecord.id}
+                  class="w-28 bg-dark border border-dark-lighter rounded-lg px-3 py-1.5 text-light text-sm font-mono focus:border-gold focus:ring-1 focus:ring-gold/20 outline-none"
+                />
+                <button id="save-admin-number-btn" class="px-3 py-1.5 bg-gold text-dark rounded-lg text-xs font-semibold hover:bg-gold/80 transition-colors">Speichern</button>
+                <button id="clear-admin-number-btn" class="px-3 py-1.5 text-xs text-muted hover:text-red-400 transition-colors">Entfernen</button>
+                <button id="cancel-admin-number-btn" class="px-3 py-1.5 text-xs text-muted hover:text-light transition-colors">Abbrechen</button>
+                <span id="admin-number-error" class="text-xs text-red-400 hidden"></span>
+              </div>
+            </div>
+          )}
+
+          <!-- Admin-Status umschalten -->
+          <div class="p-4 bg-dark-light rounded-xl border border-dark-lighter">
+            <h2 class="text-sm font-medium text-muted mb-3 uppercase tracking-wide">Rolle</h2>
+            <div class="flex items-center gap-3">
+              <span class={`text-xs px-2 py-0.5 rounded-full border ${customerRecord.is_admin ? 'bg-blue-900/40 text-blue-300 border-blue-800' : 'bg-dark border-dark-lighter text-muted'}`}>
+                {customerRecord.is_admin ? 'Admin' : 'Kunde'}
+              </span>
+              <button
+                id="toggle-admin-btn"
+                data-customer-id={customerRecord.id}
+                data-is-admin={customerRecord.is_admin ? 'true' : 'false'}
+                class="px-2 py-1 text-xs text-muted border border-dark-lighter rounded hover:border-gold/40 hover:text-light transition-colors"
+              >
+                {customerRecord.is_admin ? 'Als Kunde markieren' : 'Als Admin markieren'}
+              </button>
+              <span id="toggle-admin-error" class="text-xs text-red-400 hidden"></span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <!-- Tab navigation -->
+      <nav class="flex gap-1 mb-8 border-b border-dark-lighter overflow-x-auto" data-testid="admin-client-tabs">
+        {[
+          { id: 'bookings', label: 'Termine' },
+          { id: 'projekte', label: 'Projekte' },
+          { id: 'invoices', label: 'Rechnungen' },
+          { id: 'notes', label: 'Notizen' },
+          { id: 'files', label: 'Dateien' },
+          { id: 'signatures', label: 'Zur Unterschrift' },
+          { id: 'meetings', label: 'Besprechungen' },
+          { id: 'onboarding', label: 'Onboarding' },
+          { id: 'profil', label: 'Profil' },
+          { id: 'book', label: 'Leistung buchen' },
+          { id: 'vertraege', label: 'Verträge & Newsletter' },
+          { id: 'fragebögen', label: 'Fragebögen' },
+        ].map(t => (
+          <a
+            href={`/admin/${clientId}?tab=${t.id}`}
+            class={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+              tab === t.id
+                ? 'text-gold border-b-2 border-gold'
+                : 'text-muted hover:text-light'
+            }`}
+          >
+            {t.label}
+          </a>
+        ))}
+      </nav>
+
+      <!-- Tab content -->
+      <div class="bg-dark-light rounded-xl border border-dark-lighter p-6">
+        {tab === 'bookings' && <BookingsTab clientEmail={client.email ?? ''} />}
+        {tab === 'projekte' && (
+          <div class="flex flex-col gap-4" data-testid="admin-client-projekte">
+            <div class="flex items-center justify-between">
+              <p class="text-sm text-muted">
+                {clientFullProjects.length === 0
+                  ? 'Keine Projekte für diesen Kunden.'
+                  : `${clientFullProjects.length} ${clientFullProjects.length === 1 ? 'Projekt' : 'Projekte'} zugeordnet.`}
+              </p>
+              <a
+                href={`/admin/projekte?customerEmail=${encodeURIComponent(client.email ?? '')}`}
+                class="px-3 py-1.5 bg-gold/20 text-gold border border-gold/30 rounded-lg text-xs font-semibold hover:bg-gold/30 transition-colors">
+                + Neues Projekt anlegen
+              </a>
+            </div>
+            {clientFullProjects.length > 0 && (
+              <ul class="flex flex-col gap-3" data-testid="admin-client-projekte-list">
+                {clientFullProjects.map(p => {
+                  const total = p.tasks.length;
+                  const done  = p.tasks.filter(t => t.status === 'erledigt').length;
+                  const pct   = total === 0 ? 0 : Math.round((done / total) * 100);
+                  return (
+                    <li class="bg-dark rounded-xl border border-dark-lighter p-4" data-testid="admin-client-projekt-row" data-project-id={p.id}>
+                      <div class="flex items-start justify-between gap-3 mb-2">
+                        <div class="min-w-0">
+                          <a href={`/admin/projekte/${p.id}`} class="text-sm font-semibold text-light hover:text-gold transition-colors truncate block">{p.name}</a>
+                          {p.description && <p class="text-xs text-muted mt-0.5 truncate">{p.description}</p>}
+                        </div>
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-dark-light border border-dark-lighter text-muted capitalize whitespace-nowrap flex-shrink-0">{p.status}</span>
+                      </div>
+                      {total > 0 && (
+                        <>
+                          <div class="w-full bg-dark-light rounded-full h-1.5 overflow-hidden mb-1.5">
+                            <div class={`h-full rounded-full ${pct === 100 ? 'bg-green-500' : 'bg-gold'}`} style={`width:${pct}%`}></div>
+                          </div>
+                          <p class="text-xs text-muted">{done}/{total} Aufgaben erledigt</p>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+        {tab === 'invoices' && <InvoicesTab clientEmail={client.email ?? ''} />}
+        {tab === 'notes' && (
+          <ClientNotesTab
+            keycloakUserId={clientId}
+            back={`/admin/${clientId}?tab=notes`}
+          />
+        )}
+        {tab === 'files' && <FilesTab clientUsername={client.username} />}
+        {tab === 'signatures' && <SignaturesTab clientUsername={client.username} clientEmail={client.email ?? ''} />}
+        {tab === 'meetings' && <MeetingsAdminTab clientEmail={client.email ?? ''} />}
+        {tab === 'onboarding' && (
+          <OnboardingTab
+            keycloakUserId={clientId}
+            back={`/admin/${clientId}?tab=onboarding`}
+          />
+        )}
+        {tab === 'profil' && (
+          <div class="flex flex-col gap-4" data-testid="admin-client-profil">
+            <CrmStatusPanel
+              client:load
+              keycloakUserId={clientId}
+              status={crmProfile?.customer_status ?? 'aktiv'}
+              acquisitionSource={crmProfile?.acquisition_source ?? ''}
+              tags={crmProfile?.tags ?? []}
+            />
+            <ContactHistoryTimeline
+              client:load
+              keycloakUserId={clientId}
+              entries={contactHistory}
+            />
+          </div>
+        )}
+        {tab === 'book' && (
+          <div>
+            <p class="text-sm text-muted mb-4">
+              Legt eine Buchung direkt für {client.firstName ?? client.username} an — landet in der Inbox und sendet eine Bestätigungs-E-Mail.
+            </p>
+            <AdminBookingModal
+              client:load
+              prefillEmail={client.email ?? ''}
+              prefillName={`${client.firstName ?? ''} ${client.lastName ?? ''}`.trim()}
+              projects={clientProjects}
+              buttonLabel="Buchung anlegen"
+            />
+          </div>
+        )}
+        {tab === 'vertraege' && (
+          <ClientContractsPanel
+            client:load
+            keycloakUserId={clientId}
+            clientEmail={client.email ?? ''}
+            isNewsletterSubscribed={isNewsletterSubscribed}
+          />
+        )}
+        {tab === 'fragebögen' && (
+          <ClientQuestionnairesPanel
+            client:load
+            keycloakUserId={clientId}
+          />
+        )}
+      </div>
+    </div>
+  </section>
+</AdminLayout>
+
+<script>
+  const userId = (document.getElementById('toggle-enabled-btn') as HTMLButtonElement)?.dataset.userId ?? '';
+
+  // Edit modal
+  document.getElementById('edit-user-btn')?.addEventListener('click', () => {
+    document.getElementById('edit-modal')?.classList.toggle('hidden');
+  });
+  document.getElementById('cancel-edit')?.addEventListener('click', () => {
+    document.getElementById('edit-modal')?.classList.add('hidden');
+  });
+
+  const editForm = document.getElementById('edit-form') as HTMLFormElement | null;
+  editForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const saveBtn = document.getElementById('save-edit') as HTMLButtonElement;
+    const errorEl = document.getElementById('edit-error');
+    saveBtn.disabled = true;
+    saveBtn.textContent = '...';
+    errorEl?.classList.add('hidden');
+
+    const data = Object.fromEntries(new FormData(editForm));
+    try {
+      const res = await fetch('/api/admin/clients/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, ...data }),
+      });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        if (errorEl) { errorEl.textContent = json.error || 'Fehler.'; errorEl.classList.remove('hidden'); }
+      }
+    } catch {
+      if (errorEl) { errorEl.textContent = 'Netzwerkfehler.'; errorEl.classList.remove('hidden'); }
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Speichern';
+    }
+  });
+
+  // Toggle enabled
+  document.getElementById('toggle-enabled-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    const enabled = btn.dataset.enabled === 'true';
+    const action = enabled ? 'Deaktivieren' : 'Aktivieren';
+    if (!confirm(`Benutzer wirklich ${action.toLowerCase()}?`)) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/admin/clients/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, enabled: !enabled }),
+      });
+      if (res.ok) window.location.reload();
+      else alert('Fehler beim Ändern des Status.');
+    } catch {
+      alert('Netzwerkfehler.');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Password reset
+  document.getElementById('reset-password-btn')?.addEventListener('click', async () => {
+    if (!confirm('Passwort-Reset-Email senden?')) return;
+    try {
+      const res = await fetch('/api/admin/clients/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (res.ok) alert('Passwort-Reset-Email gesendet.');
+      else alert('Fehler beim Senden.');
+    } catch {
+      alert('Netzwerkfehler.');
+    }
+  });
+
+  // Delete user
+  document.getElementById('delete-user-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    const name = btn.dataset.userName;
+    if (!confirm(`Benutzer "${name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/admin/clients/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (res.ok) window.location.href = '/admin/clients';
+      else alert('Fehler beim Löschen.');
+    } catch {
+      alert('Netzwerkfehler.');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Customer number editing
+  const cnEditBtn = document.getElementById('edit-customer-number-btn');
+  const cnEditPanel = document.getElementById('customer-number-edit');
+  const cnDisplay = document.getElementById('customer-number-display');
+  const cnInput = document.getElementById('customer-number-input') as HTMLInputElement | null;
+  const cnError = document.getElementById('customer-number-error');
+
+  cnEditBtn?.addEventListener('click', () => {
+    cnEditPanel?.classList.toggle('hidden');
+  });
+  document.getElementById('cancel-customer-number-btn')?.addEventListener('click', () => {
+    cnEditPanel?.classList.add('hidden');
+    if (cnError) cnError.classList.add('hidden');
+  });
+
+  async function saveCustomerNumber(value: string | null) {
+    const customerId = cnInput?.dataset.customerId;
+    if (!customerId) return;
+    if (cnError) cnError.classList.add('hidden');
+    const saveBtn = document.getElementById('save-customer-number-btn') as HTMLButtonElement | null;
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '...'; }
+    try {
+      const res = await fetch('/api/admin/clients/set-customer-number', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId, customerNumber: value }),
+      });
+      const json = await res.json().catch(() => ({})) as { error?: string };
+      if (res.ok) {
+        if (cnDisplay) cnDisplay.textContent = value ?? '—';
+        cnEditPanel?.classList.add('hidden');
+      } else {
+        if (cnError) { cnError.textContent = json.error ?? 'Fehler.'; cnError.classList.remove('hidden'); }
+      }
+    } catch {
+      if (cnError) { cnError.textContent = 'Netzwerkfehler.'; cnError.classList.remove('hidden'); }
+    } finally {
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Speichern'; }
+    }
+  }
+
+  document.getElementById('save-customer-number-btn')?.addEventListener('click', () => {
+    saveCustomerNumber(cnInput?.value.trim() || null);
+  });
+  document.getElementById('clear-customer-number-btn')?.addEventListener('click', () => {
+    if (confirm('Kundennummer entfernen?')) saveCustomerNumber(null);
+  });
+
+  // ── Admin number ──
+  const anEditBtn   = document.getElementById('edit-admin-number-btn');
+  const anEditPanel = document.getElementById('admin-number-edit');
+  const anDisplay   = document.getElementById('admin-number-display');
+  const anInput     = document.getElementById('admin-number-input') as HTMLInputElement | null;
+  const anError     = document.getElementById('admin-number-error');
+
+  anEditBtn?.addEventListener('click', () => {
+    anEditPanel?.classList.toggle('hidden');
+  });
+  document.getElementById('cancel-admin-number-btn')?.addEventListener('click', () => {
+    anEditPanel?.classList.add('hidden');
+    if (anError) { anError.textContent = ''; anError.classList.add('hidden'); }
+  });
+
+  async function saveAdminNumber(value: string | null) {
+    const saveBtn = document.getElementById('save-admin-number-btn') as HTMLButtonElement | null;
+    const customerId = anInput?.dataset.customerId;
+    if (!customerId) return;
+    if (saveBtn) saveBtn.disabled = true;
+    try {
+      const res = await fetch('/api/admin/clients/set-admin-number', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId, adminNumber: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (anError) { anError.textContent = data.error ?? 'Fehler'; anError.classList.remove('hidden'); }
+      } else {
+        if (anDisplay) anDisplay.textContent = value ?? '—';
+        if (anInput) anInput.value = value ?? '';
+        anEditPanel?.classList.add('hidden');
+        if (anError) { anError.textContent = ''; anError.classList.add('hidden'); }
+      }
+    } catch {
+      if (anError) { anError.textContent = 'Netzwerkfehler'; anError.classList.remove('hidden'); }
+    } finally {
+      if (saveBtn) saveBtn.disabled = false;
+    }
+  }
+
+  document.getElementById('save-admin-number-btn')?.addEventListener('click', () => {
+    saveAdminNumber(anInput?.value.trim() || null);
+  });
+  document.getElementById('clear-admin-number-btn')?.addEventListener('click', () => {
+    if (confirm('Admin-Nummer entfernen?')) saveAdminNumber(null);
+  });
+
+  // ── Toggle admin/customer role ──
+  document.getElementById('toggle-admin-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('toggle-admin-btn') as HTMLButtonElement | null;
+    const errEl = document.getElementById('toggle-admin-error');
+    if (!btn) return;
+    const customerId = btn.dataset.customerId;
+    const currentIsAdmin = btn.dataset.isAdmin === 'true';
+    if (!customerId) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/admin/clients/set-is-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId, isAdmin: !currentIsAdmin }),
+      });
+      if (res.ok) {
+        location.reload();
+      } else {
+        const data = await res.json();
+        if (errEl) { errEl.textContent = data.error ?? 'Fehler'; errEl.classList.remove('hidden'); }
+      }
+    } catch {
+      if (errEl) { errEl.textContent = 'Netzwerkfehler'; errEl.classList.remove('hidden'); }
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Flag user (create customer record + set role)
+  async function flagUser(btn: HTMLButtonElement) {
+    const errEl = document.getElementById('flag-user-error');
+    const keycloakUserId = btn.dataset.keycloakUserId;
+    const email = btn.dataset.email;
+    const name = btn.dataset.name;
+    const isAdmin = btn.dataset.isAdmin === 'true';
+    btn.disabled = true;
+    if (errEl) errEl.classList.add('hidden');
+    try {
+      const res = await fetch('/api/admin/clients/flag-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keycloakUserId, email, name, isAdmin }),
+      });
+      if (res.ok) {
+        location.reload();
+      } else {
+        const data = await res.json();
+        if (errEl) { errEl.textContent = data.error ?? 'Fehler'; errEl.classList.remove('hidden'); }
+      }
+    } catch {
+      if (errEl) { errEl.textContent = 'Netzwerkfehler'; errEl.classList.remove('hidden'); }
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById('flag-as-customer-btn')?.addEventListener('click', (e) => {
+    flagUser(e.currentTarget as HTMLButtonElement);
+  });
+  document.getElementById('flag-as-admin-btn')?.addEventListener('click', (e) => {
+    flagUser(e.currentTarget as HTMLButtonElement);
+  });
+
+
+  // Role checkboxes
+  document.querySelectorAll<HTMLInputElement>('.role-checkbox').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      const uid = cb.dataset.userId;
+      const role = { id: cb.dataset.roleId!, name: cb.dataset.roleName! };
+      cb.disabled = true;
+      try {
+        const endpoint = cb.checked
+          ? '/api/admin/clients/roles-assign'
+          : '/api/admin/clients/roles-remove';
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: uid, roles: [role] }),
+        });
+        if (!res.ok) {
+          alert('Fehler beim Ändern der Rolle.');
+          cb.checked = !cb.checked;
+        }
+      } catch {
+        alert('Netzwerkfehler.');
+        cb.checked = !cb.checked;
+      } finally {
+        cb.disabled = false;
+      }
+    });
+  });
+</script>

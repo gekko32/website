@@ -1,0 +1,190 @@
+---
+import AdminLayout from '../layouts/AdminLayout.astro';
+import { getSession, getLoginUrl, isAdmin } from '../lib/auth';
+import { listBugTickets, listAdminShortcuts } from '../lib/website-db';
+import type { AdminShortcut } from '../lib/website-db';
+import { listProjects } from '../lib/projects-db';
+import { getAllBillingInvoices } from '../lib/stripe-billing';
+import { getAvailableSlots } from '../lib/caldav';
+import AdminShortcuts from '../components/admin/AdminShortcuts.svelte';
+import { icons } from '../layouts/admin-icons';
+import AdminPageHeader from '../components/admin/ui/AdminPageHeader.svelte';
+import AdminStatCard from '../components/admin/ui/AdminStatCard.svelte';
+import AdminCard from '../components/admin/ui/AdminCard.svelte';
+import PipelineSidekickView from '../components/assistant/PipelineSidekickView.svelte';
+import { listInboxItems } from '../lib/messaging-db';
+import { toInboxPreview } from '../lib/admin/inbox-preview';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/portal');
+
+const BRAND = process.env.BRAND || 'mentolder';
+const isKore = BRAND === 'korczewski';
+
+let openBugCount      = 0;
+let activeProjects    = 0;
+let openInvoices      = 0;
+let openInvoiceAmount = 0;
+let freeSlots         = 0;
+let shortcuts: AdminShortcut[] = [];
+let inboxRows: import('../lib/admin/inbox-preview').InboxPreviewRow[] = [];
+
+await Promise.allSettled([
+  listBugTickets({ status: 'open', brand: BRAND, limit: 1000 })
+    .then(t => { openBugCount = t.length; }),
+  listProjects({ brand: BRAND, status: 'aktiv' })
+    .then(p => { activeProjects = p.length; }),
+  getAllBillingInvoices({ perPage: 200 })
+    .then(inv => {
+      const open = inv.filter(i => i.amountRemaining > 0 && !['void','uncollectible'].includes(i.status));
+      openInvoices      = open.length;
+      openInvoiceAmount = open.reduce((s, i) => s + i.amountRemaining, 0);
+    }),
+  getAvailableSlots(new Date())
+    .then(slots => {
+      const horizon = new Date(); horizon.setDate(horizon.getDate() + 7);
+      freeSlots = slots
+        .filter(d => new Date(d.date) <= horizon)
+        .reduce((s, d) => s + d.slots.length, 0);
+    }),
+  listAdminShortcuts()
+    .then(s => { shortcuts = s; }),
+  listInboxItems({ status: 'pending' })
+    .then((items) => { inboxRows = toInboxPreview(items, 5); }),
+]);
+
+function fmtCurrency(n: number): string {
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
+}
+
+const ncBase           = (process.env.NEXTCLOUD_EXTERNAL_URL ?? '').replace(/\/$/, '');
+const vaultUrl         = process.env.VAULT_EXTERNAL_URL ?? '';
+const pocketIdFrontend = process.env.POCKET_ID_FRONTEND_URL ?? '';
+const brainUrl         = process.env.BRAIN_EXTERNAL_URL ?? '';
+const adminLinks = [
+  { href: '/admin/inbox',                    label: 'Inbox',       icon: icons.inbox,    color: 'var(--brass)' },
+  { href: '/admin/coaching/sessions',        label: 'Sessions',    icon: icons.clipboard, color: 'var(--brass)' },
+  ...(ncBase ? [
+    { href: `${ncBase}/apps/files/`,    label: 'Dateien',  icon: icons.folder,   color: 'var(--brass)' },
+    { href: `${ncBase}/apps/calendar/`, label: 'Kalender', icon: icons.calendar, color: 'var(--brass)' },
+    { href: `${ncBase}/apps/spreed/`,   label: 'Talk',     icon: icons.video,    color: 'var(--brass)' },
+  ] : []),
+  { href: '/admin/rechnungen',               label: 'Abrechnung',  icon: icons.receipt,  color: 'var(--brass)' },
+  ...(vaultUrl ? [{ href: vaultUrl,          label: 'Passwörter',  icon: icons.lock,     color: 'var(--brass)' }] : []),
+  ...(pocketIdFrontend ? [{ href: pocketIdFrontend, label: 'Pocket ID', icon: icons.key, color: 'var(--brass)' }] : []),
+  { href: '/admin/wissen',                   label: 'Wissensbasis', icon: icons.book,   color: 'var(--brass)' },
+  ...(brainUrl ? [{ href: brainUrl,          label: 'Brain',        icon: icons.brain,  color: 'var(--brass)' }] : []),
+];
+
+const now = new Date();
+const stand = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+const datum = now.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' });
+
+const kpis = [
+  {
+    label: 'Aktive Projekte',
+    value: activeProjects,
+    href: '/admin/projekte',
+    color: activeProjects > 0 ? 'brass' as const : 'neutral' as const,
+    suffix: 'laufend',
+  },
+  {
+    label: 'Offene Rechnungen',
+    value: openInvoices,
+    href: '/admin/rechnungen',
+    color: openInvoices > 0 ? 'brass' as const : 'neutral' as const,
+    suffix: openInvoices > 0 ? `${fmtCurrency(openInvoiceAmount)} — noch nicht bezahlt` : 'alles bezahlt',
+  },
+  {
+    label: 'Offene Tickets',
+    value: openBugCount,
+    href: '/admin/tickets',
+    color: openBugCount > 0 ? 'danger' as const : 'neutral' as const,
+    suffix: openBugCount > 0 ? 'in Bearbeitung' : 'sauber',
+  },
+  {
+    label: 'Freie Slots · 7T',
+    value: freeSlots,
+    href: '/admin/termine',
+    color: freeSlots > 0 ? 'sage' as const : 'neutral' as const,
+    suffix: freeSlots > 0 ? 'buchbar' : 'voll',
+  },
+];
+---
+<AdminLayout title="Admin — Dashboard">
+  <section style="padding:2.5rem 0 5rem; min-height:100vh;">
+    <div style="max-width:56rem; margin:0 auto; padding:0 1.5rem;">
+
+      <AdminPageHeader
+        title="Übersicht"
+        description={`Stand ${stand} · ${datum}`}
+      />
+
+      <!-- KPI Grid -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(11rem, 1fr)); gap:0.75rem; margin-bottom:2rem;">
+        {kpis.map(k => (
+          <AdminStatCard
+            value={k.value}
+            label={k.label}
+            href={k.href}
+            color={k.color}
+            suffix={k.suffix}
+          />
+        ))}
+      </div>
+
+      <!-- Pipeline widget + Inbox preview (T001433) -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:1.5rem;">
+        <AdminCard>
+          {/* T003826: Der "Cockpit →"-Link entfiel — /admin/cockpit wird nach /sdlc/cockpit
+              umgeleitet, und build-target.mjs entfernt /sdlc/-Routen aus dem prod-Manifest. */}
+          <PipelineSidekickView client:load onClose={() => {}} />
+        </AdminCard>
+        <AdminCard>
+          <a slot="header" href="/admin/inbox" style="font-family:var(--font-mono); font-size:0.65rem; color:var(--admin-text-disabled); text-transform:uppercase; letter-spacing:0.12em; text-decoration:none;">Postfach &rarr;</a>
+          {inboxRows.length === 0 ? (
+            <p style="color:var(--admin-text-mute); font-size:12px; margin:0;">Keine offenen Postfach-Einträge.</p>
+          ) : (
+            <ul style="list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;">
+              {inboxRows.map((r) => (
+                <li><a href={r.href} style="display:flex; justify-content:space-between; gap:12px; text-decoration:none; color:var(--admin-text); font-size:12px;"><span>{r.title}</span><span style="font-family:var(--font-mono); color:var(--admin-text-mute);">{r.ageLabel}</span></a></li>
+              ))}
+            </ul>
+          )}
+        </AdminCard>
+      </div>
+
+      <!-- Service Links -->
+      <div style="margin-bottom:1.5rem;">
+        <AdminCard>
+          <p slot="header" style="font-family:var(--font-mono); font-size:0.65rem; color:var(--admin-text-disabled); text-transform:uppercase; letter-spacing:0.12em; margin:0;">Dienste</p>
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(7rem, 1fr)); gap:0.75rem;">
+            {adminLinks.map(l => (
+              <a
+                href={l.href}
+                target={l.href.startsWith('http') ? '_blank' : undefined}
+                rel={l.href.startsWith('http') ? 'noopener' : undefined}
+                class="admin-card"
+                style="display:flex; flex-direction:column; align-items:center; gap:8px; text-decoration:none; text-align:center; padding:1rem;"
+              >
+                <span
+                  style={`width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:8px; padding:5px; background:color-mix(in srgb, ${l.color} 12%, transparent); color:${l.color};`}
+                  set:html={l.icon}
+                />
+                <span style="font-size:11px; color:var(--admin-text-mute);">{l.label}</span>
+              </a>
+            ))}
+          </div>
+        </AdminCard>
+      </div>
+
+      <!-- Custom Shortcuts -->
+      <AdminCard>
+        <p slot="header" style="font-family:var(--font-mono); font-size:0.65rem; color:var(--admin-text-disabled); text-transform:uppercase; letter-spacing:0.12em; margin:0;">Schnellzugriffe</p>
+        <AdminShortcuts client:load links={shortcuts} isKore={isKore} />
+      </AdminCard>
+
+    </div>
+  </section>
+</AdminLayout>

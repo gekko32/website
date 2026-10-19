@@ -1,0 +1,49 @@
+import type { APIRoute } from 'astro';
+import { getSession, isAdmin } from '../../../../../lib/auth';
+import { listArchivedSessions } from '../../../../../lib/sessions/archive.ts';
+
+export const prerender = false;
+
+function json(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+export const GET: APIRoute = async ({ request, locals }) => {
+  const session = await getSession(request.headers.get('cookie'));
+  if (!session) {
+    return json({ error: 'Unauthorized' }, 401);
+  }
+  // T016251: Sessions-Archiv ist admin-only — die Registry trägt keinen
+  // Owner, also entscheidet der Admin-Guard an der Route.
+  if (!isAdmin(session)) {
+    return json({ error: 'Forbidden' }, 403);
+  }
+
+  const url = new URL(request.url);
+  const offsetParam = url.searchParams.get('offset');
+  const limitParam = url.searchParams.get('limit');
+  const type = url.searchParams.get('type') || undefined;
+
+  let offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+  let limit = limitParam ? parseInt(limitParam, 10) : 50;
+
+  if (isNaN(offset) || offset < 0) offset = 0;
+  if (isNaN(limit) || limit <= 0) limit = 50;
+  if (limit > 50) limit = 50;
+
+  try {
+    const result = await listArchivedSessions({
+      offset,
+      limit,
+      type,
+    });
+
+    return json(result, 200);
+  } catch (err) {
+    locals.requestLogger.error({ err }, '[api/admin/sessions/history] GET error:');
+    return json({ error: 'failed_to_list_history' }, 500);
+  }
+};

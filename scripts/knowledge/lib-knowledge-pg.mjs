@@ -1,0 +1,177 @@
+import pg from 'pg';
+import { createHash } from 'node:crypto';
+
+const { Pool } = pg;
+
+export function makePool() {
+  if (process.env.PGURL) {
+    return new Pool({ connectionString: process.env.PGURL });
+  }
+  return new Pool({
+    host:     process.env.PGHOST     ?? 'shared-db',
+    port:     Number(process.env.PGPORT ?? 5432),
+    database: process.env.PGDATABASE ?? 'website',
+    user:     process.env.PGUSER     ?? 'website',
+    password: process.env.PGPASSWORD,
+  });
+}
+
+export function sha256(s) {
+  return createHash('sha256').update(s).digest('hex');
+}
+
+export async function ensureCollection(pool, { name, source, brand = null, description = null }) {
+  const r = await pool.query(
+    `INSERT INTO knowledge.collections (name, source, brand, description)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (name) DO UPDATE SET description = COALESCE(EXCLUDED.description, knowledge.collections.description)
+     RETURNING id`,
+    [name, source, brand, description],
+  );
+  return r.rows[0].id;
+}
+
+export async function upsertDocumentAndChunks(pool, {
+  collectionId, title, sourceUri, rawText, hash, metadata = {}, chunks,
+}) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Lock existing document row if present to check previous hash and serialize concurrent updates
+    const existingRes = await client.query(
+      `SELECT id, sha256 FROM knowledge.documents
+       WHERE collection_id = $1 AND source_uri = $2
+       FOR UPDATE`,
+      [collectionId, sourceUri],
+    );
+
+    const prevDoc = existingRes.rows[0];
+    if (prevDoc && prevDoc.sha256 === hash && chunks === null) {
+      await client.query('COMMIT');
+      return { docId: prevDoc.id, reused: true };
+    }
+
+    if (chunks === null) {
+      throw new Error(`Cannot update document ${sourceUri} without chunks when hash differs`);
+    }
+
+    const docRes = await client.query(
+      `INSERT INTO knowledge.documents (collection_id, title, source_uri, raw_text, sha256, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+       ON CONFLICT (collection_id, source_uri) DO UPDATE
+         SET title = EXCLUDED.title,
+             raw_text = EXCLUDED.raw_text,
+             sha256 = EXCLUDED.sha256,
+             metadata = EXCLUDED.metadata
+       RETURNING id, sha256`,
+      [collectionId, title, sourceUri, rawText, hash, JSON.stringify(metadata)],
+    );
+    const docId = docRes.rows[0].id;
+
+    await client.query('DELETE FROM knowledge.chunks WHERE document_id = $1', [docId]);
+    for (const c of chunks) {
+      await client.query(
+        `INSERT INTO knowledge.chunks (document_id, collection_id, position, text, embedding, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+        [
+          docId,
+          collectionId,
+          c.position,
+          c.text,
+          `[${c.embedding.join(',')}]`,
+          JSON.stringify(c.metadata ?? {}),
+        ],
+      );
+    }
+
+    await client.query('COMMIT');
+    return { docId, reused: false };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function bumpCollectionStats(pool, collectionId) {
+  await pool.query(
+    `UPDATE knowledge.collections
+        SET chunk_count = (SELECT COUNT(*) FROM knowledge.chunks WHERE collection_id = $1),
+            last_indexed_at = now()
+      WHERE id = $1`,
+    [collectionId],
+  );
+}
+
+export async function updateCollectionChunkCount(pool, collectionId) {
+  await pool.query(
+    `UPDATE knowledge.collections
+        SET chunk_count = (SELECT COUNT(*) FROM knowledge.chunks WHERE collection_id = $1)
+      WHERE id = $1`,
+    [collectionId],
+  );
+}
+
+// T016562: Voyage AI ist entfernt — callVoyage ersatzlos gestrichen.
+// Einziger Embed-Pfad ist bge-m3 ueber LLM_EMBED_URL (fail-closed).
+
+// T002570: LLM_ROUTER_URL/llm-router.workspace.svc.cluster.local:4000 war toter
+// Code — dieser Service existiert im Cluster nicht. bge-m3 laeuft ueber
+// LLM_EMBED_URL, dieselbe Konvention wie components/website/src/lib/bge-router.ts
+// (http://llm-gateway-embed.workspace.svc.cluster.local:8081, k3d/llm-gpu.yaml).
+async function embedViaBge(texts, url) {
+  const r = await fetch(`${url}/v1/embeddings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'bge-m3', input: texts }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!r.ok) throw new Error(`bge ${r.status} ${await r.text()}`);
+  const j = await r.json();
+  return { embeddings: j.data.map(d => d.embedding) };
+}
+
+// T016562: Voyage AI ist entfernt — bge-m3 ueber LLM_EMBED_URL ist der einzige
+// Embed-Pfad (fail-closed). Signatur bleibt (Rueckgabe inkl. Modellname), damit
+// alle Ingest-Skripte unveraendert weiterlaufen.
+export async function embedAllWithModel(texts, batch = 128) {
+  void batch;
+  const bgeUrl = process.env.LLM_EMBED_URL;
+  if (!bgeUrl) throw new Error('LLM_EMBED_URL nicht konfiguriert — lokales bge-m3 erforderlich (T016562)');
+  const out = [];
+  const bgeBatch = 64;
+  for (let i = 0; i < texts.length; i += bgeBatch) {
+    const r = await embedViaBge(texts.slice(i, i + bgeBatch), bgeUrl);
+    out.push(...r.embeddings);
+  }
+  return { embeddings: out, model: 'bge-m3' };
+}
+
+export async function embedAll(texts, batch = 128) {
+  const res = await embedAllWithModel(texts, batch);
+  return res.embeddings;
+}
+
+export function chunkPlain(text, target = 600, overlap = 100) {
+  const charPerTok = 4;
+  const targetChars  = target  * charPerTok;
+  const overlapChars = overlap * charPerTok;
+  if (text.length <= targetChars) return [{ position: 0, text }];
+  const out = [];
+  let pos = 0;
+  let cursor = 0;
+  while (cursor < text.length) {
+    let end = Math.min(cursor + targetChars, text.length);
+    if (end < text.length) {
+      const slice = text.slice(end - 100, end);
+      const idx = slice.lastIndexOf(' ');
+      if (idx >= 0) end = end - 100 + idx;
+    }
+    out.push({ position: pos++, text: text.slice(cursor, end).trim() });
+    if (end >= text.length) break;
+    cursor = Math.max(end - overlapChars, cursor + 1);
+  }
+  return out;
+}

@@ -1,0 +1,586 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../components/admin/ui/AdminPageHeader.svelte';
+import AdminTabs from '../../components/admin/ui/AdminTabs.svelte';
+import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
+import { getAllBillingInvoices, getDraftInvoices } from '../../lib/stripe-billing';
+import { listPendingDunnings, type PendingDunning } from '../../lib/invoice-dunning';
+import type { AdminBillingInvoice } from '../../lib/stripe-billing';
+import CreateInvoiceModal from '../../components/admin/CreateInvoiceModal.svelte';
+import TaxMonitorWidget from '../../components/admin/TaxMonitorWidget.svelte';
+import DatevExportWidget from '../../components/admin/DatevExportWidget.svelte';
+import { SERVICES } from '../../lib/stripe-billing';
+import { logger } from '../../lib/logger';
+
+const serviceOptions = Object.entries(SERVICES).map(([key, val]) => ({
+  key,
+  name: val.name,
+  cents: val.cents,
+}));
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+
+const statusFilter = Astro.url.searchParams.get('status') ?? '';
+
+let invoices: AdminBillingInvoice[] = [];
+let pendingDunnings: PendingDunning[] = [];
+let apiError = '';
+const brand = process.env.BRAND || 'mentolder';
+
+if (statusFilter === 'mahnwesen') {
+  try {
+    pendingDunnings = await listPendingDunnings(brand);
+  } catch (err) {
+    logger.error({ err }, '[admin/rechnungen] listPendingDunnings');
+    apiError = 'Mahnwesen konnte nicht geladen werden.';
+  }
+} else {
+  try {
+    invoices = await getAllBillingInvoices({ status: statusFilter || undefined, perPage: 200 });
+  } catch (err) {
+    logger.error({ err }, '[admin/rechnungen]');
+    apiError = 'Datenbank nicht erreichbar.';
+  }
+}
+
+let draftInvoices: Awaited<ReturnType<typeof getDraftInvoices>> = [];
+try {
+  draftInvoices = await getDraftInvoices();
+} catch (err) {
+  logger.error({ err }, '[admin/rechnungen] getDraftInvoices');
+}
+
+const today = new Date().toISOString().slice(0, 10);
+const totalOpen       = invoices.filter(i => i.amountRemaining > 0 && !['void','uncollectible'].includes(i.status)).reduce((s, i) => s + i.amountRemaining, 0);
+const totalPaid       = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.amountPaid, 0);
+const countOverdue    = invoices.filter(i => i.status === 'open' && i.dueDate < today).length;
+
+function fmtCurrency(n: number): string {
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
+}
+function fmtDate(s: string): string {
+  if (!s) return '—';
+  return new Date(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+const STATUS_CLS: Record<string, string> = {
+  'draft':          'bg-slate-900/40 text-slate-300 border-slate-700',
+  'open':           'bg-blue-900/40 text-blue-300 border-blue-800',
+  'partially_paid': 'bg-yellow-900/40 text-yellow-300 border-yellow-800',
+  'paid':           'bg-green-900/40 text-green-300 border-green-800',
+  'void':           'bg-dark border border-dark-lighter text-muted',
+  'uncollectible':  'bg-red-900/40 text-red-300 border-red-800',
+};
+
+const billingTabs = [
+  { id: '/admin/rechnungen',    label: 'Rechnungen',    href: '/admin/rechnungen' },
+  { id: '/admin/zeiterfassung', label: 'Zeiterfassung', href: '/admin/zeiterfassung' },
+];
+
+const STATUS_TABS = [
+  { value: '',               label: 'Alle' },
+  { value: 'open',           label: 'Offen' },
+  { value: 'partially_paid', label: 'Teilbezahlt' },
+  { value: 'uncollectible',  label: 'Überfällig' },
+  { value: 'paid',           label: 'Bezahlt' },
+  { value: 'mahnwesen',      label: 'Mahnwesen' },
+  { value: 'draft',          label: 'Entwurf' },
+  { value: 'void',           label: 'Storniert' },
+];
+---
+
+<AdminLayout title="Admin — Rechnungen">
+  <div style="border-bottom:1px solid var(--line);padding:0 2rem;flex-shrink:0;">
+    <AdminTabs tabs={billingTabs} active="/admin/rechnungen" client:load />
+  </div>
+  <section class="pt-10 pb-20 bg-dark min-h-screen">
+    <div class="max-w-6xl mx-auto px-6">
+
+      <TaxMonitorWidget client:load />
+      <DatevExportWidget client:load />
+
+      <div class="mb-8 flex items-start justify-between gap-4">
+        <AdminPageHeader
+          title="Fakturierung"
+          description={`${invoices.length} Rechnungen über alle Clients`}
+        />
+        <CreateInvoiceModal {serviceOptions} client:load />
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+        {[
+          { label: 'Offen',      value: fmtCurrency(totalOpen),  cls: totalOpen > 0 ? 'border-yellow-800' : 'border-dark-lighter' },
+          { label: 'Bezahlt',    value: fmtCurrency(totalPaid),  cls: 'border-green-800' },
+          { label: 'Überfällig', value: countOverdue,            cls: countOverdue > 0 ? 'border-red-800' : 'border-dark-lighter' },
+          { label: 'Gesamt',     value: invoices.length,         cls: 'border-dark-lighter' },
+        ].map(s => (
+          <div class={`p-4 bg-dark-light rounded-xl border ${s.cls}`}>
+            <div class="text-xl font-bold text-light">{s.value}</div>
+            <div class="text-xs text-muted mt-0.5">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {apiError && (
+        <div class="mb-6 p-4 bg-red-900/30 border border-red-800 rounded-xl text-red-300 text-sm">{apiError}</div>
+      )}
+
+      <!-- Draft Invoice Section -->
+      {draftInvoices.length > 0 && (
+        <section class="mb-8">
+          <h2 class="text-lg font-semibold text-light mb-4">
+            Ausstehende Monatsrechnungen
+            <span class="ml-2 text-sm font-normal text-muted">({draftInvoices.length})</span>
+          </h2>
+          <div class="space-y-3" id="draft-list">
+            {draftInvoices.map(inv => (
+              <div
+                class="bg-surface border border-border rounded-xl p-4 flex items-center justify-between gap-4"
+                data-invoice-id={inv.id}
+              >
+                <div>
+                  <p class="font-semibold text-light">{inv.customerName}</p>
+                  <p class="text-sm text-muted">{inv.customerEmail}</p>
+                  <p class="text-sm text-muted mt-1">
+                    Betrag: <span class="text-light font-medium">
+                      {inv.amountDue.toFixed(2).replace('.', ',') + ' €'}
+                    </span>
+                  </p>
+                </div>
+                <div class="flex gap-2 flex-shrink-0">
+                  <button class="open-draft-btn px-3 py-1.5 text-sm bg-surface-hover border border-border rounded-lg hover:border-gold transition-colors" data-id={inv.id}>Bearbeiten</button>
+                  <button class="discard-draft-btn px-3 py-1.5 text-sm text-red-400 border border-border rounded-lg hover:border-red-400 transition-colors" data-id={inv.id}>Verwerfen</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <!-- Status filter tabs -->
+      <div class="flex gap-1 p-1 bg-dark-light rounded-lg border border-dark-lighter mb-6 w-fit flex-wrap">
+        {STATUS_TABS.map(t => (
+          <a href={`/admin/rechnungen${t.value ? '?status=' + t.value : ''}`}
+            class={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${statusFilter === t.value ? 'bg-gold text-dark' : 'text-muted hover:text-light'}`}>
+            {t.label}
+          </a>
+        ))}
+      </div>
+
+      <!-- Table -->
+      <div class="bg-dark-light rounded-2xl border border-dark-lighter overflow-hidden">
+        <table class="w-full admin-table-collapse">
+          <thead>
+            <tr class="border-b border-dark-lighter">
+              <th class="text-left px-4 py-3 text-xs text-muted uppercase tracking-wide font-medium">Nr.</th>
+              <th class="text-left px-4 py-3 text-xs text-muted uppercase tracking-wide font-medium">Client</th>
+              <th class="text-left px-4 py-3 text-xs text-muted uppercase tracking-wide font-medium">Status</th>
+              <th class="text-left px-4 py-3 text-xs text-muted uppercase tracking-wide font-medium">Datum</th>
+              <th class="text-left px-4 py-3 text-xs text-muted uppercase tracking-wide font-medium">Fällig</th>
+              <th class="text-right px-4 py-3 text-xs text-muted uppercase tracking-wide font-medium">Betrag</th>
+              <th class="text-right px-4 py-3 text-xs text-muted uppercase tracking-wide font-medium">Offen</th>
+              <th class="text-right px-4 py-3 text-xs text-muted uppercase tracking-wide font-medium">E-Rechnung</th>
+              <th class="text-right px-4 py-3 text-xs text-muted uppercase tracking-wide font-medium">Drucken</th>
+            </tr>
+          </thead>
+          <tbody>
+            {statusFilter === 'mahnwesen' ? (
+              pendingDunnings.length === 0 ? (
+                <tr>
+                  <td colspan="9" class="px-4 py-10 text-center text-muted text-sm">Keine ausstehenden Mahnungen.</td>
+                </tr>
+              ) : pendingDunnings.map(d => (
+                <tr class="border-b border-dark-lighter/50 hover:bg-dark/30 transition-colors">
+                  <td class="px-4 py-3 text-sm text-light font-mono" data-label="Nr.">#{d.invoiceNumber}</td>
+                  <td class="px-4 py-3 text-sm" data-label="Client">
+                    <div class="text-light">{d.customerName}</div>
+                    <div class="text-xs text-muted">{d.customerEmail}</div>
+                  </td>
+                  <td class="px-4 py-3" data-label="Status">
+                    <span class="text-xs px-2 py-0.5 rounded-full border border-red-800 bg-red-900/40 text-red-300">
+                      Mahnung {d.level}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-sm text-muted" data-label="Datum">Ausstehend</td>
+                  <td class="px-4 py-3 text-sm text-red-400 font-medium" data-label="Fällig">SOFORT</td>
+                  <td class="px-4 py-3 text-sm text-light text-right font-medium" data-label="Betrag">
+                    {fmtCurrency(d.outstanding + d.feeAmount + d.interestAmount)}
+                  </td>
+                  <td class="px-4 py-3 text-sm text-right text-yellow-400 font-medium" data-label="Offen">{fmtCurrency(d.outstanding)}</td>
+                  <td class="px-4 py-3 text-sm text-right" data-label="E-Rechnung">—</td>
+                  <td class="px-4 py-3 text-sm text-right" data-label="Drucken">
+                    <button
+                      class="text-xs text-yellow-400 hover:underline"
+                      data-send-dunning
+                      data-id={d.id}
+                      data-level={d.level}
+                    >Versenden ↑</button>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              invoices.length === 0 ? (
+                <tr>
+                  <td colspan="9" class="px-4 py-10 text-center text-muted text-sm">Keine Rechnungen gefunden.</td>
+                </tr>
+              ) : invoices.map(inv => (
+              <tr class="border-b border-dark-lighter/50 hover:bg-dark/30 transition-colors">
+                <td class="px-4 py-3 text-sm text-light font-mono" data-label="Nr.">#{inv.number}</td>
+                <td class="px-4 py-3 text-sm" data-label="Client">
+                  <div class="text-light">{inv.customerName}</div>
+                  <div class="text-xs text-muted">{inv.customerEmail}</div>
+                </td>
+                <td class="px-4 py-3" data-label="Status">
+                  <span class={`text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${STATUS_CLS[inv.status] ?? ''}`}>
+                    {inv.statusLabel}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-sm text-muted whitespace-nowrap" data-label="Datum">{fmtDate(inv.date)}</td>
+                <td class={`px-4 py-3 text-sm whitespace-nowrap font-medium ${inv.status === 'uncollectible' ? 'text-red-400' : 'text-muted'}`} data-label="Fällig">
+                  {fmtDate(inv.dueDate)}{inv.status === 'uncollectible' ? ' ⚠' : ''}
+                </td>
+                <td class="px-4 py-3 text-sm text-light text-right font-medium" data-label="Betrag">{fmtCurrency(inv.amountDue)}</td>
+                <td class={`px-4 py-3 text-sm text-right font-medium ${inv.amountRemaining > 0 ? 'text-yellow-400' : 'text-muted'}`} data-label="Offen">
+                  {inv.amountRemaining > 0 ? fmtCurrency(inv.amountRemaining) : '—'}
+                </td>
+                <td class="px-4 py-3 text-sm text-right" data-label="E-Rechnung">
+                  {['draft', 'void'].includes(inv.status) ? (
+                    <span class="text-xs text-muted/40">—</span>
+                  ) : (
+                    <a
+                      href={`/api/billing/invoice/${inv.id}/zugferd`}
+                      download
+                      class="text-xs text-green-400 hover:underline"
+                      title="ZUGFeRD XML herunterladen"
+                    >XML ↓</a>
+                  )}
+                </td>
+                <td class="px-4 py-3 text-sm text-right" data-label="Drucken">
+                  {['open', 'partially_paid', 'uncollectible'].includes(inv.status) && (
+                    <button
+                      class="text-xs text-yellow-400 hover:underline"
+                      data-record-payment
+                      data-invoice-id={inv.id}
+                      data-invoice-number={inv.number}
+                      data-outstanding={inv.amountRemaining}
+                    >Zahlung ↑</button>
+                  )}
+                  <a
+                    href={`/admin/billing/${inv.id}/drucken`}
+                    target="_blank"
+                    rel="noopener"
+                    class="ml-2 text-xs text-yellow-400 hover:underline"
+                    title="Rechnung drucken / als PDF speichern"
+                  >Drucken ↗</a>
+                </td>
+              </tr>
+            )))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <div id="payment-modal-mount"></div>
+
+  <dialog id="draft-editor" class="bg-surface border border-border rounded-2xl p-6 w-full max-w-3xl backdrop:bg-black/60">
+    <div class="flex items-center justify-between mb-6">
+      <h3 class="text-lg font-semibold text-light">Rechnung bearbeiten</h3>
+      <button id="editor-close" class="text-muted hover:text-light transition-colors text-xl" aria-label="Schließen">✕</button>
+    </div>
+
+    <p id="editor-customer" class="mb-4 text-sm text-muted"></p>
+
+    <table class="w-full text-sm mb-4">
+      <thead>
+        <tr class="text-muted border-b border-border">
+          <th class="text-left py-2 pr-3 font-medium">Beschreibung</th>
+          <th class="text-right py-2 px-3 font-medium w-24">Stunden</th>
+          <th class="text-right py-2 px-3 font-medium w-28">€/h</th>
+          <th class="text-right py-2 px-3 font-medium w-28">Betrag</th>
+          <th class="py-2 w-10"></th>
+        </tr>
+      </thead>
+      <tbody id="editor-items"></tbody>
+      <tfoot>
+        <tr class="border-t border-border font-semibold text-light">
+          <td colspan="3" class="py-3 pr-3">Gesamt</td>
+          <td class="py-3 px-3 text-right" id="editor-total"></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <button id="add-item-btn" class="text-sm text-gold hover:text-gold-light mb-6 transition-colors">
+      + Position hinzufügen
+    </button>
+
+    <div class="flex gap-3 justify-end">
+      <button id="editor-discard-btn"
+        class="px-4 py-2 text-sm text-red-400 border border-border rounded-lg hover:border-red-400 transition-colors">
+        Verwerfen
+      </button>
+      <button id="editor-send-btn"
+        class="px-4 py-2 text-sm bg-gold hover:bg-gold-light text-dark font-semibold rounded-lg transition-colors">
+        Versenden
+      </button>
+    </div>
+  </dialog>
+
+<script>
+  document.addEventListener('invoice-created', () => window.location.reload());
+</script>
+
+<script>
+  import { browserLogger } from '$lib/browser-logger';
+  import { mount, unmount, type Component } from 'svelte';
+  import RecordPaymentModal from '../../components/admin/RecordPaymentModal.svelte';
+  type RecordPaymentModalProps = { invoiceId: string; invoiceNumber: string; outstanding: number; onClose: () => void; onSaved: () => void };
+
+  document.querySelectorAll<HTMLButtonElement>('[data-record-payment]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetEl = document.getElementById('payment-modal-mount')!;
+      const app = mount(RecordPaymentModal as unknown as Component<RecordPaymentModalProps>, {
+        target: targetEl,
+        props: {
+          invoiceId: btn.dataset.invoiceId!,
+          invoiceNumber: btn.dataset.invoiceNumber!,
+          outstanding: Number(btn.dataset.outstanding!),
+          onClose: () => unmount(app),
+          onSaved: () => { unmount(app); window.location.reload(); },
+        },
+      });
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('[data-send-dunning]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const level = btn.dataset.level;
+      if (!confirm(`Mahnung ${level} jetzt an den Kunden versenden?`)) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Sendet…';
+
+      try {
+        const res = await fetch(`/api/admin/billing/dunning/${id}/send`, { method: 'POST' });
+        if (res.ok) {
+          window.location.reload();
+        } else {
+          alert('Fehler beim Versenden der Mahnung.');
+          btn.disabled = false;
+          btn.textContent = 'Versenden ↑';
+        }
+      } catch (err) {
+        browserLogger.error({ err }, '[admin/rechnungen] dunning send failed');
+        alert('Netzwerkfehler.');
+        btn.disabled = false;
+        btn.textContent = 'Versenden ↑';
+      }
+    });
+  });
+</script>
+
+<script>
+  interface DraftItem {
+    invoiceItemId: string;
+    description: string;
+    hours: number;
+    rateCents: number;
+    amountCents: number;
+  }
+
+  let currentInvoiceId: string | null = null;
+
+  const dialog     = document.getElementById('draft-editor') as HTMLDialogElement;
+  const itemsBody  = document.getElementById('editor-items')!;
+  const totalCell  = document.getElementById('editor-total')!;
+  const customerEl = document.getElementById('editor-customer')!;
+
+  document.getElementById('editor-close')!.addEventListener('click', () => dialog.close());
+
+  function formatEur(cents: number): string {
+    return (cents / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  }
+
+  function recalcTotal(): void {
+    let total = 0;
+    document.querySelectorAll<HTMLElement>('[data-amount]').forEach(el => {
+      total += parseInt(el.dataset.amount ?? '0', 10);
+    });
+    totalCell.textContent = formatEur(total);
+  }
+
+  function renderItem(item: DraftItem): HTMLTableRowElement {
+    const tr = document.createElement('tr');
+    tr.className = 'border-b border-border';
+    tr.dataset.itemId = item.invoiceItemId;
+
+    const descTd = document.createElement('td');
+    descTd.className = 'py-2 pr-3';
+    const descInput = document.createElement('input');
+    descInput.className = 'w-full bg-transparent text-light focus:outline-none focus:ring-1 focus:ring-gold rounded px-1';
+    descInput.dataset.field = 'description';
+    descInput.value = item.description;
+    descTd.appendChild(descInput);
+
+    const hoursTd = document.createElement('td');
+    hoursTd.className = 'py-2 px-3';
+    const hoursInput = document.createElement('input');
+    hoursInput.type = 'number';
+    hoursInput.min = '0';
+    hoursInput.step = '0.25';
+    hoursInput.className = 'w-full bg-transparent text-light text-right focus:outline-none focus:ring-1 focus:ring-gold rounded px-1';
+    hoursInput.dataset.field = 'hours';
+    hoursInput.value = item.hours.toFixed(2);
+    hoursTd.appendChild(hoursInput);
+
+    const rateTd = document.createElement('td');
+    rateTd.className = 'py-2 px-3';
+    const rateInput = document.createElement('input');
+    rateInput.type = 'number';
+    rateInput.min = '0';
+    rateInput.step = '1';
+    rateInput.className = 'w-full bg-transparent text-light text-right focus:outline-none focus:ring-1 focus:ring-gold rounded px-1';
+    rateInput.dataset.field = 'rate';
+    rateInput.value = (item.rateCents / 100).toFixed(0);
+    rateTd.appendChild(rateInput);
+
+    const amountTd = document.createElement('td');
+    amountTd.className = 'py-2 px-3 text-right text-light';
+    amountTd.dataset.amount = item.amountCents.toString();
+    amountTd.textContent = formatEur(item.amountCents);
+
+    const deleteTd = document.createElement('td');
+    deleteTd.className = 'py-2 pl-2';
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'text-red-400 hover:text-red-300 transition-colors';
+    deleteBtn.setAttribute('aria-label', 'Position löschen');
+    deleteBtn.textContent = '✕';
+    deleteTd.appendChild(deleteBtn);
+
+    tr.append(descTd, hoursTd, rateTd, amountTd, deleteTd);
+
+    [descInput, hoursInput, rateInput].forEach(input => {
+      input.addEventListener('change', async () => {
+        const desc      = descInput.value;
+        const hours     = parseFloat(hoursInput.value);
+        const rateCents = Math.round(parseFloat(rateInput.value) * 100);
+        const newAmount = Math.round(hours * rateCents);
+        amountTd.dataset.amount = newAmount.toString();
+        amountTd.textContent    = formatEur(newAmount);
+        recalcTotal();
+        await fetch(`/api/admin/billing/${currentInvoiceId}/item`, {
+          method:  'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            invoiceItemId: item.invoiceItemId,
+            description:   desc,
+            hours,
+            rateCents:     parseFloat(rateInput.value),
+          }),
+        });
+      });
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      const res = await fetch(`/api/admin/billing/${currentInvoiceId}/item`, {
+        method:  'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ invoiceItemId: item.invoiceItemId }),
+      });
+      if (!res.ok) {
+        alert('Fehler beim Löschen der Position.');
+        return;
+      }
+      tr.remove();
+      recalcTotal();
+    });
+
+    return tr;
+  }
+
+  async function openDraftEditor(invoiceId: string): Promise<void> {
+    currentInvoiceId = invoiceId;
+    itemsBody.replaceChildren();
+    const loadingRow = document.createElement('tr');
+    const loadingTd  = document.createElement('td');
+    loadingTd.colSpan = 5;
+    loadingTd.className = 'py-4 text-muted text-center';
+    loadingTd.textContent = 'Lade…';
+    loadingRow.appendChild(loadingTd);
+    itemsBody.appendChild(loadingRow);
+    dialog.showModal();
+
+    const res  = await fetch(`/api/admin/billing/${invoiceId}`);
+    const data = await res.json() as { customerName: string; period: string; items: DraftItem[] };
+
+    customerEl.textContent = `${data.customerName} — ${data.period}`;
+    itemsBody.replaceChildren();
+    data.items.forEach(item => itemsBody.appendChild(renderItem(item)));
+    recalcTotal();
+  }
+
+  async function discardDraft(invoiceId: string): Promise<void> {
+    if (!confirm('Entwurf wirklich verwerfen? Die Zeiteinträge werden wieder als nicht abgerechnet markiert.')) return;
+    const res = await fetch(`/api/admin/billing/${invoiceId}/discard`, { method: 'POST' });
+    if (!res.ok) {
+      alert('Fehler beim Verwerfen. Bitte erneut versuchen.');
+      return;
+    }
+    document.querySelector(`[data-invoice-id="${invoiceId}"]`)?.remove();
+    updateBadge(-1);
+  }
+
+  function updateBadge(delta: number): void {
+    const badge = document.getElementById('draft-badge');
+    if (!badge) return;
+    const count = Math.max(0, parseInt(badge.textContent ?? '0', 10) + delta);
+    badge.textContent = count.toString();
+    badge.classList.toggle('hidden', count === 0);
+  }
+
+  document.getElementById('draft-list')?.addEventListener('click', async (e) => {
+    const target = e.target as HTMLElement;
+    const btn    = target.closest('button') as HTMLButtonElement | null;
+    if (!btn) return;
+    const id = btn.dataset.id;
+    if (!id) return;
+    if (btn.classList.contains('open-draft-btn'))    await openDraftEditor(id);
+    if (btn.classList.contains('discard-draft-btn')) await discardDraft(id);
+  });
+
+  document.getElementById('add-item-btn')!.addEventListener('click', async () => {
+    await fetch(`/api/admin/billing/${currentInvoiceId}/item`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ description: 'Neue Position', hours: 1, rateCents: 0 }),
+    });
+    if (currentInvoiceId) await openDraftEditor(currentInvoiceId);
+  });
+
+  document.getElementById('editor-send-btn')!.addEventListener('click', async () => {
+    if (!currentInvoiceId) return;
+    if (!confirm('Rechnung jetzt finalisieren und versenden?')) return;
+    const res = await fetch(`/api/admin/billing/${currentInvoiceId}/send`, { method: 'POST' });
+    if (!res.ok) {
+      alert('Fehler beim Versenden. Bitte erneut versuchen.');
+      return;
+    }
+    dialog.close();
+    document.querySelector(`[data-invoice-id="${currentInvoiceId}"]`)?.remove();
+    updateBadge(-1);
+    currentInvoiceId = null;
+  });
+
+  document.getElementById('editor-discard-btn')!.addEventListener('click', async () => {
+    if (!currentInvoiceId) return;
+    await discardDraft(currentInvoiceId);
+    dialog.close();
+    currentInvoiceId = null;
+  });
+</script>
+</AdminLayout>

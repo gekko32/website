@@ -1,0 +1,4 @@
+---
+// Moved to /admin/cockpit (T001433/T002531). Permanent, query-preserving redirect.
+return Astro.redirect(`/admin/cockpit${Astro.url.search}`, 301);
+---

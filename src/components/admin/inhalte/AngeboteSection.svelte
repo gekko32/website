@@ -1,0 +1,263 @@
+<script lang="ts">
+  import type { ServiceOverride, LeistungCategoryOverride } from '../../../lib/website-db';
+  import { deriveHeadlinePrice } from '../../../lib/content-projection';
+  import { massageRowPriceLabel } from '../../../lib/massage-pricing';
+
+  let { initialServices, initialLeistungen, initialPriceListUrl, staticSlugs }: {
+    initialServices: ServiceOverride[];
+    initialLeistungen: LeistungCategoryOverride[];
+    initialPriceListUrl: string;
+    staticSlugs: string[];
+  } = $props();
+
+  const staticSlugSet = new Set(staticSlugs);
+  let services=$state(JSON.parse(JSON.stringify(initialServices)));
+  let leistungen=$state(JSON.parse(JSON.stringify(initialLeistungen)));
+  let priceListUrl=$state(initialPriceListUrl);
+  let saving=$state(false);let msg=$state('');let msgOk=$state(true);
+
+  function slugify(s:string){return(s??'').toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60);}
+  function uniqueSlug(base:string){const used=new Set(services.map((s:ServiceOverride)=>s.slug));if(!used.has(base)&&base)return base||`karte-${services.length+1}`;let n=2;while(used.has(`${base}-${n}`))n++;return base?`${base}-${n}`:`karte-${services.length+1}`;}
+
+  function addService(){const slug=uniqueSlug(slugify('neue Leistungskarte'));services=[...services,{slug,title:'Neue Leistungskarte',description:'',icon:'✨',price:'',features:[],meta:'',hidden:false,pageContent:{headline:'',intro:'',forWhom:[],sections:[],pricing:[],faq:[]}} satisfies ServiceOverride];}
+  function removeService(idx:number){if(!confirm(`Leistungskarte „${services[idx].title}" entfernen?`))return;services=services.filter((_:ServiceOverride,i:number)=>i!==idx);}
+
+  async function save(){
+    saving=true;msg='';
+    services=services.map((s:ServiceOverride)=>({...s,slug:s.slug?.trim()||uniqueSlug(slugify(s.title))}));
+    try{
+      const res=await fetch('/api/admin/angebote/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({services,leistungen,priceListUrl})});
+      const json=await res.json();
+      if(res.ok){msg='Gespeichert.';msgOk=true;}else{msg=json.error??'Fehler.';msgOk=false;}
+    }catch{msg='Verbindungsfehler.';msgOk=false;}finally{saving=false;}
+  }
+
+  function moveService(idx:number,delta:number){const next=idx+delta;if(next<0||next>=services.length)return;const arr=services;[arr[idx],arr[next]]=[arr[next],arr[idx]];services=[...arr];}
+  function ensurePageContent(svc:ServiceOverride){if(!svc.pageContent)svc.pageContent={headline:'',intro:'',forWhom:[],sections:[],pricing:[]};if(!svc.pageContent.sections)svc.pageContent.sections=[];if(!svc.pageContent.pricing)svc.pageContent.pricing=[];return svc.pageContent;}
+  function addSection(svc:ServiceOverride){const pc=ensurePageContent(svc);pc.sections=[...(pc.sections??[]),{title:'Neuer Bereich',items:[]}];services=[...services];}
+  function removeSection(svc:ServiceOverride,sIdx:number){if(!svc.pageContent?.sections)return;svc.pageContent.sections=svc.pageContent.sections.filter((_:unknown,i:number)=>i!==sIdx);services=[...services];}
+  function moveSection(svc:ServiceOverride,sIdx:number,delta:number){const arr=svc.pageContent?.sections;if(!arr)return;const next=sIdx+delta;if(next<0||next>=arr.length)return;[arr[sIdx],arr[next]]=[arr[next],arr[sIdx]];services=[...services];}
+   function addPricing(svc:ServiceOverride){const pc=ensurePageContent(svc);pc.pricing=[...(pc.pricing??[]),{label:'Neuer Tarif',price:'nach Vereinbarung'}];services=[...services];}
+  function removePricing(svc:ServiceOverride,pIdx:number){if(!svc.pageContent?.pricing)return;svc.pageContent.pricing=svc.pageContent.pricing.filter((_:unknown,i:number)=>i!==pIdx);services=[...services];}
+  function movePricing(svc:ServiceOverride,pIdx:number,delta:number){const arr=svc.pageContent?.pricing;if(!arr)return;const next=pIdx+delta;if(next<0||next>=arr.length)return;[arr[pIdx],arr[next]]=[arr[next],arr[pIdx]];services=[...services];}
+  function moveLeistungService(cat:LeistungCategoryOverride,sIdx:number,delta:number){const arr=cat.services??[];const next=sIdx+delta;if(next<0||next>=arr.length)return;[arr[sIdx],arr[next]]=[arr[next],arr[sIdx]];leistungen=[...leistungen];}
+
+  /** Returns the linked LeistungCategoryOverride or undefined */
+  function linkedCat(svc: ServiceOverride): LeistungCategoryOverride | undefined {
+    return svc.leistungCategoryId ? leistungen.find((c: LeistungCategoryOverride) => c.id === svc.leistungCategoryId) : undefined;
+  }
+  /** Derived headline price preview for a linked card */
+  function previewPrice(svc: ServiceOverride): string {
+    const cat = linkedCat(svc);
+    if (!cat) return '';
+    return deriveHeadlinePrice(cat, svc.headlineKey, svc.headlinePrefix ?? false);
+  }
+
+  const inputCls='w-full px-3 py-2 bg-dark border border-dark-lighter rounded-lg text-light text-sm focus:outline-none focus:border-gold/50';
+  const labelCls='block text-xs text-muted mb-1';
+  const sectionCls='p-6 bg-dark-light rounded-xl border border-dark-lighter space-y-4';
+  const moveBtnCls='px-2 py-1 rounded-md border border-dark-lighter text-muted hover:text-light hover:border-gold/50 disabled:opacity-30 disabled:cursor-not-allowed text-sm';
+</script>
+
+<div class="pt-6 pb-20 space-y-10">
+  <div class="flex justify-between items-start">
+    <div><h2 class="text-2xl font-bold text-light font-serif">Angebote</h2><p class="text-muted mt-1 text-sm">Leistungskarten, Leistungskatalog und Preisliste</p></div>
+    <button onclick={save} disabled={saving} class="px-5 py-2 bg-gold text-dark font-semibold rounded-lg hover:bg-gold/90 disabled:opacity-50">{saving?'Speichere…':'Speichern'}</button>
+  </div>
+
+  {#if msg}<div class={`p-4 rounded-xl text-sm ${msgOk?'bg-green-500/10 border border-green-500/30 text-green-400':'bg-red-500/10 border border-red-500/30 text-red-400'}`}>{msg}</div>{/if}
+
+  <div class="p-4 bg-dark-light rounded-xl border border-gold/20 space-y-1">
+    <p class="text-xs font-mono uppercase tracking-widest text-gold mb-2">Zentral gepflegte Elemente</p>
+    <p class="text-sm text-muted">🔒 <strong class="text-light">Footer-Angebotsliste</strong> wird automatisch aus den sichtbaren Leistungskarten generiert – Reihenfolge und Titel hier pflegen.</p>
+    <p class="text-sm text-muted">🔒 <strong class="text-light">Seitenspezifische Inhalte (H1, Text, etc.)</strong> → jeweiliger Tab (50+ digital, Coaching, etc.)</p>
+    <p class="text-sm text-muted">🔒 <strong class="text-light">SEO</strong> → <a href="/admin/inhalte?tab=website&section=seo" class="text-gold hover:underline">SEO-Tab</a></p>
+  </div>
+
+  <div class={sectionCls}>
+    <div class="flex items-center justify-between">
+      <h3 class="text-xl font-bold text-light font-serif">Leistungskarten</h3>
+      <button type="button" onclick={addService} class="px-3 py-1.5 text-sm rounded-md border border-gold/40 text-gold hover:bg-gold/10">+ Leistungskarte</button>
+    </div>
+    <p class="text-xs text-muted -mt-2">Reihenfolge mit den Pfeilen ändern. Diese Reihenfolge bestimmt Startseite und Footer-Angebotsliste.</p>
+    {#each services as svc, idx (svc.slug)}
+      {@const isCustom=!staticSlugSet.has(svc.slug)}
+      <div class="p-4 bg-dark rounded-lg border border-dark-lighter space-y-3">
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-1">
+            <button type="button" onclick={() => moveService(idx,-1)} disabled={idx===0} class={moveBtnCls} aria-label="Nach oben">↑</button>
+            <button type="button" onclick={() => moveService(idx,1)} disabled={idx===services.length-1} class={moveBtnCls} aria-label="Nach unten">↓</button>
+          </div>
+          <span class="text-xs text-muted">#{idx+1}</span>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" bind:checked={svc.hidden} class="accent-gold" />
+            <span class="text-xs text-muted">Ausblenden</span>
+          </label>
+          {#if isCustom}
+            <input type="text" bind:value={svc.slug} class="px-2 py-1 bg-dark-lighter border border-dark-lighter rounded text-xs font-mono text-muted focus:outline-none focus:border-gold/50 max-w-[180px]" />
+            <button type="button" onclick={() => removeService(idx)} class="ml-auto px-2 py-1 text-xs rounded-md border border-red-500/40 text-red-400 hover:bg-red-500/10">Entfernen</button>
+          {:else}
+            <span class="text-xs font-mono text-muted">{svc.slug}</span>
+          {/if}
+        </div>
+        {#if isCustom}
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class={labelCls}>Icon (Emoji)</label><input type="text" bind:value={svc.icon} class={inputCls} /></div>
+            <div><label class={labelCls}>Eyebrow-Label</label><input type="text" bind:value={svc.meta} class={inputCls} /></div>
+          </div>
+        {/if}
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class={labelCls}>Titel (= Footer-Link-Text)</label><input type="text" bind:value={svc.title} class={inputCls} /></div>
+          {#if !svc.leistungCategoryId}
+            <div><label class={labelCls}>Preis (Legacy – bitte Katalog-Verknüpfung nutzen)</label><input type="text" bind:value={svc.price} class={inputCls} /></div>
+          {:else}
+            <div>
+              <label class={labelCls}>Abgeleiteter Preis (Vorschau)</label>
+              <div class="px-3 py-2 bg-dark-lighter/50 border border-gold/20 rounded-lg text-gold text-sm font-semibold">{previewPrice(svc) || '—'}</div>
+            </div>
+          {/if}
+        </div>
+
+        <!-- Catalog price hub: category + headline row + "ab" prefix -->
+        <div class="border border-gold/20 rounded-xl p-4 bg-dark-lighter/20 space-y-3">
+          <p class="text-xs font-mono uppercase tracking-widest text-gold">Preiskatalog-Verknüpfung</p>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class={labelCls}>Kategorie</label>
+              <select
+                id={`${svc.slug}-cat`}
+                bind:value={svc.leistungCategoryId}
+                onchange={() => { svc.headlineKey = undefined; services = [...services]; }}
+                class={inputCls}
+              >
+                <option value={undefined}>— keine Verknüpfung —</option>
+                {#each leistungen as cat}
+                  <option value={cat.id}>{cat.title ?? cat.id}</option>
+                {/each}
+              </select>
+            </div>
+            <div>
+              <label class={labelCls}>Headline-Zeile</label>
+              {#if linkedCat(svc)}
+                <select id={`${svc.slug}-headline`} bind:value={svc.headlineKey} onchange={() => { services = [...services]; }} class={inputCls}>
+                  {#each (linkedCat(svc)?.services ?? []) as row}
+                    <option value={row.key}>{row.name} – {row.price}</option>
+                  {/each}
+                </select>
+              {:else}
+                <div class="px-3 py-2 bg-dark border border-dark-lighter rounded-lg text-muted text-sm">Erst Kategorie wählen</div>
+              {/if}
+            </div>
+          </div>
+          {#if svc.leistungCategoryId}
+            <label class="flex items-center gap-2 cursor-pointer text-xs text-muted">
+              <input type="checkbox" bind:checked={svc.headlinePrefix} class="accent-gold" onchange={() => { services = [...services]; }} />
+              <span>Preis mit „ab" prefixen</span>
+            </label>
+          {/if}
+        </div>
+        <div><label class={labelCls}>Beschreibung</label><textarea bind:value={svc.description} rows={2} class="{inputCls} resize-none"></textarea></div>
+        <div>
+          <label class={labelCls}>Features (eine pro Zeile)</label>
+          <textarea value={svc.features.join('\n')} oninput={(e)=>{svc.features=(e.currentTarget as HTMLTextAreaElement).value.split('\n').map(f=>f.trim()).filter(Boolean);}} rows={4} class="{inputCls} resize-none font-mono"></textarea>
+        </div>
+        <details class="text-xs text-muted">
+          <summary class="cursor-pointer hover:text-light">Seiteninhalte (pageContent) – besser über eigenen Tab pflegen</summary>
+          <div class="mt-3 space-y-4">
+            <div><label class={labelCls}>Überschrift</label><input type="text" bind:value={svc.pageContent!.headline} class={inputCls} /></div>
+            <div><label class={labelCls}>Intro</label><textarea bind:value={svc.pageContent!.intro} rows={3} class="{inputCls} resize-none"></textarea></div>
+            <div>
+              <label class={labelCls}>Für wen (eine pro Zeile)</label>
+              <textarea value={(svc.pageContent!.forWhom??[]).join('\n')} oninput={(e)=>{if(!svc.pageContent)svc.pageContent={headline:'',intro:'',forWhom:[],sections:[],pricing:[]};svc.pageContent.forWhom=(e.currentTarget as HTMLTextAreaElement).value.split('\n').map(f=>f.trim()).filter(Boolean);}} rows={4} class="{inputCls} resize-none font-mono"></textarea>
+            </div>
+            <div class="border-t border-dark-lighter pt-3">
+              <div class="flex items-center justify-between mb-2"><span class="text-sm font-semibold text-light">Schwerpunkte</span><button type="button" onclick={() => addSection(svc)} class="px-2 py-1 text-xs rounded-md border border-gold/40 text-gold hover:bg-gold/10">+ Bereich</button></div>
+              {#each (svc.pageContent?.sections??[]) as sec, sIdx}
+                <div class="p-3 bg-dark-lighter/30 rounded-lg space-y-2 mb-2">
+                  <div class="flex items-center gap-2">
+                    <button type="button" onclick={() => moveSection(svc,sIdx,-1)} disabled={sIdx===0} class={moveBtnCls}>↑</button>
+                    <button type="button" onclick={() => moveSection(svc,sIdx,1)} disabled={sIdx===(svc.pageContent?.sections?.length??0)-1} class={moveBtnCls}>↓</button>
+                    <input type="text" bind:value={sec.title} class={inputCls} placeholder="Titel" />
+                    <button type="button" onclick={() => removeSection(svc,sIdx)} class="px-2 py-1 text-xs rounded-md border border-red-500/40 text-red-400 hover:bg-red-500/10">Entfernen</button>
+                  </div>
+                  <textarea value={(sec.items??[]).join('\n')} oninput={(e)=>{sec.items=(e.currentTarget as HTMLTextAreaElement).value.split('\n').map(f=>f.trim()).filter(Boolean);services=[...services];}} rows={4} class="{inputCls} resize-none font-mono" placeholder="Ein Bullet pro Zeile"></textarea>
+                </div>
+              {/each}
+            </div>
+            {#if !svc.leistungCategoryId}
+              <!-- Legacy pricing editor: only shown when card is not yet catalog-linked -->
+              <div class="border-t border-dark-lighter pt-3">
+                <div class="flex items-center justify-between mb-2"><span class="text-sm font-semibold text-light">Investition</span><button type="button" onclick={() => addPricing(svc)} class="px-2 py-1 text-xs rounded-md border border-gold/40 text-gold hover:bg-gold/10">+ Preis</button></div>
+                {#each (svc.pageContent?.pricing??[]) as p, pIdx}
+                  <div class="p-3 bg-dark-lighter/30 rounded-lg space-y-2 mb-2">
+                    <div class="flex items-center gap-2">
+                      <button type="button" onclick={() => movePricing(svc,pIdx,-1)} disabled={pIdx===0} class={moveBtnCls}>↑</button>
+                      <button type="button" onclick={() => movePricing(svc,pIdx,1)} disabled={pIdx===(svc.pageContent?.pricing?.length??0)-1} class={moveBtnCls}>↓</button>
+                      <span class="text-xs text-muted">#{pIdx+1}</span>
+                      <button type="button" onclick={() => removePricing(svc,pIdx)} class="ml-auto px-2 py-1 text-xs rounded-md border border-red-500/40 text-red-400 hover:bg-red-500/10">Entfernen</button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                      <div><label class={labelCls}>Bezeichnung</label><input type="text" bind:value={p.label} class={inputCls} /></div>
+                      <div><label class={labelCls}>Preis</label><input type="text" bind:value={p.price} class={inputCls} /></div>
+                      <div><label class={labelCls}>Einheit</label><input type="text" bind:value={p.unit} class={inputCls} /></div>
+                    </div>
+                    <label class="flex items-center gap-2 cursor-pointer text-xs text-muted"><input type="checkbox" bind:checked={p.highlight} class="accent-gold" /><span>Hervorheben</span></label>
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <!-- Catalog-linked: show derived tiers as read-only preview (edit in Leistungskatalog below) -->
+              <div class="border-t border-dark-lighter pt-3">
+                <p class="text-xs text-muted mb-2">Preis-Tiers werden aus dem Katalog abgeleitet. Zum Ändern → Leistungskatalog unten.</p>
+                {#each (linkedCat(svc)?.services ?? []) as row}
+                  <div class="flex items-center gap-3 px-3 py-1.5 bg-dark-lighter/20 rounded text-xs text-muted mb-1">
+                    <span class={row.highlight ? 'text-gold font-semibold' : ''}>{row.name}</span>
+                    <span class="ml-auto font-mono">{row.price}{row.unit ? ' ' + row.unit : ''}</span>
+                    {#if row.highlight}<span class="text-gold text-[10px] border border-gold/30 rounded px-1">Headline</span>{/if}
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        </details>
+      </div>
+    {/each}
+  </div>
+
+  <div class={sectionCls}>
+    <h3 class="text-xl font-bold text-light font-serif">Preisliste</h3>
+    <div><label class={labelCls}>Nextcloud-Freigabe-URL</label><input type="url" bind:value={priceListUrl} class={inputCls} placeholder="https://files.example.com/s/..." /></div>
+  </div>
+
+  <div class={sectionCls}>
+    <h3 class="text-xl font-bold text-light font-serif">Leistungskatalog</h3>
+    {#each leistungen as cat}
+      <div class="p-4 bg-dark rounded-lg border border-dark-lighter space-y-3">
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class={labelCls}>Kategorie-Titel</label><input type="text" bind:value={cat.title} class={inputCls} onchange={() => { leistungen = [...leistungen]; }} /></div>
+          <div><label class={labelCls}>Icon</label><input type="text" bind:value={cat.icon} class={inputCls} onchange={() => { leistungen = [...leistungen]; }} /></div>
+        </div>
+        {#each (cat.services??[]) as svc, sIdx}
+          <div class="p-3 bg-dark-lighter/30 rounded-lg space-y-2">
+            <div class="flex items-center gap-2">
+              <button type="button" onclick={() => moveLeistungService(cat,sIdx,-1)} disabled={sIdx===0} class={moveBtnCls}>↑</button>
+              <button type="button" onclick={() => moveLeistungService(cat,sIdx,1)} disabled={sIdx===(cat.services?.length??0)-1} class={moveBtnCls}>↓</button>
+              <p class="text-xs font-mono text-muted">{svc.key}</p>
+              <label class="ml-auto flex items-center gap-2 cursor-pointer text-xs text-muted"><input type="checkbox" bind:checked={svc.highlight} class="accent-gold" onchange={() => { leistungen = [...leistungen]; }} /><span>Hervorheben</span></label>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              <div><label class={labelCls}>Name</label><input type="text" bind:value={svc.name} class={inputCls} onchange={() => { leistungen = [...leistungen]; }} /></div>
+              <div><label class={labelCls}>Preis</label><input type="text" bind:value={svc.price} class={inputCls} onchange={() => { leistungen = [...leistungen]; }} /></div>
+              <div><label class={labelCls}>Einheit</label><input type="text" bind:value={svc.unit} class={inputCls} onchange={() => { leistungen = [...leistungen]; }} /></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class={labelCls}>Multiplier (Preismodell)</label><input type="number" min="0" step="0.05" value={svc.multiplier ?? 1} class={inputCls} oninput={(e) => { const v = e.currentTarget.valueAsNumber; svc.multiplier = Number.isFinite(v) && v > 0 ? v : 1; leistungen = [...leistungen]; }} /></div>
+              <div><label class={labelCls}>Vorschau (berechnet)</label><p class="px-3 py-2 font-mono text-sm text-gold">{massageRowPriceLabel(svc)}</p></div>
+            </div>
+            <div><label class={labelCls}>Beschreibung</label><textarea bind:value={svc.desc} rows={2} class="{inputCls} resize-none" onchange={() => { leistungen = [...leistungen]; }}></textarea></div>
+          </div>
+        {/each}
+      </div>
+    {/each}
+  </div>
+</div>

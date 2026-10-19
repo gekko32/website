@@ -1,0 +1,79 @@
+name: Build Website
+
+# Baut das Website-Image ghcr.io/gekko32/website (Gerald, 19.10.2026).
+# Vorlage: build-website.yml aus Paddione/Bachelorprojekt. Der Image-Bau führt
+# `pnpm run build` aus – schlägt die Übersetzung fehl, wird nichts hochgeladen.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-website-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Bauen und hochladen
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-tags: false
+
+      - name: Version
+        id: version
+        run: |
+          echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Bei GitHub Container Registry anmelden
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7  # v5
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v5
+
+      - name: Image bauen und hochladen
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            BUILT_AT=${{ steps.version.outputs.built_at }}
+            BUILD_TARGET=prod
+          labels: |
+            org.opencontainers.image.source=https://github.com/gekko32/website
+          tags: |
+            ghcr.io/gekko32/website:sha-${{ steps.version.outputs.sha }}
+            ghcr.io/gekko32/website:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Danach die Auslieferung anstoßen (wie beim Brett): startet in
+      # gekko32/mentolder-prod den Render. Braucht das Geheimnis
+      # MENTOLDER_PROD_DISPATCH auch in diesem Repo. Fehlt es, nur ein Hinweis.
+      - name: Auslieferung anstoßen (mentolder-prod rendern)
+        env:
+          TOKEN: ${{ secrets.MENTOLDER_PROD_DISPATCH }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::notice::MENTOLDER_PROD_DISPATCH fehlt – Render bitte von Hand anstoßen: https://github.com/gekko32/mentolder-prod/actions/workflows/render.yml"
+            exit 0
+          fi
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/gekko32/mentolder-prod/actions/workflows/render.yml/dispatches \
+            -d '{"ref":"main"}'
+          echo "Render in mentolder-prod angestoßen."

@@ -1,0 +1,37 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
+import CoachingSettings from '../../../components/admin/coaching/CoachingSettings.svelte';
+import QuestionnaireInsights from '../../../components/admin/coaching/QuestionnaireInsights.svelte';
+import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
+import { listKiProviders, type KiConfig } from '../../../lib/coaching-ki-config-db';
+import { listStepTemplates, type StepTemplate } from '../../../lib/coaching-templates-db';
+import { pool } from '../../../lib/website-db';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+
+const brand = process.env.BRAND || 'mentolder';
+let initialProviders: KiConfig[] = [];
+let initialTemplates: StepTemplate[] = [];
+try {
+  initialProviders = await listKiProviders(pool, brand);
+  initialTemplates = await listStepTemplates(pool, brand);
+} catch {}
+---
+
+<AdminLayout title="Coaching-Einstellungen">
+  <div style="padding: 1rem 0;">
+    <nav style="font-size:0.78rem;color:var(--text-muted,#888);margin-bottom:0.4rem;padding:0 1.5rem;">
+      <a href="/admin" style="color:var(--text-muted,#888);text-decoration:none;">Admin</a>
+      <span style="margin:0 0.4rem;">›</span>
+      <a href="/admin/coaching/sessions" style="color:var(--text-muted,#888);text-decoration:none;">Coaching</a>
+      <span style="margin:0 0.4rem;">›</span>
+      Einstellungen
+    </nav>
+<AdminPageHeader title="Coaching-Einstellungen" />
+    <CoachingSettings client:load {initialProviders} {initialTemplates} />
+    <QuestionnaireInsights />
+  </div>
+</AdminLayout>
