@@ -1,0 +1,104 @@
+---
+// Klientenakte (Stufe 2, Gerald 19.10.2026): eine Akte pro Klient, auch ohne Benutzerkonto.
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
+import KlientFormular from '../../../components/admin/KlientFormular.svelte';
+import CreateInvoiceModal from '../../../components/admin/CreateInvoiceModal.svelte';
+import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
+import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
+import { SERVICES } from '../../../lib/stripe-billing';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+
+const klient = await getKlient(Astro.params.id ?? '');
+if (!klient) return Astro.redirect('/admin/klienten');
+
+const brand = process.env.BRAND || 'mentolder';
+const { termine, sitzungen, rechnungen } = await akteVerlauf(klient, brand);
+const empfaenger = rechnungsempfaenger(klient);
+
+const serviceOptions = Object.entries(SERVICES).map(([key, val]) => ({ key, name: val.name, cents: val.cents }));
+const datum = (d: string | Date | null) => d ? new Date(d).toLocaleDateString('de-DE') : '–';
+const zeit = (d: string | Date | null) => d ? new Date(d).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '–';
+const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
+const STATUS: Record<string, string> = { draft: 'Entwurf', open: 'offen', paid: 'bezahlt', void: 'storniert', uncollectible: 'uneinbringlich' };
+---
+
+<AdminLayout title={`Akte ${klient.name}`}>
+  <div style="padding:2rem;max-width:960px;">
+    <p class="text-xs text-muted mb-2"><a class="hover:underline" href="/admin/klienten">← Alle Klienten</a></p>
+    <div class="flex flex-wrap items-start justify-between gap-3 mb-6">
+      <AdminPageHeader title={klient.name}
+        description={`${klient.customer_number ?? 'ohne Nummer'} · ${klient.email}${klient.phone ? ' · ' + klient.phone : ''}`} />
+      <div class="flex flex-wrap gap-2 items-center">
+        <CreateInvoiceModal {serviceOptions} klientId={klient.id}
+          prefillEmail={empfaenger.email} prefillName={empfaenger.company ?? empfaenger.name} client:load />
+        {klient.hat_konto
+          ? <a class="px-3 py-2 rounded-lg border border-dark-lighter text-sm" href={`/admin/${klient.keycloak_user_id}`}>Konto öffnen</a>
+          : <button id="konto-einrichten" data-id={klient.id}
+              class="px-3 py-2 rounded-lg border border-dark-lighter text-sm">Konto einrichten</button>}
+      </div>
+    </div>
+    <p id="konto-meldung" class="text-sm mb-4"></p>
+
+    <section class="mb-8">
+      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">Rechnung geht an</h2>
+      <p class="text-sm">
+        {empfaenger.company ? <strong>{empfaenger.company}</strong> : <strong>{empfaenger.name}</strong>}
+        {empfaenger.company && <span class="text-muted"> (z. Hd. {empfaenger.name})</span>}
+        <br /><span class="text-muted">{[empfaenger.addressLine1, [empfaenger.postalCode, empfaenger.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Anschrift fehlt noch'} · {empfaenger.email}</span>
+      </p>
+    </section>
+
+    <section class="mb-8">
+      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">Termine ({termine.length})</h2>
+      {termine.length === 0 ? <p class="text-sm text-muted">Keine Termine.</p> :
+        <ul class="text-sm space-y-1">{termine.map((t) => <li>{zeit(t.scheduled_at)} · {t.meeting_type} <span class="text-muted">({t.status})</span></li>)}</ul>}
+    </section>
+
+    <section class="mb-8">
+      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">Coaching-Sitzungen ({sitzungen.length})</h2>
+      {sitzungen.length === 0 ? <p class="text-sm text-muted">Keine Sitzungen.</p> :
+        <ul class="text-sm space-y-1">{sitzungen.map((s) => <li><a class="hover:underline" href={`/admin/coaching/sessions/${s.id}`}>{datum(s.created_at)} · {s.title}</a> <span class="text-muted">({s.status})</span></li>)}</ul>}
+    </section>
+
+    <section class="mb-8">
+      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">Rechnungen ({rechnungen.length})</h2>
+      {rechnungen.length === 0 ? <p class="text-sm text-muted">Keine Rechnungen.</p> :
+        <table class="w-full text-sm"><tbody>{rechnungen.map((r) => (
+          <tr class="border-t border-dark-lighter">
+            <td class="py-1 pr-3 font-mono"><a class="hover:underline" href={`/admin/billing/${r.id}`}>{r.number}</a></td>
+            <td class="py-1 pr-3">{datum(r.issue_date)}</td>
+            <td class="py-1 pr-3 text-right">{euro(r.gross_amount)}</td>
+            <td class="py-1 pr-3 text-muted">{STATUS[r.status] ?? r.status}</td>
+            <td class="py-1 text-muted">{r.empfaenger}</td>
+          </tr>))}</tbody></table>}
+    </section>
+
+    <details class="border border-dark-lighter rounded-xl p-4" open={!klient.address && !klient.rechnung_firma}>
+      <summary class="cursor-pointer text-sm font-semibold text-gold">Stammdaten bearbeiten</summary>
+      <div class="mt-4"><KlientFormular klientId={klient.id} start={klient} client:load /></div>
+    </details>
+  </div>
+</AdminLayout>
+
+<script>
+  const knopf = document.getElementById('konto-einrichten') as HTMLButtonElement | null;
+  const meldung = document.getElementById('konto-meldung');
+  knopf?.addEventListener('click', async () => {
+    if (!confirm('Benutzerkonto anlegen und Einladung per E-Mail an den Klienten senden?')) return;
+    knopf.disabled = true;
+    const res = await fetch('/api/admin/clients/enroll', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerId: knopf.dataset.id }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (meldung) {
+      meldung.textContent = res.ok ? 'Konto angelegt, Einladung verschickt.' : (data.error ?? 'Konto konnte nicht angelegt werden.');
+      meldung.className = 'text-sm mb-4 ' + (res.ok ? 'text-green-400' : 'text-red-400');
+    }
+    if (res.ok) setTimeout(() => location.reload(), 1200); else knopf.disabled = false;
+  });
+</script>

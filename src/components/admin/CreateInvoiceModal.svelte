@@ -17,12 +17,15 @@
   let {
     serviceOptions,
     prefillEmail = '',
+    klientId = '',
     prefillName = '',
     buttonLabel = '+ Neue Rechnung',
     buttonVariant = 'primary',
   }: {
     serviceOptions: ServiceOption[];
     prefillEmail?: string;
+    /** Klientenakte (Stufe 2): Empfänger und Anschrift kommen dann aus der Akte. */
+    klientId?: string;
     prefillName?: string;
     buttonLabel?: string;
     buttonVariant?: 'primary' | 'ghost';
@@ -169,6 +172,7 @@
         company: externalMode ? extCompany || undefined : undefined,
         vatNumber: externalMode ? extVat || undefined : undefined,
         leitwegId: externalMode ? extLeitwegId || undefined : undefined,
+        klientId: klientId || undefined,
         serviceKey: selectedKey,
         quantity,
         notes: notes.trim() || undefined,

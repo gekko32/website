@@ -1,0 +1,66 @@
+---
+// Klientenliste (Stufe 2, Gerald 19.10.2026): alle Klienten – mit und ohne Benutzerkonto.
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
+import KlientFormular from '../../../components/admin/KlientFormular.svelte';
+import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
+import { listKlienten, type Klient } from '../../../lib/klientenakte';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+
+let klienten: Klient[] = [];
+let fehler = '';
+try { klienten = await listKlienten(); } catch { fehler = 'Klientenliste konnte nicht geladen werden.'; }
+---
+
+<AdminLayout title="Klienten">
+  <div style="padding:2rem;max-width:960px;">
+    <AdminPageHeader title="Klienten" description={`${klienten.length} Akten – mit und ohne Benutzerkonto`} />
+
+    <details class="mb-6 border border-dark-lighter rounded-xl p-4">
+      <summary class="cursor-pointer text-sm font-semibold text-gold">+ Neuer Klient (ohne Konto)</summary>
+      <div class="mt-4"><KlientFormular client:load /></div>
+    </details>
+
+    {fehler && <p class="text-sm text-red-400 mb-4">{fehler}</p>}
+
+    <input id="klient-suche" type="search" placeholder="Suchen nach Name, E-Mail, Nummer …"
+      class="w-full mb-3 px-3 py-2 bg-dark-light border border-dark-lighter rounded-lg text-sm text-light" />
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-xs text-muted uppercase tracking-wide">
+            <th class="py-2 pr-3">Nr.</th><th class="py-2 pr-3">Name</th><th class="py-2 pr-3">E-Mail</th>
+            <th class="py-2 pr-3">Rechnung an</th><th class="py-2">Konto</th>
+          </tr>
+        </thead>
+        <tbody>
+          {klienten.map((k) => (
+            <tr class="klient-zeile border-t border-dark-lighter"
+                data-suche={`${k.name} ${k.email} ${k.customer_number ?? ''} ${k.rechnung_firma ?? ''}`.toLowerCase()}>
+              <td class="py-2 pr-3 font-mono text-muted">{k.customer_number ?? '–'}</td>
+              <td class="py-2 pr-3"><a class="text-light hover:text-gold underline-offset-2 hover:underline" href={`/admin/klienten/${k.id}`}>{k.name}</a></td>
+              <td class="py-2 pr-3 text-muted">{k.email}</td>
+              <td class="py-2 pr-3 text-muted">{k.rechnung_an === 'firma' ? (k.rechnung_firma ?? 'Firma') : 'Person'}</td>
+              <td class="py-2">{k.hat_konto ? <span class="text-green-400">ja</span> : <span class="text-muted">nein</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {klienten.length === 0 && !fehler && <p class="text-sm text-muted mt-4">Noch keine Klienten angelegt.</p>}
+    </div>
+  </div>
+</AdminLayout>
+
+<script>
+  const suche = document.getElementById('klient-suche') as HTMLInputElement | null;
+  suche?.addEventListener('input', () => {
+    const q = suche.value.trim().toLowerCase();
+    document.querySelectorAll<HTMLElement>('.klient-zeile').forEach((z) => {
+      z.style.display = !q || (z.dataset.suche ?? '').includes(q) ? '' : 'none';
+    });
+  });
+</script>

@@ -8,6 +8,7 @@ import { createTalkRoom, inviteGuestByEmail, sendChatMessage } from '../../../..
 import { sendRegistrationApproved, sendRegistrationDeclined, sendEmail } from '../../../../../lib/email';
 import { upsertCustomer, resolveBugTicket, setBookingInvoice, createMeeting, claimBrettLinkPost } from '../../../../../lib/website-db';
 import { getOrCreateCustomer, createBillingInvoice, SERVICES } from '../../../../../lib/stripe-billing';
+import { verknuepfeRechnungskunde } from '../../../../../lib/klientenakte';
 import type { ServiceKey } from '../../../../../lib/stripe-billing';
 
 const BRAND_NAME = process.env.BRAND_NAME || 'Workspace';
@@ -163,6 +164,8 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
           try {
             const billingCustomer = await getOrCreateCustomer({ brand, name: p.name, email: p.email });
             if (billingCustomer) {
+              // Stufe 2: Rechnungskunde mit der Klientenakte verknüpfen
+              await verknuepfeRechnungskunde(billingCustomer.id, customer.id).catch(() => {});
               const invoice = await createBillingInvoice({
                 customerId: billingCustomer.id, serviceKey: svcKey,
                 // Leistungsdatum = Termin (Pflichtangabe § 14 UStG, Befund R7)

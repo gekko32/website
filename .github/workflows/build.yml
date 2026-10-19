@@ -38,7 +38,7 @@ jobs:
           pnpm exec vitest run
           tax-monitor native-billing stripe-billing invoice- billing- einvoice
           zugferd xrechnung datev leitweg eur-bookkeeping
-          create-monthly-invoices sepa-export
+          create-monthly-invoices sepa-export klientenakte nav-items
 
       # Gesamte Testsuite nur zur Information (19.10.2026): Einige Tests setzen
       # Patricks Gesamt-Repo voraus (ki-services-wiring, agentGuide*,

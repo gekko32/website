@@ -52,7 +52,9 @@ export function buildNavSections({ inboxPending, brettUrl }: NavOptions): NavSec
     {
       label: 'Geschäft',
       items: [
-        { href: '/admin/clients', label: 'Klienten', icon: 'users' },
+        // Klientenakte (Stufe 2): alle Klienten, auch ohne Benutzerkonto.
+        // Die Kontoseiten unter /admin/clients bleiben erreichbar (Akte → „Konto öffnen“).
+        { href: '/admin/klienten', label: 'Klienten', icon: 'users', matches: ['/admin/klienten', '/admin/clients'] },
         {
           href: '/admin/coaching/sessions',
           label: 'Sessions',

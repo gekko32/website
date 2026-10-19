@@ -8,6 +8,8 @@ import {
 import type { ServiceKey } from '../../../lib/stripe-billing';
 import { isE2ETestRequest } from '../../../lib/e2e-marker';
 import { getSession, isAdmin } from '../../../lib/auth';
+import { createCustomer } from '../../../lib/native-billing';
+import { getKlient, rechnungsempfaenger, verknuepfeRechnungskunde } from '../../../lib/klientenakte';
 
 export const POST: APIRoute = async ({ request , locals }) => {
   // Nur für Admins (Befund R5, Gerald 19.10.2026): vorher legte diese Schnittstelle
@@ -24,9 +26,23 @@ export const POST: APIRoute = async ({ request , locals }) => {
     const isTestData = isE2ETestRequest(request);
     const body = await request.json();
     const {
-      name, email, company, notes, leistungsdatum,
+      notes, leistungsdatum, klientId,
       serviceKey, quantity, asQuote, sendEmail: shouldSendEmail,
     } = body;
+    let { name, email, company } = body;
+
+    // Rechnung aus der Klientenakte (Stufe 2): Empfänger und Anschrift kommen aus
+    // der Akte (Person oder Firma), der Rechnungskunde wird mit der Akte verknüpft.
+    let klient: Awaited<ReturnType<typeof getKlient>> = null;
+    if (typeof klientId === 'string' && klientId) {
+      klient = await getKlient(klientId);
+      if (!klient) {
+        return new Response(JSON.stringify({ error: 'Klientenakte nicht gefunden.' }),
+          { status: 404, headers: { 'Content-Type': 'application/json' } });
+      }
+      const e = rechnungsempfaenger(klient);
+      name = e.name; email = e.email; company = e.company ?? undefined;
+    }
 
     if (!name || !email || !serviceKey) {
       return new Response(
@@ -42,10 +58,19 @@ export const POST: APIRoute = async ({ request , locals }) => {
       );
     }
 
-    const customer = await getOrCreateCustomer({
-      brand: process.env.BRAND || 'mentolder', name, email, company,
-      isTestData,
-    });
+    const brand = process.env.BRAND || 'mentolder';
+    let customer: { id: string } | null;
+    if (klient) {
+      const e = rechnungsempfaenger(klient);
+      customer = await createCustomer({
+        brand, name: e.name, email: e.email, company: e.company ?? undefined,
+        addressLine1: e.addressLine1 ?? undefined, postalCode: e.postalCode ?? undefined,
+        city: e.city ?? undefined, vatNumber: e.vatNumber ?? undefined, isTestData,
+      });
+      await verknuepfeRechnungskunde(customer.id, klient.id);
+    } else {
+      customer = await getOrCreateCustomer({ brand, name, email, company, isTestData });
+    }
 
     if (!customer) {
       return new Response(
