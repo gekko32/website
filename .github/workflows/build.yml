@@ -32,8 +32,19 @@ jobs:
         run: npm install -g pnpm@10.15.0
       - name: Abhängigkeiten
         run: pnpm install --frozen-lockfile
+      # Ausgenommen (19.10.2026), weil sie Patricks Gesamt-Repo voraussetzen, nicht
+      # die Website selbst:
+      # - ki-services-wiring: prüft Dateien, die es im Stand f3ceec26a nicht gibt
+      # - agentGuide*: vergleicht mit Dateien, die nur „task freshness:regenerate“ im Monorepo erzeugt
+      # - e2e-marker-hygiene: liest ../tests/e2e (Monorepo-Wurzel)
       - name: Unit-Tests
-        run: pnpm exec vitest run
+        run: >-
+          pnpm exec vitest run
+          --exclude 'src/lib/ki-services-wiring.test.ts'
+          --exclude 'src/lib/agentGuide.test.ts'
+          --exclude 'src/lib/agentGuideSearch.test.ts'
+          --exclude 'tests/e2e-marker-hygiene.test.ts'
+          --exclude '**/node_modules/**'
 
   build:
     name: Bauen und hochladen
