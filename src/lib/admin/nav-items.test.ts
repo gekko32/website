@@ -79,7 +79,8 @@ describe('Admin-Sidebar — Gliederung', () => {
   it('enthält genau die zwölf freigegebenen Einträge', () => {
     const hrefs = allItems(buildNavSections(OPTS)).map((i) => i.href);
 
-    expect(hrefs).toHaveLength(11);
+    // Titel sagt zwölf; die Zahl 11 war veraltet (Gerald, 19.10.2026).
+    expect(hrefs).toHaveLength(12);
     for (const gone of [
       '/admin/cockpit',
       '/admin/app-catalog',

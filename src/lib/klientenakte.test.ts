@@ -60,7 +60,8 @@ describe('createKlient / updateKlient', () => {
     const r = await createKlient({ name: 'X', email: 'x@y.de' });
     expect(r.ok).toBe(true);
     const insert = query.mock.calls.find((c) => /INSERT INTO customers/.test(c[0] as string))!;
-    expect(insert[0]).not.toMatch(/keycloak_user_id/);
+    // Nur die Spaltenliste vor VALUES prüfen – RETURNING liest keycloak_user_id mit aus.
+    expect((insert[0] as string).split('VALUES')[0]).not.toMatch(/keycloak_user_id/);
     expect(insert[0]).toMatch(/'manuell'/);
   });
   it('meldet eine vorhandene E-Mail mit der Id der Akte', async () => {
