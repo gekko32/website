@@ -42,7 +42,8 @@
         vorhandenId = data.vorhandenId ?? '';
         return;
       }
-      if (klientId) { meldung = 'Gespeichert.'; }
+      // Seite neu laden, damit „Rechnung geht an“ und Kopfzeile den neuen Stand zeigen.
+      if (klientId) { meldung = 'Gespeichert.'; setTimeout(() => window.location.reload(), 600); }
       else { window.location.href = `/admin/klienten/${data.id}`; }
     } catch {
       fehler = 'Netzwerkfehler. Bitte erneut versuchen.';
