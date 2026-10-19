@@ -7,15 +7,24 @@ import {
 } from '../../../lib/stripe-billing';
 import type { ServiceKey } from '../../../lib/stripe-billing';
 import { isE2ETestRequest } from '../../../lib/e2e-marker';
+import { getSession, isAdmin } from '../../../lib/auth';
 
 export const POST: APIRoute = async ({ request , locals }) => {
+  // Nur für Admins (Befund R5, Gerald 19.10.2026): vorher legte diese Schnittstelle
+  // ohne Anmeldung Rechnungskunden und Rechnungsentwürfe an.
+  const session = await getSession(request.headers.get('cookie'));
+  if (!session || !isAdmin(session)) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401, headers: { 'Content-Type': 'application/json' },
+    });
+  }
   try {
     // T015362: Testkontext erkennen und auf den erzeugten Zeilen markieren,
     // damit der Purge-Pfad sie entfernen kann (fail-closed, siehe e2e-marker).
     const isTestData = isE2ETestRequest(request);
     const body = await request.json();
     const {
-      name, email, company,
+      name, email, company, notes, leistungsdatum,
       serviceKey, quantity, asQuote, sendEmail: shouldSendEmail,
     } = body;
 
@@ -64,6 +73,8 @@ export const POST: APIRoute = async ({ request , locals }) => {
       serviceKey: key,
       quantity: quantity || 1,
       sendEmail: shouldSendEmail !== false,
+      notes: typeof notes === 'string' ? notes : undefined,
+      leistungsdatum: typeof leistungsdatum === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(leistungsdatum) ? leistungsdatum : undefined,
       isTestData,
     });
 

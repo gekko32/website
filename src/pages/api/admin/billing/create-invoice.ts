@@ -17,7 +17,7 @@ export const POST: APIRoute = async ({ request , locals }) => {
       name, email, company, addressLine1, city, postalCode, vatNumber,
       lines, notes, servicePeriodStart, servicePeriodEnd, leitwegId,
       currency, supplyType, kind, parentInvoiceId,
-      dueDays = 14, taxMode = 'regelbesteuerung', taxRate = 19
+      dueDays = 14, taxRate = 19
     } = body;
 
     if (!name || !email || !lines || !Array.isArray(lines)) {
@@ -39,7 +39,7 @@ export const POST: APIRoute = async ({ request , locals }) => {
       customerId: customer.id,
       issueDate: new Date().toISOString().split('T')[0],
       dueDays,
-      taxMode,
+      // taxMode bewusst nicht aus der Anfrage: zentrale Einstellung (Befund R3).
       taxRate,
       lines: lines as InvoiceLine[],
       notes,

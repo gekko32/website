@@ -28,12 +28,16 @@
     <div class="tax-bar-fill" style="width:{pct}%; background:{color};"></div>
   </div>
   {#if status.status === 'warning'}
-    <p class="tax-alert" style="color:#f59e0b;">⚠ Näherung an 25.000 €-Grenze (§ 19 UStG). Steuerberater informieren.</p>
+    <p class="tax-alert" style="color:#f59e0b;">⚠ Näherung an 25.000 € (§ 19 UStG). Wird die Grenze dieses Jahr überschritten, gilt ab 1. Januar die Regelbesteuerung.</p>
   {:else if status.status === 'exceeded'}
-    <p class="tax-alert" style="color:#ef4444;">🚨 25.000 €-Grenze überschritten — System auf Regelbesteuerung umgestellt.</p>
+    <p class="tax-alert" style="color:#f59e0b;">⚠ 25.000 € überschritten. Dieses Jahr bleibt § 19 UStG – ab 1. Januar {(status.year as number) + 1} Regelbesteuerung (stellt sich dann automatisch um).</p>
   {:else if status.status === 'hard'}
-    <p class="tax-alert" style="color:#ef4444;">🚨 100.000 €-Grenze überschritten — Pflicht zur sofortigen Regelbesteuerung.</p>
+    <p class="tax-alert" style="color:#ef4444;">🚨 100.000 € überschritten — Regelbesteuerung gilt sofort.</p>
   {/if}
+  {#if (status.prevYearRevenue as number) > (status.thresholdKlein as number)}
+    <p class="tax-alert" style="color:#ef4444;">Vorjahr {fmt(status.prevYearRevenue as number)} — über 25.000 €: in diesem Jahr keine Kleinunternehmerregelung.</p>
+  {/if}
+  <p class="tax-alert" style="color:var(--mute);">Gezählt werden nur Rechnungen dieser Plattform. Umsätze außerhalb bitte selbst mitrechnen.</p>
 </div>
 {/if}
 

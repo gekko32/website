@@ -42,28 +42,64 @@ export async function getYearRevenue(brand: string, year: number): Promise<numbe
   return Number(r.rows[0].total);
 }
 
+/**
+ * Einstufung des Umsatzes im LAUFENDEN Jahr (Anzeige).
+ * § 19 UStG ab 1.1.2025: „überstiegen“ = strikt größer.
+ * - Warning:      nähert sich 25.000 € (betrifft das FOLGEJAHR)
+ * - Exceeded:     > 25.000 € → dieses Jahr bleibt § 19, ab 1.1. Folgejahr Regelbesteuerung
+ * - HardExceeded: > 100.000 € → Regelbesteuerung sofort
+ */
 export function checkThreshold(revenue: number): TaxThresholdStatus {
-  if (revenue >= THRESHOLD_HARD)    return TaxThresholdStatus.HardExceeded;
-  if (revenue >= THRESHOLD_KLEIN)   return TaxThresholdStatus.Exceeded;
+  if (revenue > THRESHOLD_HARD)     return TaxThresholdStatus.HardExceeded;
+  if (revenue > THRESHOLD_KLEIN)    return TaxThresholdStatus.Exceeded;
   if (revenue >= THRESHOLD_WARNING) return TaxThresholdStatus.Warning;
   return TaxThresholdStatus.Safe;
 }
 
-export async function checkAndApplyTaxModeSwitch(brand: string, invoiceId: string): Promise<boolean> {
+/**
+ * § 19 UStG in der Fassung ab 1.1.2025 (Gerald, 19.10.2026 – vorher galt hier
+ * fälschlich 25.000 € im laufenden Jahr als Umstellungsgrund):
+ * Kleinunternehmer bleibt, wessen Gesamtumsatz im VORJAHR 25.000 € nicht
+ * überstieg und im LAUFENDEN Jahr 100.000 € nicht übersteigt.
+ *
+ * Die Plattform kennt nur ihre eigenen Rechnungen – die Summen sind also eine
+ * Untergrenze des Gesamtumsatzes. Verletzt schon diese Untergrenze die Regel,
+ * ist die Umstellung sicher richtig; deshalb wird nur dann automatisch
+ * umgestellt. Liegen weitere Umsätze außerhalb der Plattform vor, muss die
+ * Steuerart von Hand in den Einstellungen umgestellt werden.
+ */
+export function mussRegelbesteuern(vorjahr: number, laufend: number): boolean {
+  return vorjahr > THRESHOLD_KLEIN || laufend > THRESHOLD_HARD;
+}
+
+export async function checkAndApplyTaxModeSwitch(brand: string, invoiceId: string | null): Promise<boolean> {
   const year = new Date().getFullYear();
-  const revenue = await getYearRevenue(brand, year);
-  const status  = checkThreshold(revenue);
-  if (status === TaxThresholdStatus.Exceeded || status === TaxThresholdStatus.HardExceeded) {
-    const current = await getTaxMode(brand);
-    if (current === 'kleinunternehmer') {
-      await setTaxMode(brand, 'regelbesteuerung', {
-        triggerInvoiceId: invoiceId, yearRevenue: revenue,
-        notes: `Automatischer Wechsel: Jahresumsatz ${revenue.toFixed(2)} € ≥ ${THRESHOLD_KLEIN} € (§ 19 UStG 2025)`,
-      });
-      return true;
-    }
-  }
-  return false;
+  const [vorjahr, laufend] = await Promise.all([
+    getYearRevenue(brand, year - 1),
+    getYearRevenue(brand, year),
+  ]);
+  if (!mussRegelbesteuern(vorjahr, laufend)) return false;
+  const current = await getTaxMode(brand);
+  if (current !== 'kleinunternehmer') return false;
+  const grund = vorjahr > THRESHOLD_KLEIN
+    ? `Vorjahresumsatz ${vorjahr.toFixed(2)} € > ${THRESHOLD_KLEIN} €`
+    : `Jahresumsatz ${laufend.toFixed(2)} € > ${THRESHOLD_HARD} €`;
+  await setTaxMode(brand, 'regelbesteuerung', {
+    triggerInvoiceId: invoiceId ?? undefined, yearRevenue: laufend,
+    notes: `Automatischer Wechsel: ${grund} (§ 19 UStG ab 2025)`,
+  });
+  return true;
+}
+
+/**
+ * Die eine gültige Steuerart für neue Rechnungen: wendet zuerst die
+ * automatische Umstellung an und liest dann die Einstellung. Alle
+ * Rechnungswege (Formular, Buchung, Schnittstelle) müssen hierüber gehen,
+ * damit ein Kleinunternehmer nie versehentlich Umsatzsteuer ausweist (§ 14c UStG).
+ */
+export async function resolveEffectiveTaxMode(brand: string): Promise<'kleinunternehmer' | 'regelbesteuerung'> {
+  await checkAndApplyTaxModeSwitch(brand, null);
+  return getTaxMode(brand);
 }
 
 export async function getMonthlyBreakdown(brand: string, year: number): Promise<{

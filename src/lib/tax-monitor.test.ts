@@ -15,6 +15,7 @@ vi.mock('./website-db', () => ({
 import {
   getTaxMode, setTaxMode, getYearRevenue, checkThreshold, TaxThresholdStatus,
   checkAndApplyTaxModeSwitch, getMonthlyBreakdown, getUstvaExport,
+  mussRegelbesteuern, resolveEffectiveTaxMode,
   THRESHOLD_KLEIN, THRESHOLD_HARD,
 } from './tax-monitor';
 
@@ -32,12 +33,26 @@ it('returns 0 revenue for an empty brand', async () => {
   expect(r).toBe(0);
 });
 
-it('correctly classifies threshold status', () => {
+it('classifies current-year revenue (§ 19 UStG ab 2025: „überstiegen“ = strikt größer)', () => {
   expect(checkThreshold(0)).toBe(TaxThresholdStatus.Safe);
   expect(checkThreshold(20000)).toBe(TaxThresholdStatus.Warning);
-  expect(checkThreshold(24999)).toBe(TaxThresholdStatus.Warning);
-  expect(checkThreshold(25000)).toBe(TaxThresholdStatus.Exceeded);
+  expect(checkThreshold(25000)).toBe(TaxThresholdStatus.Warning);
+  expect(checkThreshold(25000.01)).toBe(TaxThresholdStatus.Exceeded);
+  expect(checkThreshold(100000)).toBe(TaxThresholdStatus.Exceeded);
   expect(checkThreshold(100001)).toBe(TaxThresholdStatus.HardExceeded);
+});
+
+describe('mussRegelbesteuern (§ 19 UStG ab 2025)', () => {
+  it('bleibt Kleinunternehmer bei > 25.000 € im laufenden Jahr, wenn das Vorjahr darunter lag', () => {
+    expect(mussRegelbesteuern(10000, 40000)).toBe(false);
+    expect(mussRegelbesteuern(25000, 100000)).toBe(false);
+  });
+  it('Regelbesteuerung, wenn das Vorjahr 25.000 € überstieg', () => {
+    expect(mussRegelbesteuern(25000.01, 0)).toBe(true);
+  });
+  it('Regelbesteuerung sofort, wenn das laufende Jahr 100.000 € übersteigt', () => {
+    expect(mussRegelbesteuern(0, 100000.01)).toBe(true);
+  });
 });
 
 describe('getTaxMode', () => {
@@ -99,20 +114,29 @@ describe('getYearRevenue', () => {
 });
 
 describe('checkAndApplyTaxModeSwitch', () => {
-  it('returns false and does not switch when revenue is below the threshold', async () => {
-    query.mockResolvedValueOnce({ rows: [{ total: '5000' }] }); // getYearRevenue
+  const umsatz = (vorjahr: number, laufend: number) => {
+    const year = new Date().getFullYear();
+    query.mockImplementation(async (sql: string, params: unknown[]) => {
+      if (/SUM\(net_amount\)/.test(sql)) {
+        return { rows: [{ total: String(params[1] === year - 1 ? vorjahr : laufend) }] };
+      }
+      return { rows: [] };
+    });
+  };
+
+  it('stellt NICHT um, wenn nur das laufende Jahr 25.000 € übersteigt (altes Recht)', async () => {
+    umsatz(0, 30000);
     const out = await checkAndApplyTaxModeSwitch('mentolder', 'inv-1');
     expect(out).toBe(false);
     expect(setSiteSetting).not.toHaveBeenCalled();
     expect(getSiteSetting).not.toHaveBeenCalled();
   });
 
-  it('switches to regelbesteuerung once revenue crosses THRESHOLD_KLEIN', async () => {
-    query.mockResolvedValueOnce({ rows: [{ total: String(THRESHOLD_KLEIN) }] }); // getYearRevenue
+  it('stellt um, wenn der Vorjahresumsatz 25.000 € überstieg', async () => {
+    umsatz(THRESHOLD_KLEIN + 1, 0);
     getSiteSetting
-      .mockResolvedValueOnce('kleinunternehmer') // getTaxMode inside checkAndApplyTaxModeSwitch
-      .mockResolvedValueOnce('kleinunternehmer'); // getTaxMode inside setTaxMode
-    query.mockResolvedValueOnce({ rows: [] }); // INSERT tax_mode_changes
+      .mockResolvedValueOnce('kleinunternehmer') // getTaxMode in checkAndApplyTaxModeSwitch
+      .mockResolvedValueOnce('kleinunternehmer'); // getTaxMode in setTaxMode
     const out = await checkAndApplyTaxModeSwitch('mentolder', 'inv-1');
     expect(out).toBe(true);
     expect(setSiteSetting).toHaveBeenCalledWith('mentolder', 'tax_mode', 'regelbesteuerung');
@@ -120,16 +144,32 @@ describe('checkAndApplyTaxModeSwitch', () => {
     expect(insertCall).toBeDefined();
     const params = insertCall![1] as unknown[];
     expect(params[3]).toBe('inv-1');
-    expect(params[4]).toBe(THRESHOLD_KLEIN);
-    expect(params[5]).toMatch(/Automatischer Wechsel/);
+    expect(params[5]).toMatch(/Automatischer Wechsel: Vorjahresumsatz/);
   });
 
-  it('does not switch again once already on regelbesteuerung', async () => {
-    query.mockResolvedValueOnce({ rows: [{ total: String(THRESHOLD_HARD + 1) }] });
+  it('stellt sofort um, wenn das laufende Jahr 100.000 € übersteigt', async () => {
+    umsatz(0, THRESHOLD_HARD + 1);
+    getSiteSetting.mockResolvedValueOnce('kleinunternehmer').mockResolvedValueOnce('kleinunternehmer');
+    const out = await checkAndApplyTaxModeSwitch('mentolder', null);
+    expect(out).toBe(true);
+    const insertCall = query.mock.calls.find((c) => /INSERT INTO tax_mode_changes/.test(c[0] as string));
+    expect((insertCall![1] as unknown[])[3]).toBeNull();
+  });
+
+  it('stellt nicht erneut um, wenn schon Regelbesteuerung gilt', async () => {
+    umsatz(THRESHOLD_KLEIN + 1, THRESHOLD_HARD + 1);
     getSiteSetting.mockResolvedValueOnce('regelbesteuerung');
     const out = await checkAndApplyTaxModeSwitch('mentolder', 'inv-1');
     expect(out).toBe(false);
     expect(setSiteSetting).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolveEffectiveTaxMode', () => {
+  it('liefert die Einstellung nach Anwendung der Regeln', async () => {
+    query.mockImplementation(async () => ({ rows: [{ total: '0' }] }));
+    getSiteSetting.mockResolvedValueOnce('kleinunternehmer');
+    expect(await resolveEffectiveTaxMode('mentolder')).toBe('kleinunternehmer');
   });
 });
 

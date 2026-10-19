@@ -255,6 +255,9 @@ export async function generateInvoicePdf(p: {
       metaDates.push(['Leistung', inv.servicePeriodEnd
         ? `${fd(inv.servicePeriodStart)}–${fd(inv.servicePeriodEnd)}`
         : fd(inv.servicePeriodStart)]);
+    } else {
+      // Leistungszeitpunkt ist Pflichtangabe (§ 14 Abs. 4 Nr. 6 UStG, Befund R7).
+      metaDates.push(['Leistung', 'wie Rechnungsdatum']);
     }
     let ry = 65;
     for (const [lbl, val] of metaDates) {
@@ -288,6 +291,13 @@ export async function generateInvoicePdf(p: {
     } else if (seller.vatId) {
       doc.font('Helvetica').fontSize(7).fillColor(C.inkMute)
          .text(`USt-IdNr.: ${seller.vatId}`, L, sy, { width: 240 });
+      sy = doc.y;
+    }
+    // Steuernummer oder USt-IdNr. ist Pflichtangabe (§ 14 Abs. 4 Nr. 2 UStG) –
+    // vorher fehlte die Steuernummer im PDF, nur die HTML-Fassung zeigte sie (Befund R7).
+    if (seller.taxNumber && (isKlein || !seller.vatId)) {
+      doc.font('Helvetica').fontSize(7).fillColor(C.inkMute)
+         .text(`Steuernr.: ${seller.taxNumber}`, L, sy, { width: 240 });
       sy = doc.y;
     }
 

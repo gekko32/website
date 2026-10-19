@@ -231,6 +231,9 @@ export async function createBillingInvoice(params: {
   serviceKey: ServiceKey;
   quantity?: number;
   sendEmail?: boolean;
+  /** Leistungsdatum (YYYY-MM-DD), z. B. Termin der Buchung; Pflichtangabe nach § 14 UStG. */
+  leistungsdatum?: string;
+  notes?: string;
   /** T015362: E2E/Systemtest-Kontext → is_test_data=true (Purge-Pfad). */
   isTestData?: boolean;
 }): Promise<BillingInvoice> {
@@ -256,14 +259,15 @@ export async function createBillingInvoice(params: {
     customerId: params.customerId,
     issueDate: new Date().toISOString().split('T')[0],
     dueDays: 14,
-    taxMode: 'regelbesteuerung',
-    taxRate: 19,
+    // Steuerart kommt zentral aus der Einstellung (Befund R3) – vorher fest 19 % USt.
     lines: [{
       description: service.name,
       quantity,
       unitPrice: unitPriceEur,
       unit: service.unit,
     }],
+    servicePeriodStart: params.leistungsdatum,
+    notes: params.notes,
     isTestData: params.isTestData,
   });
 

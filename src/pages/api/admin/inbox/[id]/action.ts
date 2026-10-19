@@ -163,7 +163,11 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
           try {
             const billingCustomer = await getOrCreateCustomer({ brand, name: p.name, email: p.email });
             if (billingCustomer) {
-              const invoice = await createBillingInvoice({ customerId: billingCustomer.id, serviceKey: svcKey });
+              const invoice = await createBillingInvoice({
+                customerId: billingCustomer.id, serviceKey: svcKey,
+                // Leistungsdatum = Termin (Pflichtangabe § 14 UStG, Befund R7)
+                leistungsdatum: typeof p.date === 'string' ? p.date : undefined,
+              });
               statusParts.push(`Rechnung erstellt: ${invoice.number}`);
               if (calEvent) {
                 await setBookingInvoice(calEvent.uid, brand, invoice.id, invoice.number, invoice.amountDue).catch(err =>

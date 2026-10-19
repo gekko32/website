@@ -1,5 +1,5 @@
 import { pool, initBillingTables, getNextInvoiceNumber } from './website-db';
-import { checkAndApplyTaxModeSwitch } from './tax-monitor';
+import { checkAndApplyTaxModeSwitch, resolveEffectiveTaxMode } from './tax-monitor';
 import { canonicalInvoiceForHash, sha256Hex, type HashableLine } from './invoice-hash';
 import { logBillingEvent, type BillingActor } from './billing-audit';
 import { validateLeitwegId, formatLeitwegId } from './leitweg';
@@ -82,7 +82,9 @@ import type { Invoice, InvoiceLine } from './invoice-types';
 
 export async function createInvoice(params: {
   brand: string; customerId: string; issueDate: string; dueDays: number;
-  taxMode: 'kleinunternehmer' | 'regelbesteuerung';
+  /** Weglassen = zentrale Einstellung (resolveEffectiveTaxMode). Übergeben nur, wo eine
+   *  bestehende Rechnung fortgeführt wird (z. B. Schlussrechnung zu einer Anzahlung). */
+  taxMode?: 'kleinunternehmer' | 'regelbesteuerung';
   taxRate?: number; lines: InvoiceLine[]; notes?: string;
   servicePeriodStart?: string; servicePeriodEnd?: string;
   leitwegId?: string;
@@ -94,6 +96,9 @@ export async function createInvoice(params: {
   isTestData?: boolean;
 }): Promise<Invoice> {
   await initBillingTables();
+  // Eine Steuerart für alle Rechnungswege (Befund R3, Gerald 19.10.2026):
+  // sonst weist ein Kleinunternehmer womöglich USt aus und schuldet sie (§ 14c UStG).
+  const taxMode = params.taxMode ?? await resolveEffectiveTaxMode(params.brand);
   // Reverse charge enforcement
   let p = params;
   const hasAeLines = (p.lines as Array<InvoiceLine & { taxCategory?: string }>)
@@ -119,7 +124,7 @@ export async function createInvoice(params: {
   dueDate.setDate(dueDate.getDate() + p.dueDays);
 
   const netAmount = p.lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
-  const taxRate   = p.taxMode === 'kleinunternehmer' ? 0 : (p.taxRate ?? 19);
+  const taxRate   = taxMode === 'kleinunternehmer' ? 0 : (p.taxRate ?? 19);
   const taxAmount = Math.round(netAmount * (taxRate / 100) * 100) / 100;
   const grossAmount = netAmount + taxAmount;
   const netAmountEur  = currencyRate !== null ? Math.round(netAmount * currencyRate * 100) / 100 : netAmount;
@@ -140,7 +145,7 @@ export async function createInvoice(params: {
       [p.brand, number, p.customerId, p.issueDate,
        dueDate.toISOString().split('T')[0],
        p.servicePeriodStart??null, p.servicePeriodEnd??null,
-       p.taxMode, netAmount, taxRate, taxAmount, grossAmount,
+       taxMode, netAmount, taxRate, taxAmount, grossAmount,
        p.notes??null, paymentRef, p.leitwegId??null,
        currency, currencyRate, netAmountEur, grossAmountEur, p.supplyType??null,
        kind, p.parentInvoiceId??null, p.isTestData ?? false]

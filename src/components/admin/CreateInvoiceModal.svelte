@@ -54,6 +54,9 @@
 
   // ── Misc ─────────────────────────────────────────────────────────────────
   let notes = $state('');
+  // Leistungsdatum (Pflichtangabe § 14 UStG, Befund R7) – Vorgabe: heute
+  const heute = () => new Date().toISOString().slice(0, 10);
+  let leistungsdatum = $state(heute());
   let sendEmail = $state(true);
   let submitting = $state(false);
   let error = $state('');
@@ -109,6 +112,7 @@
     selectedKey = (serviceOptions.find(s => s.cents > 0) ?? serviceOptions[0])?.key ?? '';
     quantity = 1;
     notes = '';
+    leistungsdatum = heute();
     sendEmail = true;
     error = '';
     success = '';
@@ -168,6 +172,7 @@
         serviceKey: selectedKey,
         quantity,
         notes: notes.trim() || undefined,
+        leistungsdatum: leistungsdatum || undefined,
         asQuote,
         sendEmail,
       };
@@ -323,6 +328,16 @@
         <div class="flex items-center justify-between px-4 py-3 bg-dark-light rounded-xl border border-dark-lighter">
           <span class="text-sm text-muted">Gesamtbetrag</span>
           <span class="text-xl font-bold text-gold">{fmtTotal}</span>
+        </div>
+
+        <!-- Leistungsdatum -->
+        <div>
+          <label class="block text-xs text-muted uppercase tracking-wide mb-1">Leistungsdatum</label>
+          <input
+            type="date"
+            bind:value={leistungsdatum}
+            class="w-full px-3 py-2 bg-dark-light border border-dark-lighter rounded-lg text-sm text-light focus:outline-none focus:border-gold/50"
+          />
         </div>
 
         <!-- Notes -->
