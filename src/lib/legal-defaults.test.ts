@@ -29,6 +29,15 @@ describe('getDefaultAgb', () => {
     expect(html).toContain('§ 19 UStG');
     expect(html).toContain('14 Tagen');
   });
+
+  it('nennt 24-Stunden-Absagefrist, Widerrufsbelehrung und keine Nettopreise', () => {
+    const html = getDefaultAgb();
+    expect(html).toContain('24 Stunden');
+    expect(html).toContain('id="widerruf"');
+    expect(html).toContain('Muster-Widerrufsformular');
+    expect(html).not.toContain('Nettopreise');
+    expect(html).not.toContain('48 Stunden');
+  });
 });
 
 describe('getDefaultBarrierefreiheit', () => {
