@@ -6,7 +6,8 @@ import KlientFormular from '../../../components/admin/KlientFormular.svelte';
 import CreateInvoiceModal from '../../../components/admin/CreateInvoiceModal.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
-import { leistungsOptionen } from '../../../lib/billing-leistungen';
+import { leistungsOptionen, listeLeistungen, preisAnzeige } from '../../../lib/billing-leistungen';
+import { postenDesKlienten, postenBetrag, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten } from '../../../lib/billing-posten';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -24,6 +25,26 @@ const datum = (d: string | Date | null) => d ? new Date(d).toLocaleDateString('d
 const zeit = (d: string | Date | null) => d ? new Date(d).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '–';
 const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
 const STATUS: Record<string, string> = { draft: 'Entwurf', open: 'offen', paid: 'bezahlt', void: 'storniert', uncollectible: 'uneinbringlich' };
+
+// Rechnungswesen Stufe 3, T5: Abrechnungsposten und „Sitzung erfassen“ (K11, K14, K16).
+const [posten, aktiveLeistungen] = await Promise.all([
+  postenDesKlienten(brand, klient.id).catch((): Posten[] => []),
+  listeLeistungen(brand, { nurAktiv: true }).catch(() => []),
+]);
+const offene = posten.filter((p) => p.zustand === 'offen');
+const offenSumme = offene.reduce((s, p) => Math.round((s + postenBetrag(p)) * 100) / 100, 0);
+const q = Astro.url.searchParams;
+function jsonParam<T>(name: string, fallback: T): T {
+  try { return JSON.parse(q.get(name) ?? '') as T; } catch { return fallback; }
+}
+const sfRoh = jsonParam<{ key: string; meldung: string }[]>('sitzungFehler', []);
+const sitzungFehler = Array.isArray(sfRoh) ? sfRoh.filter((x) => x && typeof x.key === 'string' && typeof x.meldung === 'string') : [];
+const seRoh = jsonParam<Record<string, string | boolean>>('sitzungEingabe', {});
+const se = seRoh && typeof seRoh === 'object' && !Array.isArray(seRoh) ? seRoh : {};
+const sfFuer = (k: string) => sitzungFehler.find((f) => f.key === k)?.meldung;
+const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+const postenGespeichert = q.get('gespeichert') === '1';
+const postenFehler = q.get('fehler');
 ---
 
 <AdminLayout title={`Akte ${klient.name}`}>
@@ -50,6 +71,76 @@ const STATUS: Record<string, string> = { draft: 'Entwurf', open: 'offen', paid: 
         {empfaenger.company && <span class="text-muted"> (z. Hd. {empfaenger.name})</span>}
         <br /><span class="text-muted">{[empfaenger.addressLine1, [empfaenger.postalCode, empfaenger.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Anschrift fehlt noch'} · {empfaenger.email}</span>
       </p>
+    </section>
+
+    <section id="abrechnung" class="mb-8">
+      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">
+        Abrechnung · offen: {offene.length} {offene.length === 1 ? 'Posten' : 'Posten'} · {euro(offenSumme)}
+      </h2>
+      {postenGespeichert && <p class="text-sm text-green-400 mb-2">Gespeichert.</p>}
+      {postenFehler && <p role="alert" class="text-sm text-red-400 mb-2">{postenFehler}</p>}
+
+      {posten.length === 0 ? <p class="text-sm text-muted mb-3">Noch keine Posten.</p> :
+        <table class="w-full text-sm mb-4"><tbody>{posten.map((p) => (
+          <tr class={`border-t border-dark-lighter ${p.zustand === 'offen' ? '' : 'opacity-60'}`}>
+            <td class="py-1 pr-3 whitespace-nowrap">{datum(p.datum)}</td>
+            <td class="py-1 pr-3">{p.text}<br /><span class="text-xs text-muted">{HERKUNFT_TEXT[p.herkunft]}{p.notiz ? ` · ${p.notiz}` : ''}</span></td>
+            <td class="py-1 pr-3 text-right whitespace-nowrap text-muted">{p.menge.toLocaleString('de-DE')} × {euro(p.einzelpreis)}</td>
+            <td class="py-1 pr-3 text-right whitespace-nowrap">{euro(postenBetrag(p))}</td>
+            <td class="py-1 pr-3 text-muted whitespace-nowrap">{ZUSTAND_TEXT[p.zustand]}</td>
+            <td class="py-1 text-right">
+              {(p.zustand === 'offen' || p.zustand === 'nicht_abrechnen') && (
+                <form method="POST" action="/api/admin/posten" style="display:inline;">
+                  <input type="hidden" name="postenId" value={p.id} />
+                  <input type="hidden" name="aktion" value={p.zustand === 'offen' ? 'nicht_abrechnen' : 'abrechnen'} />
+                  <button type="submit" class="px-2 py-1 rounded border border-dark-lighter text-xs">
+                    {p.zustand === 'offen' ? 'Nicht abrechnen' : 'Doch abrechnen'}
+                  </button>
+                </form>
+              )}
+            </td>
+          </tr>))}</tbody></table>}
+
+      <details class="border border-dark-lighter rounded-xl p-4" open={sitzungFehler.length > 0}>
+        <summary class="cursor-pointer text-sm font-semibold text-gold">Sitzung erfassen</summary>
+        <form method="POST" action="/api/admin/posten" class="mt-4 grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">
+          <input type="hidden" name="aktion" value="sitzung" />
+          <input type="hidden" name="klientId" value={klient.id} />
+          {sitzungFehler.length > 0 && <p role="alert" class="text-sm text-red-400" style="grid-column:1/-1;">Nicht gespeichert. Bitte die markierten Felder korrigieren.</p>}
+          <label class="text-xs text-muted">Datum
+            <input type="date" name="datum" required value={String(se.datum ?? heute)} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+            {sfFuer('datum') && <span class="block text-red-400">{sfFuer('datum')}</span>}
+          </label>
+          <label class="text-xs text-muted" style="grid-column:span 2;">Leistung
+            <select name="leistungKey" required class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light">
+              <option value="">– wählen –</option>
+              {aktiveLeistungen.map((l) => (
+                <option value={l.key} selected={se.leistungKey === l.key}>
+                  {l.name} ({l.preis === null ? 'Preis eintragen' : `${preisAnzeige({ preis: l.preis, nachVereinbarung: false })}${l.einheit ? ' / ' + l.einheit : ''}`})
+                </option>))}
+            </select>
+            {sfFuer('leistungKey') && <span class="block text-red-400">{sfFuer('leistungKey')}</span>}
+          </label>
+          <label class="text-xs text-muted">Menge
+            <input name="menge" inputmode="decimal" required value={String(se.menge ?? '1')} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+            {sfFuer('menge') && <span class="block text-red-400">{sfFuer('menge')}</span>}
+          </label>
+          <label class="text-xs text-muted">Preis je Einheit (leer = aus der Leistung)
+            <input name="preis" inputmode="decimal" value={String(se.preis ?? '')} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+            {sfFuer('preis') && <span class="block text-red-400">{sfFuer('preis')}</span>}
+          </label>
+          <label class="text-xs text-muted" style="grid-column:1/-1;">Text auf der Rechnung (leer = Name der Leistung)
+            <input name="text" maxlength="300" value={String(se.text ?? '')} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+            {sfFuer('text') && <span class="block text-red-400">{sfFuer('text')}</span>}
+          </label>
+          <label class="text-sm text-light" style="grid-column:1/-1;">
+            <input type="checkbox" name="nichtAbrechnen" checked={se.nichtAbrechnen === true} /> Nicht abrechnen (z. B. kostenloses Erstgespräch, Kulanz)
+          </label>
+          <div style="grid-column:1/-1;">
+            <button type="submit" class="px-4 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">Erfassen</button>
+          </div>
+        </form>
+      </details>
     </section>
 
     <section class="mb-8">

@@ -236,6 +236,14 @@
       "media": false
     },
     {
+      "route": "/admin/offene-posten",
+      "authTier": "admin",
+      "brand": "both",
+      "dynamic": false,
+      "excludeFromSweep": false,
+      "media": false
+    },
+    {
       "route": "/admin/leistungen",
       "authTier": "admin",
       "brand": "both",

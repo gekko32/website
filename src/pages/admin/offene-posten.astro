@@ -1,0 +1,55 @@
+---
+// Rechnungswesen Stufe 3, T5: Übersicht offener Posten je Klient (K16).
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../components/admin/ui/AdminPageHeader.svelte';
+import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
+import { alleOffenenPosten, summenJeKlient, type Posten } from '../../lib/billing-posten';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+
+const brand = process.env.BRAND || 'mentolder';
+let dbFehler = false;
+const posten: Posten[] = await alleOffenenPosten(brand).catch(() => { dbFehler = true; return []; });
+const summen = summenJeKlient(posten);
+const gesamt = summen.reduce((s, k) => Math.round((s + k.summe) * 100) / 100, 0);
+const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
+---
+
+<AdminLayout title="Offene Posten">
+  <div style="padding:2rem;max-width:960px;">
+    <AdminPageHeader title="Offene Posten"
+      description="Was erbracht, aber noch auf keiner Rechnung ist – je Klient." />
+
+    {dbFehler && <p role="alert" class="text-sm text-red-400 mb-4">Die Posten konnten gerade nicht geladen werden.</p>}
+
+    {summen.length === 0 ? (
+      <p class="text-sm text-muted">Keine offenen Posten.</p>
+    ) : (
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-xs text-muted uppercase tracking-wide">
+            <th class="py-2 pr-3">Klient</th>
+            <th class="py-2 pr-3 text-right">Posten</th>
+            <th class="py-2 pr-3 text-right">Summe</th>
+          </tr>
+        </thead>
+        <tbody>
+          {summen.map((k) => (
+            <tr class="border-t border-dark-lighter">
+              <td class="py-2 pr-3"><a class="hover:underline" href={`/admin/klienten/${k.klientId}#abrechnung`}>{k.klientName || 'ohne Namen'}</a></td>
+              <td class="py-2 pr-3 text-right">{k.anzahl}</td>
+              <td class="py-2 pr-3 text-right">{euro(k.summe)}</td>
+            </tr>
+          ))}
+          <tr class="border-t-2 border-dark-lighter font-semibold">
+            <td class="py-2 pr-3">Gesamt</td>
+            <td class="py-2 pr-3 text-right">{posten.length}</td>
+            <td class="py-2 pr-3 text-right">{euro(gesamt)}</td>
+          </tr>
+        </tbody>
+      </table>
+    )}
+  </div>
+</AdminLayout>

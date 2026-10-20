@@ -68,6 +68,7 @@ export function buildNavSections({ inboxPending, brettUrl }: NavOptions): NavSec
           matches: ['/admin/rechnungen', '/admin/billing'],
         },
         // Rechnungswesen Stufe 3 (T3): Leistungen und Preise selbst pflegen.
+        { href: '/admin/offene-posten', label: 'Offene Posten', icon: 'clock' },
         { href: '/admin/leistungen', label: 'Leistungen', icon: 'tag' },
       ],
     },
