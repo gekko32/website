@@ -115,8 +115,10 @@ function berlinWallToUtcMs(dayKey: string, minutes: number): number {
 
 let ipCounter = 0;
 
-async function postBooking(body: Record<string, unknown>): Promise<Response> {
+async function postBooking(body: Record<string, unknown>, opts: { ohneAgb?: boolean } = {}): Promise<Response> {
   ipCounter += 1;
+  // Rechnungswesen Stufe 3 (K21): Buchungen brauchen die bestätigten AGB.
+  if (!opts.ohneAgb && !('agbAkzeptiert' in body)) body = { ...body, agbAkzeptiert: true };
   const request = new Request('http://localhost/api/booking', {
     method: 'POST',
     headers: {
@@ -234,6 +236,13 @@ describe('booking route lead time and claim', () => {
     const res = await postBooking(bookingBody(new Date(Date.now() + 36 * 3600000)));
     expect(res.status).toBe(200);
     expect(mockedInbox).toHaveBeenCalledTimes(1);
+  });
+
+  it('lehnt eine Buchung ohne bestätigte AGB mit 400 ab (K21)', async () => {
+    const res = await postBooking(bookingBody(new Date(Date.now() + 36 * 3600000)), { ohneAgb: true });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toMatch(/AGB/);
+    expect(mockedInbox).not.toHaveBeenCalled();
   });
 
   it('rejects an unknown serviceKey with 400', async () => {

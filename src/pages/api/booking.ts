@@ -13,6 +13,7 @@ import { isSlotInAnyWindow, isSlotWhitelisted, claimSlot } from '../../lib/websi
 import { berlinDayKey } from '../../lib/caldav-cache';
 import { getEffectiveLeistungen } from '../../lib/content';
 import { websiteLeistungen, unbekannteBuchungsLeistung } from '../../lib/billing-leistungen';
+import { agbBestaetigt } from '../../lib/billing-ausfall';
 import { massageRowPriceLabel } from '../../lib/massage-pricing';
 import { checkRateLimit, getClientIp } from '../../lib/rate-limit';
 import { isE2ETestRequest } from '../../lib/e2e-marker';
@@ -35,7 +36,15 @@ export const POST: APIRoute = async ({ request , locals }) => {
     });
   }
   try {
-    const { name, email, phone, type, message, slotStart, slotEnd, slotDisplay, date, serviceKey, projectId, leistungKey, idempotencyKey: bodyKey } = await request.json();
+    const { name, email, phone, type, message, slotStart, slotEnd, slotDisplay, date, serviceKey, projectId, leistungKey, agbAkzeptiert, idempotencyKey: bodyKey } = await request.json();
+
+    // Rechnungswesen Stufe 3, T9 (K21): Ohne bestätigte AGB (mit Absageregel) keine Buchung.
+    if (!agbBestaetigt(agbAkzeptiert)) {
+      return new Response(
+        JSON.stringify({ error: 'Bitte bestätigen Sie die AGB.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Idempotency-Key: header wins over body (T901024). Invalid keys fail
     // with 400; a replay within 24h returns the original answer verbatim.
@@ -205,6 +214,7 @@ export const POST: APIRoute = async ({ request , locals }) => {
       serviceKey: serviceKey ?? null, serviceSnapshot,
       message: message ?? null,
       projectId: projectId ?? null, leistungKey: leistungKey ?? null,
+      agbAkzeptiertAm: new Date().toISOString(),
       token: requestToken, state: 'offen',
       idempotencyKey: idempotencyKey ?? null, slotClaimed,
     };

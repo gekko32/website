@@ -4,6 +4,7 @@
 // spätere Preisänderungen der Leistung ändern ihn nicht (K2).
 import { pool } from './website-db';
 import type { Leistung } from './billing-leistungen';
+import { verbucheAusfaelle } from './billing-ausfall';
 
 export type Herkunft = 'hand' | 'termin' | 'zeit' | 'ausfall' | 'auftrag';
 export type PostenZustand = 'offen' | 'nicht_abrechnen' | 'erlassen' | 'auf_entwurf' | 'abgerechnet';
@@ -462,6 +463,7 @@ export async function verbucheQuellen(
 ): Promise<void> {
   await verbucheVergangeneTermine(brand, findeLeistung).catch(() => 0);
   await verbucheZeiten(brand, findeLeistung).catch(() => 0);
+  await verbucheAusfaelle(brand, findeLeistung).catch(() => 0);
 }
 
 /** Preis eines offenen Postens nachtragen oder ändern (z. B. „nach Vereinbarung“). */

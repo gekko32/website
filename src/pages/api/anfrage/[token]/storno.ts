@@ -11,6 +11,8 @@ import { addSlotToWhitelist } from '../../../../lib/website-db';
 import { appendNotifyLog, notifyEntryFromResult, readNotifyLog, sendNotify } from '../../../../lib/appointment-notify';
 import { sendAdminNotification } from '../../../../lib/notifications';
 import { checkRateLimit, getClientIp } from '../../../../lib/rate-limit';
+import { ladeRegeln, REGEL_STANDARD } from '../../../../lib/billing-regeln';
+import { absageVermerk } from '../../../../lib/billing-ausfall';
 
 const BRAND = process.env.BRAND || 'mentolder';
 const BRAND_NAME = process.env.BRAND_NAME || 'Workspace';
@@ -71,10 +73,11 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       return json({ error: 'Diese Anfrage kann nicht mehr storniert werden.' }, { status: 409 });
     }
 
+    // Rechnungswesen Stufe 3, T9: Absage durch den Kunden; die geltende Ausfallregel
+    // wird festgehalten, damit spätere Regeländerungen nichts ändern.
+    const regeln = await ladeRegeln(BRAND).catch(() => REGEL_STANDARD);
     const merged = JSON.stringify({
-      state: 'storniert',
-      outcome: 'storniert',
-      cancelledAt: new Date().toISOString(),
+      ...absageVermerk('kunde', new Date(), regeln),
       cancelNote: note === '' ? null : note,
     });
     const updated = await pool.query(

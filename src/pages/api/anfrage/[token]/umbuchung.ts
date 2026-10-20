@@ -154,6 +154,8 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       outcome: 'storniert',
       cancelledAt: new Date().toISOString(),
       cancelNote: 'Durch Umbuchung ersetzt.',
+      // Rechnungswesen Stufe 3, T9: Verschieben löst kein Ausfallhonorar aus.
+      abgesagtVon: 'umbuchung',
     });
     await pool.query(
       `UPDATE inbox_items SET payload = payload || $1::jsonb,

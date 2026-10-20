@@ -45,8 +45,14 @@
   let selectedProjectId = $state('');
   let selectedLeistungKey = $state('');
   let leistungenLoaded = $state(false);
+  let absageRegel = $state<{ ausfallFrist: string; ausfallHoehe: string } | null>(null);
 
   onMount(async () => {
+    // Stufe 3, T9 (K21): Absageregel aus den Einstellungen anzeigen.
+    fetch('/api/buchungsregeln')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d && typeof d.ausfallFrist === 'string') absageRegel = d; })
+      .catch(() => { /* Regel fehlt → nur AGB-Link */ });
     try {
       const res = await fetch('/api/leistungen');
       if (res.ok) leistungenOptions = await res.json();
@@ -164,6 +170,7 @@
           serviceKey: serviceKey ?? null,
           projectId: selectedProjectId || undefined,
           leistungKey: selectedLeistungKey || undefined,
+          agbAkzeptiert: agbAccepted,
         }),
       });
 
@@ -356,6 +363,12 @@
         </div>
       {/if}
 
+      {#if absageRegel}
+        <p class="bf-submit-note" data-testid="absageregel">
+          Kostenfreie Absage bis {absageRegel.ausfallFrist} Stunden vor dem Termin. Bei späterer Absage oder Nichterscheinen
+          fällt ein Ausfallhonorar in Höhe {absageRegel.ausfallHoehe} an (siehe <a href="/agb" target="_blank">AGB</a>).
+        </p>
+      {/if}
       <div class="bf-agb-row">
         <input id="b-agb" type="checkbox" bind:checked={agbAccepted} required class="bf-checkbox" />
         <label for="b-agb" class="bf-agb-label">

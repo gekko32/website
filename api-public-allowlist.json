@@ -6,6 +6,7 @@
   { "path": "/api/auth/logout", "methods": ["GET"], "reason": "baseline — not individually audited" },
   { "path": "/api/auth/magic", "methods": ["GET"], "reason": "baseline — not individually audited" },
   { "path": "/api/booking", "methods": ["POST"], "reason": "baseline — not individually audited" },
+  { "path": "/api/buchungsregeln", "methods": ["GET"], "reason": "public read-only — Absagefrist und Ausfallhöhe, stehen ohnehin in den AGB (Rechnungswesen Stufe 3, K21)" },
   { "path": "/api/brett/bot", "methods": ["POST"], "reason": "baseline — not individually audited" },
   { "path": "/api/bug-report", "methods": ["POST"], "reason": "baseline — not individually audited" },
   { "path": "/api/calendar/slots", "methods": ["GET"], "reason": "baseline — not individually audited" },

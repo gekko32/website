@@ -8,6 +8,7 @@ import {
   aenderePosition, klientDesAuftrags, klientDesPostens, legeAuftragAn, legePositionAn, legeSitzungAn,
   pruefeAuftragTitel, pruefePosition, pruefePreis, pruefeSitzung, setzeAbrechnen, setzePostenPreis,
 } from '../../../lib/billing-posten';
+import { erlasseAusfall, vermerkeAbsage } from '../../../lib/billing-ausfall';
 
 export const POST: APIRoute = async ({ request, redirect }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -40,6 +41,29 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     }
     const ok = await setzePostenPreis(brand, postenId, preis);
     const hinweis = ok ? 'gespeichert=1' : `fehler=${encodeURIComponent('Dieser Posten steht schon auf einer Rechnung und lässt sich hier nicht ändern.')}`;
+    return redirect(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
+  }
+
+  // T9: Absage eines gebuchten Termins vermerken (AE8) und Ausfallhonorar erlassen (K20)
+  if (aktion === 'absage') {
+    const klient = await getKlient(text('klientId'));
+    if (!klient) return new Response('Klient nicht gefunden', { status: 404 });
+    const von = text('von');
+    if (von !== 'kunde' && von !== 'gerald' && von !== 'nicht_erschienen') return new Response('Unbekannte Absage', { status: 400 });
+    const email = await vermerkeAbsage(brand, text('terminId'), von);
+    const hinweis = email && email.toLowerCase() === klient.email.toLowerCase()
+      ? 'gespeichert=1'
+      : `fehler=${encodeURIComponent('Der Termin war schon abgesagt oder gehört nicht zu dieser Akte.')}`;
+    return redirect(`/admin/klienten/${klient.id}?${hinweis}#termine`, 303);
+  }
+
+  if (aktion === 'erlassen') {
+    const postenId = text('postenId');
+    if (!/^[0-9a-f-]{36}$/i.test(postenId)) return new Response('Posten nicht gefunden', { status: 404 });
+    const klientId = await klientDesPostens(brand, postenId);
+    if (!klientId) return new Response('Posten nicht gefunden', { status: 404 });
+    const ok = await erlasseAusfall(brand, postenId, text('grund'));
+    const hinweis = ok ? 'gespeichert=1' : `fehler=${encodeURIComponent('Nur offene Ausfallhonorare lassen sich erlassen.')}`;
     return redirect(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
   }
 

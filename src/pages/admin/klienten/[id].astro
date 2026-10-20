@@ -7,6 +7,7 @@ import CreateInvoiceModal from '../../../components/admin/CreateInvoiceModal.sve
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
 import { leistungsOptionen, listeLeistungen, preisAnzeige, holeLeistung } from '../../../lib/billing-leistungen';
+import { gebuchteTermine } from '../../../lib/billing-ausfall';
 import { postenDesKlienten, postenBetrag, verbucheQuellen, auftraegeDesKlienten, postenAenderbar, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
@@ -51,6 +52,10 @@ const auftraege = await auftraegeDesKlienten(brand, klient.id).catch((): Auftrag
 const auftragFehler = q.get('auftragFehler');
 const positionenVon = (auftragId: string) => posten.filter((p) => p.auftragId === auftragId);
 const zahlFeld = (n: number | null) => (n === null ? '' : String(n).replace('.', ','));
+// T9: gebuchte Termine mit Absage-Vermerk (AE8).
+const gebucht = await gebuchteTermine(klient.email).catch(() => []);
+const leistungsName = new Map(aktiveLeistungen.map((l) => [l.key, l.name]));
+const ABSAGE_TEXT: Record<string, string> = { kunde: 'durch Kunde', gerald: 'durch mich', nicht_erschienen: 'nicht erschienen', umbuchung: 'verschoben' };
 const postenFehler = q.get('fehler');
 ---
 
@@ -107,7 +112,15 @@ const postenFehler = q.get('fehler');
             <td class="py-1 pr-3 text-right whitespace-nowrap">{p.einzelpreis === null ? <span class="text-red-400">Preis fehlt</span> : euro(postenBetrag(p))}</td>
             <td class="py-1 pr-3 text-muted whitespace-nowrap">{ZUSTAND_TEXT[p.zustand]}</td>
             <td class="py-1 text-right">
-              {(p.zustand === 'offen' || p.zustand === 'nicht_abrechnen') && (
+              {p.herkunft === 'ausfall' && p.zustand === 'offen' ? (
+                <form method="POST" action="/api/admin/posten" class="inline-flex gap-1 items-center">
+                  <input type="hidden" name="aktion" value="erlassen" />
+                  <input type="hidden" name="postenId" value={p.id} />
+                  <input name="grund" maxlength="200" placeholder="Grund (z. B. krank)" aria-label="Grund für den Erlass"
+                    class="w-28 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-xs text-light" />
+                  <button type="submit" class="px-2 py-1 rounded border border-dark-lighter text-xs">Erlassen</button>
+                </form>
+              ) : (p.zustand === 'offen' || p.zustand === 'nicht_abrechnen') && (
                 <form method="POST" action="/api/admin/posten" style="display:inline;">
                   <input type="hidden" name="postenId" value={p.id} />
                   <input type="hidden" name="aktion" value={p.zustand === 'offen' ? 'nicht_abrechnen' : 'abrechnen'} />
@@ -212,6 +225,37 @@ const postenFehler = q.get('fehler');
           class="flex-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
         <button type="submit" class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">Auftrag anlegen</button>
       </form>
+    </section>
+
+    <section id="termine" class="mb-8">
+      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">Gebuchte Termine ({gebucht.length})</h2>
+      <p class="text-xs text-muted mb-2">Bestätigte Buchungen. Vorbei und nicht abgesagt → wird automatisch zum offenen Posten.
+        Eine Absage hier vermerken (nur für die Abrechnung, es geht keine E-Mail raus): Ausfallhonorar entsteht nur bei
+        später Absage durch den Kunden oder Nichterscheinen, nie bei eigener Absage.</p>
+      {gebucht.length === 0 ? <p class="text-sm text-muted">Keine bestätigten Buchungen.</p> :
+        <table class="w-full text-sm"><tbody>{gebucht.map((t) => (
+          <tr class={`border-t border-dark-lighter ${t.abgesagt ? 'opacity-60' : ''}`}>
+            <td class="py-1 pr-3 whitespace-nowrap">{zeit(t.start)}</td>
+            <td class="py-1 pr-3">{t.leistung ? (leistungsName.get(t.leistung) ?? t.leistung) : '–'}</td>
+            <td class="py-1 pr-3 text-muted">
+              {t.abgesagt ? `abgesagt (${ABSAGE_TEXT[t.abgesagtVon ?? 'kunde'] ?? t.abgesagtVon})${t.abgesagtAm ? ' am ' + zeit(t.abgesagtAm) : ''}`
+                : (t.ende && new Date(t.ende) < new Date() ? 'stattgefunden' : 'geplant')}
+            </td>
+            <td class="py-1 text-right">
+              {!t.abgesagt && (
+                <form method="POST" action="/api/admin/posten" class="inline-flex gap-1">
+                  <input type="hidden" name="aktion" value="absage" />
+                  <input type="hidden" name="klientId" value={klient.id} />
+                  <input type="hidden" name="terminId" value={t.id} />
+                  <button type="submit" name="von" value="kunde" class="px-2 py-1 rounded border border-dark-lighter text-xs">Kunde hat abgesagt</button>
+                  <button type="submit" name="von" value="gerald" class="px-2 py-1 rounded border border-dark-lighter text-xs">Ich habe abgesagt</button>
+                  {t.start && new Date(t.start) < new Date() && (
+                    <button type="submit" name="von" value="nicht_erschienen" class="px-2 py-1 rounded border border-dark-lighter text-xs">Nicht erschienen</button>
+                  )}
+                </form>
+              )}
+            </td>
+          </tr>))}</tbody></table>}
     </section>
 
     <section class="mb-8">
