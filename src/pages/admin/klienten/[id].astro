@@ -6,7 +6,7 @@ import KlientFormular from '../../../components/admin/KlientFormular.svelte';
 import CreateInvoiceModal from '../../../components/admin/CreateInvoiceModal.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
-import { leistungsOptionen, listeLeistungen, preisAnzeige, holeLeistung } from '../../../lib/billing-leistungen';
+import { leistungsOptionen, listeLeistungen, listeKategorien, preisAnzeige, holeLeistung } from '../../../lib/billing-leistungen';
 import { gebuchteTermine } from '../../../lib/billing-ausfall';
 import { postenDesKlienten, postenBetrag, verbucheQuellen, auftraegeDesKlienten, postenAenderbar, terminAbgesagt, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
 
@@ -30,9 +30,10 @@ const STATUS: Record<string, string> = { draft: 'Entwurf', open: 'offen', paid: 
 // Rechnungswesen Stufe 3, T5/T6: vergangene, freigegebene Termine zuerst als Posten
 // übernehmen, dann Posten und „Sitzung erfassen“ (K11, K12, K14, K16).
 await verbucheQuellen(brand, (k) => holeLeistung(brand, k));
-const [posten, aktiveLeistungen] = await Promise.all([
+const [posten, aktiveLeistungen, kategorien] = await Promise.all([
   postenDesKlienten(brand, klient.id).catch((): Posten[] => []),
   listeLeistungen(brand, { nurAktiv: true }).catch(() => []),
+  listeKategorien(brand).catch(() => []),
 ]);
 const offene = posten.filter((p) => p.zustand === 'offen');
 const offenSumme = offene.reduce((s, p) => Math.round((s + postenBetrag(p)) * 100) / 100, 0);
@@ -143,12 +144,21 @@ const postenFehler = q.get('fehler');
             {sfFuer('datum') && <span class="block text-red-400">{sfFuer('datum')}</span>}
           </label>
           <label class="text-xs text-muted" style="grid-column:span 2;">Leistung
-            <select name="leistungKey" required class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light">
+            <select id="sitzung-leistung" name="leistungKey" required class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light">
               <option value="">– wählen –</option>
-              {aktiveLeistungen.map((l) => (
-                <option value={l.key} selected={se.leistungKey === l.key}>
-                  {l.name} ({l.preis === null ? 'Preis eintragen' : `${preisAnzeige({ preis: l.preis, nachVereinbarung: false })}${l.einheit ? ' / ' + l.einheit : ''}`})
-                </option>))}
+              {/* Nach Bereichen gegliedert; Preis und Text werden beim Auswählen vorbelegt (Handtest L2). */}
+              {kategorien.map((k) => {
+                const inKat = aktiveLeistungen.filter((l) => l.kategorieId === k.id);
+                return inKat.length > 0 && (
+                  <optgroup label={`${k.icon} ${k.titel}`}>
+                    {inKat.map((l) => (
+                      <option value={l.key} selected={se.leistungKey === l.key}
+                        data-preis={l.preis === null ? '' : String(l.preis).replace('.', ',')} data-text={l.name}>
+                        {l.name} – {l.preis === null ? 'Preis eintragen' : `${preisAnzeige({ preis: l.preis, nachVereinbarung: false })}${l.einheit ? ' je ' + l.einheit : ''}`}
+                      </option>))}
+                  </optgroup>
+                );
+              })}
             </select>
             {sfFuer('leistungKey') && <span class="block text-red-400">{sfFuer('leistungKey')}</span>}
           </label>
@@ -156,12 +166,12 @@ const postenFehler = q.get('fehler');
             <input name="menge" inputmode="decimal" required value={String(se.menge ?? '1')} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
             {sfFuer('menge') && <span class="block text-red-400">{sfFuer('menge')}</span>}
           </label>
-          <label class="text-xs text-muted">Preis je Einheit (leer = aus der Leistung)
-            <input name="preis" inputmode="decimal" value={String(se.preis ?? '')} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+          <label class="text-xs text-muted">Preis je Einheit in €
+            <input id="sitzung-preis" name="preis" inputmode="decimal" value={String(se.preis ?? '')} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
             {sfFuer('preis') && <span class="block text-red-400">{sfFuer('preis')}</span>}
           </label>
-          <label class="text-xs text-muted" style="grid-column:1/-1;">Text auf der Rechnung (leer = Name der Leistung)
-            <input name="text" maxlength="300" value={String(se.text ?? '')} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+          <label class="text-xs text-muted" style="grid-column:1/-1;">Text auf der Rechnung
+            <input id="sitzung-text" name="text" maxlength="300" value={String(se.text ?? '')} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
             {sfFuer('text') && <span class="block text-red-400">{sfFuer('text')}</span>}
           </label>
           <label class="text-sm text-light" style="grid-column:1/-1;">
@@ -291,6 +301,16 @@ const postenFehler = q.get('fehler');
 </AdminLayout>
 
 <script>
+  // Sitzung erfassen: Preis und Rechnungstext der gewählten Leistung vorbelegen (änderbar).
+  const leistungWahl = document.getElementById('sitzung-leistung') as HTMLSelectElement | null;
+  const preisFeld = document.getElementById('sitzung-preis') as HTMLInputElement | null;
+  const textFeld = document.getElementById('sitzung-text') as HTMLInputElement | null;
+  leistungWahl?.addEventListener('change', () => {
+    const opt = leistungWahl.selectedOptions[0];
+    if (preisFeld) preisFeld.value = opt?.dataset.preis ?? '';
+    if (textFeld) textFeld.value = opt?.dataset.text ?? '';
+  });
+
   const knopf = document.getElementById('konto-einrichten') as HTMLButtonElement | null;
   const meldung = document.getElementById('konto-meldung');
   knopf?.addEventListener('click', async () => {
