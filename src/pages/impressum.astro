@@ -24,7 +24,9 @@ const massageImpressum = `<h1>Impressum</h1>
 <h2>Aufsichtsbehörde</h2>
 <p>[Nur bei zulassungspflichtiger Tätigkeit: Angabe folgt]</p>`;
 // Admin: reset via admin panel Verlauf → SchemaEditor "Reset" button
-const contentHtml = resolveTokens(stored?.trim() ? stored : (isMassage ? massageImpressum : getDefaultImpressum()), sd);
+const contentHtml = resolveTokens(stored?.trim() ? stored : (isMassage ? massageImpressum : getDefaultImpressum()), sd)
+  // Ohne USt-IdNr. keine leere Zeile im Impressum (Steuernummer gehört nicht hierher).
+  .replace(/<p>USt-IdNr\.:\s*<\/p>\s*/g, '');
 ---
 
 {isKore ? (

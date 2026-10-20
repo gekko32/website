@@ -80,25 +80,25 @@ describe('generateEInvoiceXml', () => {
     ...baseInput,
     invoice: { ...baseInput.invoice, taxMode: 'kleinunternehmer' as const, taxRate: 0, taxAmount: 0, grossAmount: baseInput.invoice.netAmount },
     lines: [{ description: 'Coaching', quantity: 1, unitPrice: 100, unit: 'HUR' }],
-    seller: { ...baseInput.seller, vatId: '', taxNumber: '33/023/05100' },
+    seller: { ...baseInput.seller, vatId: '', taxNumber: '12/345/67890' },
   };
 
   it('factur-x-minimum (Kleinunternehmer): emits SellerTradeParty/ID + FC-scheme registration when only taxNumber is set', () => {
     const xml = generateEInvoiceXml('factur-x-minimum', kleinTaxNumberInput);
-    expect(xml).toContain('<ram:SpecifiedTaxRegistration><ram:ID schemeID="FC">33/023/05100</ram:ID></ram:SpecifiedTaxRegistration>');
-    expect(xml).toContain('<ram:ID>33/023/05100</ram:ID>');
+    expect(xml).toContain('<ram:SpecifiedTaxRegistration><ram:ID schemeID="FC">12/345/67890</ram:ID></ram:SpecifiedTaxRegistration>');
+    expect(xml).toContain('<ram:ID>12/345/67890</ram:ID>');
     expect(xml).not.toContain('schemeID="VA">');
   });
 
   it('xrechnung-cii (Kleinunternehmer): emits FC-scheme registration when only taxNumber is set', () => {
     const xml = generateEInvoiceXml('xrechnung-cii', kleinTaxNumberInput);
-    expect(xml).toContain('<ram:ID schemeID="FC">33/023/05100</ram:ID>');
+    expect(xml).toContain('<ram:ID schemeID="FC">12/345/67890</ram:ID>');
     expect(xml).not.toContain('schemeID="VA">');
   });
 
   it('xrechnung-ubl (Kleinunternehmer): emits FC TaxScheme when only taxNumber is set', () => {
     const xml = generateEInvoiceXml('xrechnung-ubl', kleinTaxNumberInput);
-    expect(xml).toMatch(/<cbc:CompanyID>33\/023\/05100<\/cbc:CompanyID>\s*<cac:TaxScheme><cbc:ID>FC<\/cbc:ID><\/cac:TaxScheme>/);
+    expect(xml).toMatch(/<cbc:CompanyID>12\/345\/67890<\/cbc:CompanyID>\s*<cac:TaxScheme><cbc:ID>FC<\/cbc:ID><\/cac:TaxScheme>/);
   });
 
   it('xrechnung-ubl mappt BT-1/BT-2/BT-5/BT-9/BT-10/BT-31 + IBAN', () => {

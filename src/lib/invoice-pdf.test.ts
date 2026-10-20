@@ -27,7 +27,7 @@ it('generates a non-empty PDF buffer', async () => {
     customer: { name:'Max Mustermann', email:'max@test.de', country:'DE' },
     seller: {
       name:'Gerald Korczewski', address:'Musterstr. 1', postalCode:'32312',
-      city:'Lübbecke', country:'DE', vatId:'', taxNumber:'33/023/05100',
+      city:'Lübbecke', country:'DE', vatId:'', taxNumber:'12/345/67890',
       iban:'DE89370400440532013000', bic:'COBADEFFXXX', bankName:'Commerzbank',
     },
   });
@@ -92,7 +92,7 @@ const dunningInvoice: Invoice = {
 const dunningCustomer = { name: 'Erika Mustermann', email: 'erika@test.de', country: 'DE', addressLine1: 'Weg 1', postalCode: '10115', city: 'Berlin' };
 const dunningSeller = {
   name: 'Gerald Korczewski', address: 'Musterstr. 1', postalCode: '32312',
-  city: 'Lübbecke', country: 'DE', vatId: 'DE123', taxNumber: '33/023/05100',
+  city: 'Lübbecke', country: 'DE', vatId: 'DE123', taxNumber: '12/345/67890',
   iban: 'DE89370400440532013000', bic: 'COBADEFFXXX', bankName: 'Commerzbank',
   email: 'rechnung@test.de', phone: '+49 30 1234567',
 };

@@ -440,13 +440,13 @@ export function sampleInvoiceForPreview(templateTexts?: InvoicePdfTemplateTexts)
     ],
     customer: {
       name: 'Andrea Müller', company: 'Müller Beratung GmbH',
-      addressLine1: 'Bardowicker Straße 14', postalCode: '21335', city: 'Lüneburg',
+      addressLine1: 'Musterstraße 1', postalCode: '12345', city: 'Musterstadt',
       country: 'DE', email: 'andrea@mueller-beratung.de',
     },
     seller: {
-      name: 'Gerald Korczewski', address: 'Bardowicker Straße 14',
-      postalCode: '21335', city: 'Lüneburg', country: 'DE',
-      vatId: '', taxNumber: '33/023/05100',
+      name: 'Gerald Korczewski', address: 'Ludwig-Erhard-Str. 18',
+      postalCode: '20459', city: 'Hamburg', country: 'DE',
+      vatId: '', taxNumber: '12/345/67890',
       iban: 'DE12 2405 0110 0001 2345 67', bic: 'NOLADE21LBG', bankName: 'Sparkasse Lüneburg',
       email: 'info@mentolder.de', phone: '+49 151 508 32 601', website: 'mentolder.de',
     },

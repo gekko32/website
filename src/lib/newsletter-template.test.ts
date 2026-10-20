@@ -18,7 +18,7 @@ const mentolderBrand = {
   legalZip: '20459',
   legalCity: 'Hamburg',
   legalJobtitle: 'Coach und digitaler Begleiter',
-  legalUstId: '33/023/05100',
+  legalUstId: '12/345/67890',
   legalWebsite: 'mentolder.de',
 };
 
@@ -77,7 +77,7 @@ describe('renderNewsletterEmail', () => {
     expect(html).toContain('20459 Hamburg');
     expect(html).toContain('info@mentolder.de');
     expect(html).toContain('+49 151 508 32 601');
-    expect(html).toContain('33/023/05100');
+    expect(html).toContain('12/345/67890');
     expect(html).toContain('mentolder.de');
   });
 
