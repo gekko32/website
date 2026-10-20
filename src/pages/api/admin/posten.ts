@@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../lib/auth';
 import { getKlient } from '../../../lib/klientenakte';
 import { holeLeistung } from '../../../lib/billing-leistungen';
-import { klientDesPostens, legeSitzungAn, pruefeSitzung, setzeAbrechnen } from '../../../lib/billing-posten';
+import { klientDesPostens, legeSitzungAn, pruefePreis, pruefeSitzung, setzeAbrechnen, setzePostenPreis } from '../../../lib/billing-posten';
 
 export const POST: APIRoute = async ({ request, redirect }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -22,6 +22,20 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const klientId = await klientDesPostens(brand, postenId);
     if (!klientId) return new Response('Posten nicht gefunden', { status: 404 });
     const ok = await setzeAbrechnen(brand, postenId, aktion === 'abrechnen');
+    const hinweis = ok ? 'gespeichert=1' : `fehler=${encodeURIComponent('Dieser Posten steht schon auf einer Rechnung und lässt sich hier nicht ändern.')}`;
+    return redirect(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
+  }
+
+  if (aktion === 'preis') {
+    const postenId = text('postenId');
+    if (!/^[0-9a-f-]{36}$/i.test(postenId)) return new Response('Posten nicht gefunden', { status: 404 });
+    const klientId = await klientDesPostens(brand, postenId);
+    if (!klientId) return new Response('Posten nicht gefunden', { status: 404 });
+    const preis = pruefePreis(text('preis'));
+    if (preis === null) {
+      return redirect(`/admin/klienten/${klientId}?fehler=${encodeURIComponent('Bitte einen Preis ab 0 mit höchstens zwei Nachkommastellen eintragen.')}#abrechnung`, 303);
+    }
+    const ok = await setzePostenPreis(brand, postenId, preis);
     const hinweis = ok ? 'gespeichert=1' : `fehler=${encodeURIComponent('Dieser Posten steht schon auf einer Rechnung und lässt sich hier nicht ändern.')}`;
     return redirect(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
   }

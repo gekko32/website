@@ -6,8 +6,8 @@ import KlientFormular from '../../../components/admin/KlientFormular.svelte';
 import CreateInvoiceModal from '../../../components/admin/CreateInvoiceModal.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
-import { leistungsOptionen, listeLeistungen, preisAnzeige } from '../../../lib/billing-leistungen';
-import { postenDesKlienten, postenBetrag, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten } from '../../../lib/billing-posten';
+import { leistungsOptionen, listeLeistungen, preisAnzeige, holeLeistung } from '../../../lib/billing-leistungen';
+import { postenDesKlienten, postenBetrag, verbucheVergangeneTermine, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten } from '../../../lib/billing-posten';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -26,7 +26,9 @@ const zeit = (d: string | Date | null) => d ? new Date(d).toLocaleString('de-DE'
 const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
 const STATUS: Record<string, string> = { draft: 'Entwurf', open: 'offen', paid: 'bezahlt', void: 'storniert', uncollectible: 'uneinbringlich' };
 
-// Rechnungswesen Stufe 3, T5: Abrechnungsposten und „Sitzung erfassen“ (K11, K14, K16).
+// Rechnungswesen Stufe 3, T5/T6: vergangene, freigegebene Termine zuerst als Posten
+// übernehmen, dann Posten und „Sitzung erfassen“ (K11, K12, K14, K16).
+await verbucheVergangeneTermine(brand, (k) => holeLeistung(brand, k)).catch(() => 0);
 const [posten, aktiveLeistungen] = await Promise.all([
   postenDesKlienten(brand, klient.id).catch((): Posten[] => []),
   listeLeistungen(brand, { nurAktiv: true }).catch(() => []),
@@ -85,8 +87,19 @@ const postenFehler = q.get('fehler');
           <tr class={`border-t border-dark-lighter ${p.zustand === 'offen' ? '' : 'opacity-60'}`}>
             <td class="py-1 pr-3 whitespace-nowrap">{datum(p.datum)}</td>
             <td class="py-1 pr-3">{p.text}<br /><span class="text-xs text-muted">{HERKUNFT_TEXT[p.herkunft]}{p.notiz ? ` · ${p.notiz}` : ''}</span></td>
-            <td class="py-1 pr-3 text-right whitespace-nowrap text-muted">{p.menge.toLocaleString('de-DE')} × {euro(p.einzelpreis)}</td>
-            <td class="py-1 pr-3 text-right whitespace-nowrap">{euro(postenBetrag(p))}</td>
+            <td class="py-1 pr-3 text-right whitespace-nowrap text-muted">
+              {p.einzelpreis === null && (p.zustand === 'offen' || p.zustand === 'nicht_abrechnen') ? (
+                <form method="POST" action="/api/admin/posten" class="inline-flex gap-1 items-center">
+                  <input type="hidden" name="aktion" value="preis" />
+                  <input type="hidden" name="postenId" value={p.id} />
+                  <span>{p.menge.toLocaleString('de-DE')} ×</span>
+                  <input name="preis" inputmode="decimal" required placeholder="Preis €" aria-label="Preis je Einheit"
+                    class="w-20 px-1 py-0.5 rounded bg-dark border border-red-400 text-xs text-light" />
+                  <button type="submit" class="px-2 py-0.5 rounded border border-dark-lighter text-xs">OK</button>
+                </form>
+              ) : <>{p.menge.toLocaleString('de-DE')} × {p.einzelpreis === null ? '–' : euro(p.einzelpreis)}</>}
+            </td>
+            <td class="py-1 pr-3 text-right whitespace-nowrap">{p.einzelpreis === null ? <span class="text-red-400">Preis fehlt</span> : euro(postenBetrag(p))}</td>
             <td class="py-1 pr-3 text-muted whitespace-nowrap">{ZUSTAND_TEXT[p.zustand]}</td>
             <td class="py-1 text-right">
               {(p.zustand === 'offen' || p.zustand === 'nicht_abrechnen') && (

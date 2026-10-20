@@ -18,7 +18,8 @@ export interface Posten {
   text: string;
   menge: number;
   einheit: string;
-  einzelpreis: number;
+  /** null = Preis fehlt noch (Leistung „nach Vereinbarung“); muss vor der Rechnung eingetragen werden. */
+  einzelpreis: number | null;
   zustand: PostenZustand;
   invoiceId: string | null;
   notiz: string | null;
@@ -34,6 +35,7 @@ export const ZUSTAND_TEXT: Record<PostenZustand, string> = {
 
 /** Betrag in Euro, kaufmännisch auf Cent gerundet (in ganzen Cent gerechnet, ohne Gleitkomma-Fehler). */
 export function postenBetrag(p: Pick<Posten, 'menge' | 'einzelpreis'>): number {
+  if (p.einzelpreis === null) return 0;
   const mengeHundertstel = Math.round(p.menge * 100);
   const preisCent = Math.round(p.einzelpreis * 100);
   return Math.round((mengeHundertstel * preisCent) / 100) / 100;
@@ -57,6 +59,12 @@ function gueltigesDatum(s: string): boolean {
 function dezimal(roh: string): number | null {
   const s = roh.trim().replace(',', '.');
   return /^-?\d+(\.\d{1,2})?$/.test(s) ? Number(s) : null;
+}
+
+/** Preis in Euro ab 0, höchstens zwei Nachkommastellen; sonst null. */
+export function pruefePreis(roh: string | null | undefined): number | null {
+  const p = dezimal(roh ?? '');
+  return p !== null && p >= 0 ? p : null;
 }
 
 /** Prüft „Sitzung erfassen“ (K11). `leistung` ist die gewählte Leistung oder null. */
@@ -94,15 +102,74 @@ export function pruefeSitzung(e: SitzungEingabe, leistung: Leistung | null): { w
   };
 }
 
-export interface KlientSumme { klientId: string; klientName: string; anzahl: number; summe: number }
+// ── T6: Termine werden zu Posten (K12, K15) ────────────────────────────────
+
+/** Eine Buchung aus dem Postfach (inbox_items, type 'booking') mit zugeordneter Akte. */
+export interface TerminZeile {
+  id: string;
+  klientId: string | null;
+  isTestData: boolean;
+  payload: Record<string, unknown>;
+}
+
+export interface NeuerPosten {
+  klientId: string; herkunftRef: string; isTestData: boolean; leistungKey: string;
+  datum: string; text: string; menge: number; einheit: string;
+  einzelpreis: number | null; zustand: 'offen' | 'nicht_abrechnen'; notiz: string | null;
+}
+
+const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v : null);
+
+/**
+ * Welche Buchungen werden zu Posten? Freigegeben (beim Annehmen vermerkt) oder vom
+ * Admin selbst eingetragen, vorbei, nicht storniert oder abgelehnt, mit bekannter
+ * Leistung und zugeordneter Akte. KI-Coaching-Sitzungen sind keine Buchungen und
+ * erzeugen deshalb nie einen Posten (K15).
+ */
+export function termineZuPosten(
+  termine: TerminZeile[],
+  jetzt: Date,
+  findeLeistung: (key: string) => Leistung | null,
+): NeuerPosten[] {
+  const neu: NeuerPosten[] = [];
+  for (const t of termine) {
+    const p = t.payload;
+    if (!t.klientId) continue;
+    if (!text(p.freigegebenAm) && p.adminCreated !== true) continue;
+    if (p.state === 'storniert' || p.state === 'abgelehnt' || p.abgelehnt === true) continue;
+    const start = text(p.slotStart) ? new Date(p.slotStart as string) : null;
+    const ende = text(p.slotEnd) ? new Date(p.slotEnd as string) : null;
+    if (!start || !ende || Number.isNaN(start.getTime()) || Number.isNaN(ende.getTime())) continue;
+    if (ende.getTime() > jetzt.getTime()) continue;
+    const key = text(p.leistungKey) ?? text(p.serviceKey);
+    const leistung = key ? findeLeistung(key) : null;
+    if (!leistung) continue;
+
+    const stunden = Math.round(((ende.getTime() - start.getTime()) / 3_600_000) * 100) / 100;
+    const menge = /stunde/i.test(leistung.einheit) && stunden > 0 ? stunden : 1;
+    const preis = leistung.preis;
+    neu.push({
+      klientId: t.klientId, herkunftRef: t.id, isTestData: t.isTestData, leistungKey: leistung.key,
+      datum: start.toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' }),
+      text: leistung.name, menge, einheit: leistung.einheit,
+      einzelpreis: preis,
+      zustand: preis === 0 ? 'nicht_abrechnen' : 'offen',
+      notiz: preis === null ? 'Preis fehlt – bitte eintragen' : null,
+    });
+  }
+  return neu;
+}
+
+export interface KlientSumme { klientId: string; klientName: string; anzahl: number; summe: number; ohnePreis: number }
 
 /** Übersicht offener Posten je Klient, größte Summe zuerst (K16). */
 export function summenJeKlient(posten: Posten[]): KlientSumme[] {
   const je = new Map<string, KlientSumme>();
   for (const p of posten) {
     if (p.zustand !== 'offen') continue;
-    const s = je.get(p.klientId) ?? { klientId: p.klientId, klientName: p.klientName, anzahl: 0, summe: 0 };
+    const s = je.get(p.klientId) ?? { klientId: p.klientId, klientName: p.klientName, anzahl: 0, summe: 0, ohnePreis: 0 };
     s.anzahl += 1;
+    if (p.einzelpreis === null) s.ohnePreis += 1;
     s.summe = Math.round((s.summe + postenBetrag(p)) * 100) / 100;
     je.set(p.klientId, s);
   }
@@ -127,7 +194,7 @@ export function initPostenTabelle(): Promise<void> {
         text          TEXT NOT NULL,
         menge         NUMERIC(10,2) NOT NULL CHECK (menge > 0),
         einheit       TEXT NOT NULL DEFAULT '',
-        einzelpreis   NUMERIC(12,2) NOT NULL CHECK (einzelpreis >= 0),
+        einzelpreis   NUMERIC(12,2) CHECK (einzelpreis IS NULL OR einzelpreis >= 0),
         zustand       TEXT NOT NULL DEFAULT 'offen'
                       CHECK (zustand IN ('offen','nicht_abrechnen','erlassen','auf_entwurf','abgerechnet')),
         invoice_id    TEXT,
@@ -152,7 +219,8 @@ function zeileZuPosten(r: Record<string, unknown>): Posten {
   return {
     id: r.id as string, klientId: r.klient_id as string, klientName: r.klient_name as string,
     herkunft: r.herkunft as Herkunft, datum: r.datum as string, leistungKey: (r.leistung_key as string | null) ?? null,
-    text: r.text as string, menge: Number(r.menge), einheit: (r.einheit as string) ?? '', einzelpreis: Number(r.einzelpreis),
+    text: r.text as string, menge: Number(r.menge), einheit: (r.einheit as string) ?? '',
+    einzelpreis: r.einzelpreis === null || r.einzelpreis === undefined ? null : Number(r.einzelpreis),
     zustand: r.zustand as PostenZustand, invoiceId: (r.invoice_id as string | null) ?? null, notiz: (r.notiz as string | null) ?? null,
   };
 }
@@ -196,6 +264,72 @@ export async function setzeAbrechnen(brand: string, postenId: string, abrechnen:
     `UPDATE abrechnungsposten SET zustand = $3, updated_at = now()
       WHERE brand = $1 AND id = $2 AND zustand IN ('offen','nicht_abrechnen')`,
     [brand, postenId, abrechnen ? 'offen' : 'nicht_abrechnen']);
+  return (rowCount ?? 0) > 0;
+}
+
+/**
+ * Übernimmt vergangene, freigegebene Termine als Posten (T6). Läuft beim Öffnen von
+ * Akte und Übersicht und vor jeder Abrechnung; jeder Termin höchstens einmal
+ * (eindeutiger Index auf herkunft_ref). Liefert die Zahl neuer Posten.
+ */
+export async function verbucheVergangeneTermine(
+  brand: string,
+  findeLeistung: (key: string) => Promise<Leistung | null>,
+  jetzt: Date = new Date(),
+): Promise<number> {
+  await initPostenTabelle();
+  const { rows } = await pool.query(
+    `SELECT i.id::text AS id, i.payload, COALESCE(i.is_test_data, false) AS is_test_data,
+            (SELECT c.id FROM customers c WHERE lower(c.email) = lower(i.payload->>'email') LIMIT 1) AS klient_id
+       FROM inbox_items i
+      WHERE i.type = 'booking'
+        AND (i.payload ? 'freigegebenAm' OR i.payload->>'adminCreated' = 'true')
+        AND (i.payload->>'slotEnd') IS NOT NULL
+        AND (i.payload->>'slotEnd')::timestamptz <= $2
+        AND NOT EXISTS (SELECT 1 FROM abrechnungsposten a
+                         WHERE a.brand = $1 AND a.herkunft = 'termin' AND a.herkunft_ref = i.id::text)`,
+    [brand, jetzt.toISOString()]);
+  if (rows.length === 0) return 0;
+
+  const keys = new Set<string>();
+  for (const r of rows) {
+    const k = text(r.payload?.leistungKey) ?? text(r.payload?.serviceKey);
+    if (k) keys.add(k);
+  }
+  const katalog = new Map<string, Leistung | null>();
+  for (const k of keys) katalog.set(k, await findeLeistung(k));
+
+  const neu = termineZuPosten(
+    rows.map((r: Record<string, unknown>) => ({
+      id: r.id as string, klientId: (r.klient_id as string | null) ?? null,
+      isTestData: r.is_test_data === true, payload: (r.payload as Record<string, unknown>) ?? {},
+    })),
+    jetzt,
+    (k) => katalog.get(k) ?? null,
+  );
+  let angelegt = 0;
+  for (const p of neu) {
+    const res = await pool.query(
+      `INSERT INTO abrechnungsposten (brand, klient_id, herkunft, herkunft_ref, leistung_key, datum, text,
+         menge, einheit, einzelpreis, zustand, notiz, is_test_data)
+       VALUES ($1,$2,'termin',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       ON CONFLICT DO NOTHING`,
+      [brand, p.klientId, p.herkunftRef, p.leistungKey, p.datum, p.text, p.menge, p.einheit,
+        p.einzelpreis, p.zustand, p.notiz, p.isTestData]);
+    angelegt += res.rowCount ?? 0;
+  }
+  return angelegt;
+}
+
+/** Preis eines offenen Postens nachtragen oder ändern (z. B. „nach Vereinbarung“). */
+export async function setzePostenPreis(brand: string, postenId: string, preis: number): Promise<boolean> {
+  await initPostenTabelle();
+  const { rowCount } = await pool.query(
+    `UPDATE abrechnungsposten SET einzelpreis = $3,
+       notiz = CASE WHEN notiz = 'Preis fehlt – bitte eintragen' THEN NULL ELSE notiz END,
+       updated_at = now()
+      WHERE brand = $1 AND id = $2 AND zustand IN ('offen','nicht_abrechnen')`,
+    [brand, postenId, preis]);
   return (rowCount ?? 0) > 0;
 }
 

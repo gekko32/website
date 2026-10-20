@@ -3,13 +3,16 @@
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import AdminPageHeader from '../../components/admin/ui/AdminPageHeader.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
-import { alleOffenenPosten, summenJeKlient, type Posten } from '../../lib/billing-posten';
+import { alleOffenenPosten, summenJeKlient, verbucheVergangeneTermine, type Posten } from '../../lib/billing-posten';
+import { holeLeistung } from '../../lib/billing-leistungen';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
 if (!isAdmin(session)) return Astro.redirect('/admin');
 
 const brand = process.env.BRAND || 'mentolder';
+// T6: vergangene, freigegebene Termine zuerst als Posten übernehmen (K12).
+await verbucheVergangeneTermine(brand, (k) => holeLeistung(brand, k)).catch(() => 0);
 let dbFehler = false;
 const posten: Posten[] = await alleOffenenPosten(brand).catch(() => { dbFehler = true; return []; });
 const summen = summenJeKlient(posten);
@@ -39,7 +42,7 @@ const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', 
           {summen.map((k) => (
             <tr class="border-t border-dark-lighter">
               <td class="py-2 pr-3"><a class="hover:underline" href={`/admin/klienten/${k.klientId}#abrechnung`}>{k.klientName || 'ohne Namen'}</a></td>
-              <td class="py-2 pr-3 text-right">{k.anzahl}</td>
+              <td class="py-2 pr-3 text-right">{k.anzahl}{k.ohnePreis > 0 && <span class="block text-xs text-red-400">davon {k.ohnePreis} ohne Preis</span>}</td>
               <td class="py-2 pr-3 text-right">{euro(k.summe)}</td>
             </tr>
           ))}

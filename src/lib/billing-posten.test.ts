@@ -1,6 +1,6 @@
 // Rechnungswesen Stufe 3, T5: Abrechnungsposten (K2, K11, K14, K16).
 import { describe, expect, it } from 'vitest';
-import { pruefeSitzung, summenJeKlient, postenBetrag, type Posten } from './billing-posten';
+import { pruefeSitzung, summenJeKlient, postenBetrag, termineZuPosten, pruefePreis, type Posten, type TerminZeile } from './billing-posten';
 import type { Leistung } from './billing-leistungen';
 
 const leistung = (teil: Partial<Leistung> = {}): Leistung => ({
@@ -62,6 +62,85 @@ describe('Sitzung erfassen (K11)', () => {
   });
 });
 
+describe('Termine werden zu Posten (T6, K12, K15)', () => {
+  const jetzt = new Date('2026-10-20T12:00:00Z');
+  const termin = (teil: Partial<TerminZeile> = {}): TerminZeile => ({
+    id: 'inbox-1', klientId: 'k1', isTestData: false,
+    payload: {
+      leistungKey: 'coaching-session', typeLabel: 'Termin',
+      slotStart: '2026-10-19T08:00:00Z', slotEnd: '2026-10-19T09:30:00Z',
+      freigegebenAm: '2026-10-10T10:00:00Z', state: 'offen',
+    },
+    ...teil,
+  });
+  const katalog = { 'coaching-session': leistung(), 'stunde': leistung({ key: 'stunde', name: 'Einzelstunde', einheit: 'Stunde', preis: 60 }),
+    'erstgespraech': leistung({ key: 'erstgespraech', name: 'Erstgespräch', preis: 0, einheit: 'Einheit' }),
+    'nv': leistung({ key: 'nv', name: 'Einzelstunde (60 Min.)', preis: null, nachVereinbarung: true, einheit: 'Stunde' }) } as Record<string, Leistung>;
+  const finde = (k: string) => katalog[k] ?? null;
+
+  it('freigegebener, vergangener Termin mit Leistung → ein offener Posten', () => {
+    expect(termineZuPosten([termin()], jetzt, finde)).toEqual([{
+      klientId: 'k1', herkunftRef: 'inbox-1', isTestData: false, leistungKey: 'coaching-session',
+      datum: '2026-10-19', text: 'Coaching 90 Min.', menge: 1, einheit: 'Session', einzelpreis: 150, zustand: 'offen', notiz: null,
+    }]);
+  });
+
+  it('Datum in deutscher Zeit (später Abendtermin bleibt am selben Tag)', () => {
+    const p = termineZuPosten([termin({ payload: { ...termin().payload, slotStart: '2026-10-19T22:30:00Z', slotEnd: '2026-10-19T23:30:00Z' } })], jetzt, finde);
+    expect(p[0].datum).toBe('2026-10-20');
+  });
+
+  it('Leistung je Stunde: Menge aus der Termindauer', () => {
+    const p = termineZuPosten([termin({ payload: { ...termin().payload, leistungKey: 'stunde' } })], jetzt, finde);
+    expect(p[0]).toMatchObject({ menge: 1.5, einzelpreis: 60 });
+  });
+
+  it('ohne festen Preis: Posten mit fehlendem Preis und Hinweis', () => {
+    const p = termineZuPosten([termin({ payload: { ...termin().payload, leistungKey: 'nv' } })], jetzt, finde);
+    expect(p[0]).toMatchObject({ einzelpreis: null, zustand: 'offen', notiz: 'Preis fehlt – bitte eintragen' });
+  });
+
+  it('kostenlose Leistung (0 €) → nicht abrechnen', () => {
+    const p = termineZuPosten([termin({ payload: { ...termin().payload, leistungKey: 'erstgespraech' } })], jetzt, finde);
+    expect(p[0]).toMatchObject({ zustand: 'nicht_abrechnen', einzelpreis: 0 });
+  });
+
+  it('Admin-Buchung gilt ohne Freigabe als bestätigt', () => {
+    const t = termin({ payload: { ...termin().payload, freigegebenAm: undefined, adminCreated: true } });
+    expect(termineZuPosten([t], jetzt, finde)).toHaveLength(1);
+  });
+
+  it.each([
+    ['noch nicht vorbei', { slotEnd: '2026-10-20T12:30:00Z' }],
+    ['nicht freigegeben', { freigegebenAm: undefined }],
+    ['vom Kunden storniert', { state: 'storniert', cancelledAt: '2026-10-18T10:00:00Z' }],
+    ['abgelehnt', { abgelehnt: true }],
+    ['ohne Leistung (z. B. Rückruf)', { leistungKey: null, serviceKey: null }],
+    ['unbekannte Leistung', { leistungKey: 'gibtsnicht' }],
+    ['ohne Terminzeit', { slotStart: null, slotEnd: null }],
+  ])('kein Posten: %s', (_name, teil) => {
+    expect(termineZuPosten([termin({ payload: { ...termin().payload, ...teil } })], jetzt, finde)).toEqual([]);
+  });
+
+  it('ohne Akte (Klient unbekannt) kein Posten', () => {
+    expect(termineZuPosten([termin({ klientId: null })], jetzt, finde)).toEqual([]);
+  });
+
+  it('serviceKey wird genutzt, wenn leistungKey fehlt', () => {
+    const t = termin({ payload: { ...termin().payload, leistungKey: null, serviceKey: 'coaching-session' } });
+    expect(termineZuPosten([t], jetzt, finde)).toHaveLength(1);
+  });
+});
+
+describe('Preis nachtragen (T6)', () => {
+  it.each([['150', 150], ['99,5', 99.5], ['0', 0]])('nimmt "%s" an', (roh, wert) => {
+    expect(pruefePreis(roh)).toBe(wert);
+  });
+  it.each(['', '-1', 'abc', '1,234'])('lehnt "%s" ab', (roh) => {
+    expect(pruefePreis(roh)).toBeNull();
+  });
+});
+
 describe('Beträge und Übersicht (K16)', () => {
   const p = (teil: Partial<Posten>): Posten => ({
     id: 'x', klientId: 'k1', klientName: 'A', herkunft: 'hand', datum: '2026-10-01', leistungKey: null, text: 't',
@@ -70,6 +149,12 @@ describe('Beträge und Übersicht (K16)', () => {
 
   it('Betrag = Menge × Einzelpreis, auf Cent gerundet', () => {
     expect(postenBetrag(p({ menge: 1.5, einzelpreis: 99.99 }))).toBe(149.99);
+  });
+
+  it('Posten ohne Preis zählen mit, aber nicht in der Summe', () => {
+    expect(postenBetrag(p({ einzelpreis: null }))).toBe(0);
+    const s = summenJeKlient([p({ id: '1', einzelpreis: 100 }), p({ id: '2', einzelpreis: null })]);
+    expect(s).toEqual([{ klientId: 'k1', klientName: 'A', anzahl: 2, summe: 100, ohnePreis: 1 }]);
   });
 
   it('zählt je Klient nur offene Posten, mit Summe', () => {
@@ -81,8 +166,8 @@ describe('Beträge und Übersicht (K16)', () => {
       p({ id: '5', klientId: 'k2', klientName: 'Bert', zustand: 'abgerechnet' }),
     ]);
     expect(s).toEqual([
-      { klientId: 'k2', klientName: 'Bert', anzahl: 1, summe: 1000 },
-      { klientId: 'k1', klientName: 'Anna', anzahl: 2, summe: 270 },
+      { klientId: 'k2', klientName: 'Bert', anzahl: 1, summe: 1000, ohnePreis: 0 },
+      { klientId: 'k1', klientName: 'Anna', anzahl: 2, summe: 270, ohnePreis: 0 },
     ]);
   });
 });

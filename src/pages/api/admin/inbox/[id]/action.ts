@@ -6,10 +6,7 @@ import { createUser, sendPasswordResetEmail } from '../../../../../lib/identity'
 import { createCalendarEvent } from '../../../../../lib/caldav';
 import { createTalkRoom, inviteGuestByEmail, sendChatMessage } from '../../../../../lib/talk';
 import { sendRegistrationApproved, sendRegistrationDeclined, sendEmail } from '../../../../../lib/email';
-import { upsertCustomer, resolveBugTicket, setBookingInvoice, createMeeting, claimBrettLinkPost } from '../../../../../lib/website-db';
-import { getOrCreateCustomer, createBillingInvoice } from '../../../../../lib/stripe-billing';
-import { holeLeistung, abrechenbar } from '../../../../../lib/billing-leistungen';
-import { verknuepfeRechnungskunde } from '../../../../../lib/klientenakte';
+import { upsertCustomer, resolveBugTicket, createMeeting, claimBrettLinkPost, pool } from '../../../../../lib/website-db';
 
 const BRAND_NAME = process.env.BRAND_NAME || 'Workspace';
 const PROD_DOMAIN = process.env.PROD_DOMAIN || '';
@@ -158,37 +155,14 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
           locals.requestLogger.error({ err }, '[brett] auto-post failed (non-fatal):');
         }
 
-        const svcKey = (p.serviceKey ?? p.leistungKey) as string | undefined;
-        const brand = process.env.BRAND || 'mentolder';
-        // Stufe 3 T4: Preis aus der gepflegten Leistungstabelle.
-        const leistung = svcKey ? await holeLeistung(brand, svcKey).catch(() => null) : null;
-        if (svcKey && abrechenbar(leistung)) {
-          try {
-            const billingCustomer = await getOrCreateCustomer({ brand, name: p.name, email: p.email });
-            if (billingCustomer) {
-              // Stufe 2: Rechnungskunde mit der Klientenakte verknüpfen
-              await verknuepfeRechnungskunde(billingCustomer.id, customer.id).catch(() => {});
-              const invoice = await createBillingInvoice({
-                customerId: billingCustomer.id, serviceKey: svcKey,
-                // Leistungsdatum = Termin (Pflichtangabe § 14 UStG, Befund R7)
-                leistungsdatum: typeof p.date === 'string' ? p.date : undefined,
-              });
-              statusParts.push(`Rechnung erstellt: ${invoice.number}`);
-              if (calEvent) {
-                await setBookingInvoice(calEvent.uid, brand, invoice.id, invoice.number, invoice.amountDue).catch(err =>
-                  locals.requestLogger.error({ err }, '[approve_booking] Failed to link invoice to booking:')
-                );
-              }
-            }
-          } catch (err) {
-            // Invoice creation must not abort the booking confirmation — the
-            // Talk room, calendar event, and confirmation email are already
-            // committed at this point. Log it and surface a status hint so the
-            // caller still gets HTTP 200 with details.
-            locals.requestLogger.error({ err }, '[approve_booking] Failed to create billing invoice:');
-            statusParts.push('Rechnung konnte nicht erstellt werden (siehe Logs)');
-          }
-        }
+        // Rechnungswesen Stufe 3, T6 (AE7): Beim Annehmen entsteht KEINE Rechnung mehr.
+        // Die Buchung wird als freigegeben vermerkt; ist der Termin vorbei und nicht
+        // abgesagt, wird er zum offenen Posten in der Akte (billing-posten).
+        await pool.query(
+          `UPDATE inbox_items SET payload = payload || $1::jsonb WHERE id = $2`,
+          [JSON.stringify({ freigegebenAm: new Date().toISOString(), klientId: customer.id }), id],
+        ).catch(err => locals.requestLogger.error({ err }, '[approve_booking] Failed to mark booking as approved:'));
+        statusParts.push('Wird nach dem Termin als offener Posten in der Akte abgerechnet');
 
         await updateInboxItemStatus(id, 'actioned', session.preferred_username);
         return new Response(JSON.stringify({ success: true, details: statusParts }), {
@@ -206,6 +180,10 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
           subject: `Zu Ihrer Terminanfrage bei ${BRAND_NAME}`,
           text: `Hallo ${p.name},\n\nleider können wir den angefragten Termin (${p.typeLabel} am ${dateFormatted}, ${p.slotDisplay}) nicht bestätigen.\n\nBitte wählen Sie einen alternativen Termin unter https://web.${PROD_DOMAIN}/termin oder kontaktieren Sie uns direkt.\n\nMit freundlichen Grüßen\n${BRAND_NAME}`,
         }, request);
+        // Stufe 3, T6: abgelehnte Buchungen werden nie zu Posten (auch Admin-Buchungen).
+        await pool.query(
+          `UPDATE inbox_items SET payload = payload || '{"abgelehnt": true}'::jsonb WHERE id = $1`, [id],
+        ).catch(err => locals.requestLogger.error({ err }, '[decline_booking] Failed to mark booking as declined:'));
         await updateInboxItemStatus(id, 'actioned', session.preferred_username);
         return new Response(JSON.stringify({ success: true }), { headers: { 'Content-Type': 'application/json' } });
       }
