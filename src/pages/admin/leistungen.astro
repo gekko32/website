@@ -1,0 +1,179 @@
+---
+// Rechnungswesen Stufe 3, T3: Leistungen und Preise selbst pflegen (K1, K3, K5, K7).
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../components/admin/ui/AdminPageHeader.svelte';
+import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
+import { listeKategorien, listeLeistungen, preisAnzeige, type Leistung } from '../../lib/billing-leistungen';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+
+const BRAND = process.env.BRAND || 'mentolder';
+const [kategorien, leistungen] = await Promise.all([listeKategorien(BRAND), listeLeistungen(BRAND)]);
+
+const q = Astro.url.searchParams;
+function jsonParam<T>(name: string, fallback: T): T {
+  try { return JSON.parse(q.get(name) ?? '') as T; } catch { return fallback; }
+}
+const gespeichert = q.get('gespeichert');
+const fehler = jsonParam<{ key: string; meldung: string }[]>('fehler', []);
+const bearbeiten = q.get('bearbeiten'); // Schlüssel, 'neu' oder null
+const zeigeStillgelegte = q.get('alle') === '1';
+
+const vorlage: Leistung | undefined = bearbeiten && bearbeiten !== 'neu' ? leistungen.find((l) => l.key === bearbeiten) : undefined;
+const eingabe = jsonParam<Record<string, string | boolean>>('eingabe', {});
+const wert = (k: string, ausVorlage: unknown) => (k in eingabe ? eingabe[k] : ausVorlage);
+const f = {
+  name: String(wert('name', vorlage?.name ?? '')),
+  kategorieId: String(wert('kategorieId', vorlage?.kategorieId ?? kategorien[0]?.id ?? '')),
+  beschreibung: String(wert('beschreibung', vorlage?.beschreibung ?? '')),
+  preis: String(wert('preis', vorlage?.preis === null || vorlage?.preis === undefined ? '' : String(vorlage.preis).replace('.', ','))),
+  nachVereinbarung: wert('nachVereinbarung', vorlage?.nachVereinbarung ?? false) === true,
+  einheit: String(wert('einheit', vorlage?.einheit ?? '')),
+  dauerMin: String(wert('dauerMin', vorlage?.dauerMin ?? '')),
+  website: wert('website', vorlage?.website ?? false) === true,
+  hervorheben: wert('hervorheben', vorlage?.hervorheben ?? false) === true,
+};
+const fehlerFuer = (k: string) => fehler.find((x) => x.key === k)?.meldung;
+const formularOffen = bearbeiten !== null;
+
+const sichtbar = leistungen.filter((l) => zeigeStillgelegte || l.aktiv);
+const anzahlStill = leistungen.filter((l) => !l.aktiv).length;
+
+const label = 'display:block;font-family:var(--font-mono);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--mute-2);margin-bottom:0.375rem;';
+const input = 'width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.5rem 0.75rem;color:var(--fg);font-size:0.875rem;outline:none;';
+const fehlerStil = 'font-size:0.8rem;color:#fca5a5;margin-top:0.25rem;';
+const chip = (farbe: string) => `display:inline-block;font-size:0.7rem;padding:0.1rem 0.45rem;border-radius:999px;border:1px solid ${farbe};color:${farbe};margin-right:0.25rem;`;
+const knopf = 'background:var(--brass);color:var(--ink-900);border:none;border-radius:8px;padding:0.5rem 1rem;font-size:0.8rem;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block;';
+const knopfLeise = 'background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:0.35rem 0.75rem;font-size:0.75rem;cursor:pointer;text-decoration:none;display:inline-block;';
+---
+
+<AdminLayout title="Leistungen">
+  <div style="padding: 2rem; max-width: 960px;">
+    <AdminPageHeader title="Leistungen und Preise" />
+    <p style="color:var(--mute);font-size:0.875rem;line-height:1.5;margin-bottom:1.5rem;">
+      Was hier steht, gilt sofort: auf der Website (nur „auf Website“), beim Buchen und beim Abrechnen.
+      Preisänderungen gelten für neue Sitzungen; bestehende Rechnungen bleiben unverändert.
+      Leistungen werden nicht gelöscht, nur stillgelegt.
+    </p>
+
+    {gespeichert && (
+      <div style="background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.5rem; color: #86efac; font-size: 0.875rem;">
+        Gespeichert. Gilt ab sofort.
+      </div>
+    )}
+
+    <div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;">
+      <a href="/admin/leistungen?bearbeiten=neu#formular" style={knopf}>Neue Leistung</a>
+      {anzahlStill > 0 && (
+        zeigeStillgelegte
+          ? <a href="/admin/leistungen" style={knopfLeise}>Stillgelegte ausblenden</a>
+          : <a href="/admin/leistungen?alle=1" style={knopfLeise}>Stillgelegte zeigen ({anzahlStill})</a>
+      )}
+    </div>
+
+    {formularOffen && (
+      <form id="formular" method="POST" action="/api/admin/leistungen" style="background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:10px;padding:1.25rem;margin-bottom:2rem;">
+        <h2 style="font-size:1rem;color:var(--fg);margin-bottom:1rem;">{vorlage ? `„${vorlage.name}“ ändern` : 'Neue Leistung'}</h2>
+        {fehler.length > 0 && <p role="alert" style={fehlerStil + 'margin-bottom:0.75rem;'}>Nicht gespeichert. Bitte die markierten Felder korrigieren.</p>}
+        {vorlage && <input type="hidden" name="key" value={vorlage.key} />}
+
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+          <div>
+            <label for="name" style={label}>Name</label>
+            <input id="name" name="name" value={f.name} required style={input} />
+            {fehlerFuer('name') && <p style={fehlerStil}>{fehlerFuer('name')}</p>}
+          </div>
+          <div>
+            <label for="kategorieId" style={label}>Kategorie</label>
+            <select id="kategorieId" name="kategorieId" style={input}>
+              {kategorien.map((k) => <option value={k.id} selected={k.id === f.kategorieId}>{k.icon} {k.titel}</option>)}
+            </select>
+            {fehlerFuer('kategorieId') && <p style={fehlerStil}>{fehlerFuer('kategorieId')}</p>}
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+          <div>
+            <label for="preis" style={label}>Preis in €</label>
+            <input id="preis" name="preis" inputmode="decimal" value={f.preis} placeholder="z. B. 150 oder 0" style={input} />
+            {fehlerFuer('preis') && <p style={fehlerStil}>{fehlerFuer('preis')}</p>}
+          </div>
+          <div>
+            <label for="einheit" style={label}>Einheit</label>
+            <input id="einheit" name="einheit" value={f.einheit} placeholder="Stunde, Session, Tag …" style={input} />
+            {fehlerFuer('einheit') && <p style={fehlerStil}>{fehlerFuer('einheit')}</p>}
+          </div>
+          <div>
+            <label for="dauerMin" style={label}>Dauer in Minuten</label>
+            <input id="dauerMin" name="dauerMin" inputmode="numeric" value={f.dauerMin} placeholder="freiwillig" style={input} />
+            {fehlerFuer('dauerMin') && <p style={fehlerStil}>{fehlerFuer('dauerMin')}</p>}
+          </div>
+        </div>
+
+        <div style="margin-bottom:0.75rem;">
+          <label for="beschreibung" style={label}>Beschreibung (für die Website)</label>
+          <textarea id="beschreibung" name="beschreibung" rows="2" style={input}>{f.beschreibung}</textarea>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:1rem;font-size:0.875rem;color:var(--fg);">
+          <label><input type="checkbox" name="nachVereinbarung" checked={f.nachVereinbarung} /> Auf der Website „nach Vereinbarung“ statt des Preises zeigen</label>
+          <label><input type="checkbox" name="website" checked={f.website} /> Auf der Website und beim Buchen zeigen (sonst nur intern)</label>
+          <label><input type="checkbox" name="hervorheben" checked={f.hervorheben} /> Auf der Website als „Beliebt“ hervorheben</label>
+        </div>
+
+        <div style="display:flex;gap:0.75rem;">
+          <button type="submit" style={knopf}>Speichern</button>
+          <a href="/admin/leistungen" style={knopfLeise}>Abbrechen</a>
+        </div>
+      </form>
+    )}
+
+    {kategorien.map((k) => {
+      const inKat = sichtbar.filter((l) => l.kategorieId === k.id);
+      if (inKat.length === 0) return null;
+      return (
+        <section style="margin-bottom:2rem;">
+          <h2 style="font-size:1rem;color:var(--fg);margin-bottom:0.75rem;">{k.icon} {k.titel}</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+            <thead>
+              <tr style="text-align:left;color:var(--mute-2);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;">
+                <th style="padding:0.4rem 0.5rem;">Leistung</th>
+                <th style="padding:0.4rem 0.5rem;">Preis</th>
+                <th style="padding:0.4rem 0.5rem;">Einheit</th>
+                <th style="padding:0.4rem 0.5rem;">Sichtbar</th>
+                <th style="padding:0.4rem 0.5rem;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {inKat.map((l) => (
+                <tr style={`border-top:1px solid var(--line);${l.aktiv ? '' : 'opacity:0.55;'}`}>
+                  <td style="padding:0.5rem;color:var(--fg);">{l.name}</td>
+                  <td style="padding:0.5rem;color:var(--fg);white-space:nowrap;">
+                    {l.preis === null ? '—' : preisAnzeige({ preis: l.preis, nachVereinbarung: false })}
+                    {l.nachVereinbarung && <div style="font-size:0.7rem;color:var(--mute);">Website: nach Vereinbarung</div>}
+                  </td>
+                  <td style="padding:0.5rem;color:var(--mute);">{l.einheit}</td>
+                  <td style="padding:0.5rem;">
+                    {!l.aktiv ? <span style={chip('#a1a1aa')}>stillgelegt</span>
+                      : l.website ? <span style={chip('#86efac')}>Website</span>
+                      : <span style={chip('#93c5fd')}>intern</span>}
+                  </td>
+                  <td style="padding:0.5rem;text-align:right;white-space:nowrap;">
+                    <a href={`/admin/leistungen?bearbeiten=${encodeURIComponent(l.key)}#formular`} style={knopfLeise}>Ändern</a>
+                    <form method="POST" action="/api/admin/leistungen" style="display:inline;">
+                      <input type="hidden" name="key" value={l.key} />
+                      <input type="hidden" name="aktion" value={l.aktiv ? 'stilllegen' : 'aktivieren'} />
+                      <button type="submit" style={knopfLeise}>{l.aktiv ? 'Stilllegen' : 'Aktivieren'}</button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      );
+    })}
+  </div>
+</AdminLayout>

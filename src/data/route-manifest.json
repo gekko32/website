@@ -236,6 +236,14 @@
       "media": false
     },
     {
+      "route": "/admin/leistungen",
+      "authTier": "admin",
+      "brand": "both",
+      "dynamic": false,
+      "excludeFromSweep": false,
+      "media": false
+    },
+    {
       "route": "/admin/einstellungen/regeln",
       "authTier": "admin",
       "brand": "both",

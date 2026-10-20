@@ -76,11 +76,12 @@ describe('Admin-Sidebar — Gliederung', () => {
     expect(labels).not.toContain('Infrastruktur');
   });
 
-  it('enthält genau die zwölf freigegebenen Einträge', () => {
+  it('enthält genau die dreizehn freigegebenen Einträge', () => {
     const hrefs = allItems(buildNavSections(OPTS)).map((i) => i.href);
 
-    // Titel sagt zwölf; die Zahl 11 war veraltet (Gerald, 19.10.2026).
-    expect(hrefs).toHaveLength(12);
+    // Zwölf seit 19.10.2026, dazu „Leistungen“ (Rechnungswesen Stufe 3, 20.10.2026).
+    expect(hrefs).toHaveLength(13);
+    expect(hrefs).toContain('/admin/leistungen');
     for (const gone of [
       '/admin/cockpit',
       '/admin/app-catalog',
