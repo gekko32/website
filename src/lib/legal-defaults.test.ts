@@ -23,16 +23,16 @@ describe('getDefaultDatenschutz', () => {
 });
 
 describe('getDefaultAgb', () => {
-  it('returns an HTML AGB page with §19 UStG and 14-day payment terms', () => {
+  it('returns an HTML AGB page with §19 UStG and payment terms from the settings', () => {
     const html = getDefaultAgb();
     expect(html).toContain('<h1>Allgemeine Geschäftsbedingungen</h1>');
     expect(html).toContain('§ 19 UStG');
-    expect(html).toContain('14 Tagen');
+    expect(html).toContain('{{regeln.zahlungsziel}} Tagen');
   });
 
-  it('nennt 24-Stunden-Absagefrist, Widerrufsbelehrung und keine Nettopreise', () => {
+  it('Absagefrist aus den Regeln, Widerrufsbelehrung und keine Nettopreise', () => {
     const html = getDefaultAgb();
-    expect(html).toContain('24 Stunden');
+    expect(html).toContain('{{regeln.ausfallFrist}} Stunden');
     expect(html).toContain('id="widerruf"');
     expect(html).toContain('Muster-Widerrufsformular');
     expect(html).not.toContain('Nettopreise');

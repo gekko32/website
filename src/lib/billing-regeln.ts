@@ -118,6 +118,32 @@ export function ausfallBetrag(regeln: Regeln, leistungspreis: number): number {
   return Math.round(betrag * 100) / 100;
 }
 
+/** Werte für die Platzhalter {{regeln.*}} in AGB und Buchungshinweis (T2, K37, K38). */
+export function regelTokenWerte(regeln: Regeln, zahlungszielTage: number): { ausfallFrist: string; ausfallHoehe: string; zahlungsziel: string } {
+  const zahlDe = (n: number, stellen: number) =>
+    n.toLocaleString('de-DE', { minimumFractionDigits: stellen, maximumFractionDigits: stellen });
+  let ausfallHoehe: string;
+  if (regeln.ausfallArt === 'betrag') ausfallHoehe = `von ${zahlDe(regeln.ausfallWert, 2)} €`;
+  else if (regeln.ausfallWert === 100) ausfallHoehe = 'des vereinbarten Preises';
+  else ausfallHoehe = `von ${zahlDe(regeln.ausfallWert, Number.isInteger(regeln.ausfallWert) ? 0 : 2)} % des vereinbarten Preises`;
+  return {
+    ausfallFrist: String(regeln.ausfallFristStunden),
+    ausfallHoehe,
+    zahlungsziel: String(zahlungszielTage),
+  };
+}
+
+/** Platzhalter-Werte direkt aus den Einstellungen; ohne Datenbank die Startwerte. */
+export async function ladeRegelTokenWerte(brand: string): Promise<ReturnType<typeof regelTokenWerte>> {
+  try {
+    const [regeln, tage] = await Promise.all([ladeRegeln(brand), getSiteSetting(brand, 'invoice_payment_days')]);
+    const zahlungsziel = Number.parseInt(tage ?? '', 10);
+    return regelTokenWerte(regeln, Number.isFinite(zahlungsziel) && zahlungsziel >= 0 ? zahlungsziel : 14);
+  } catch {
+    return regelTokenWerte(REGEL_STANDARD, 14);
+  }
+}
+
 /** Liest die Regeln; fehlende oder kaputte Werte fallen auf den Startwert zurück. */
 export async function ladeRegeln(brand: string): Promise<Regeln> {
   const roh = await Promise.all(REGEL_FELDER.map((f) => getSiteSetting(brand, f.key)));

@@ -1,6 +1,8 @@
 // Rechnungswesen Stufe 3, T1: Regeln über Formularfelder (K17, K36, K39, K40).
 import { describe, expect, it } from 'vitest';
-import { REGEL_FELDER, REGEL_STANDARD, pruefeRegeln, ausfallBetrag } from './billing-regeln';
+import { REGEL_FELDER, REGEL_STANDARD, pruefeRegeln, ausfallBetrag, regelTokenWerte } from './billing-regeln';
+import { resolveRegelTokens } from './legal-tokens';
+import { getDefaultAgb } from './legal-defaults';
 
 describe('billing-regeln: Standardwerte', () => {
   it('Startwerte aus Geralds Entscheidung vom 20.10.2026', () => {
@@ -67,6 +69,42 @@ describe('billing-regeln: Eingaben prüfen (K39)', () => {
   it('meldet mehrere Fehler auf einmal', () => {
     const r = pruefeRegeln({ ...gut, regel_ausfall_frist_stunden: '-1', regel_ausfall_art: 'x' });
     expect(r.fehler.map((f) => f.key)).toEqual(['regel_ausfall_frist_stunden', 'regel_ausfall_art']);
+  });
+});
+
+describe('billing-regeln: Platzhalter in den AGB (T2, K37, K38)', () => {
+  it('formatiert die Werte für den AGB-Text', () => {
+    expect(regelTokenWerte(REGEL_STANDARD, 14)).toEqual({
+      ausfallFrist: '24',
+      ausfallHoehe: 'des vereinbarten Preises',
+      zahlungsziel: '14',
+    });
+    expect(regelTokenWerte({ ...REGEL_STANDARD, ausfallWert: 50 }, 30).ausfallHoehe).toBe('von 50 % des vereinbarten Preises');
+    expect(regelTokenWerte({ ...REGEL_STANDARD, ausfallArt: 'betrag', ausfallWert: 60 }, 14).ausfallHoehe).toBe('von 60,00 €');
+  });
+
+  it('Standard-AGB enthalten Platzhalter statt fester Werte', () => {
+    const roh = getDefaultAgb();
+    expect(roh).toContain('{{regeln.ausfallFrist}} Stunden');
+    expect(roh).toContain('{{regeln.ausfallHoehe}}');
+    expect(roh).toContain('{{regeln.zahlungsziel}} Tagen');
+    expect(roh).not.toMatch(/\b24 Stunden\b/);
+  });
+
+  it('K37: Frist 48 h steht nach dem Einsetzen in den AGB, 24 h nirgends', () => {
+    const html = resolveRegelTokens(getDefaultAgb(), regelTokenWerte({ ...REGEL_STANDARD, ausfallFristStunden: 48 }, 14));
+    expect(html).toContain('bis 48 Stunden vor Beginn');
+    expect(html).not.toContain('24 Stunden');
+    expect(html).not.toContain('{{regeln.');
+  });
+
+  it('K38: geändertes Zahlungsziel erscheint in den AGB', () => {
+    const html = resolveRegelTokens(getDefaultAgb(), regelTokenWerte(REGEL_STANDARD, 30));
+    expect(html).toContain('innerhalb von 30 Tagen');
+  });
+
+  it('unbekannte Platzhalter bleiben unangetastet', () => {
+    expect(resolveRegelTokens('{{regeln.gibtsnicht}}', regelTokenWerte(REGEL_STANDARD, 14))).toBe('{{regeln.gibtsnicht}}');
   });
 });
 
