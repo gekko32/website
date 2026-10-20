@@ -8,7 +8,7 @@ import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
 import { leistungsOptionen, listeLeistungen, preisAnzeige, holeLeistung } from '../../../lib/billing-leistungen';
 import { gebuchteTermine } from '../../../lib/billing-ausfall';
-import { postenDesKlienten, postenBetrag, verbucheQuellen, auftraegeDesKlienten, postenAenderbar, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
+import { postenDesKlienten, postenBetrag, verbucheQuellen, auftraegeDesKlienten, postenAenderbar, terminAbgesagt, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -120,7 +120,7 @@ const postenFehler = q.get('fehler');
                     class="w-28 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-xs text-light" />
                   <button type="submit" class="px-2 py-1 rounded border border-dark-lighter text-xs">Erlassen</button>
                 </form>
-              ) : (p.zustand === 'offen' || p.zustand === 'nicht_abrechnen') && (
+              ) : (p.zustand === 'offen' || p.zustand === 'nicht_abrechnen') && !terminAbgesagt(p) && (
                 <form method="POST" action="/api/admin/posten" style="display:inline;">
                   <input type="hidden" name="postenId" value={p.id} />
                   <input type="hidden" name="aktion" value={p.zustand === 'offen' ? 'nicht_abrechnen' : 'abrechnen'} />

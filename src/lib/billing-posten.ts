@@ -343,11 +343,21 @@ export async function alleOffenenPosten(brand: string): Promise<Posten[]> {
  * „nicht abrechnen“ ↔ „offen“ umschalten (K14). Posten auf einer Rechnung
  * (Entwurf oder abgerechnet) bleiben unverändert. Liefert true bei Erfolg.
  */
+/** Ein Terminposten, dessen Termin nachträglich abgesagt wurde (Vermerk von neutralisiereAbgesagteTermine). */
+export const VERMERK_TERMIN_ABGESAGT = 'Termin abgesagt';
+const ABGESAGT_SQL = `(herkunft = 'termin' AND COALESCE(notiz, '') LIKE '%${VERMERK_TERMIN_ABGESAGT}%')`;
+
+export function terminAbgesagt(p: Pick<Posten, 'herkunft' | 'notiz'>): boolean {
+  return p.herkunft === 'termin' && (p.notiz ?? '').includes(VERMERK_TERMIN_ABGESAGT);
+}
+
 export async function setzeAbrechnen(brand: string, postenId: string, abrechnen: boolean): Promise<boolean> {
   await initPostenTabelle();
   const { rowCount } = await pool.query(
     `UPDATE abrechnungsposten SET zustand = $3, updated_at = now()
-      WHERE brand = $1 AND id = $2 AND zustand IN ('offen','nicht_abrechnen')`,
+      WHERE brand = $1 AND id = $2 AND zustand IN ('offen','nicht_abrechnen')
+        -- Prüfung L2 (N1): ein abgesagter Termin lässt sich nicht wieder öffnen.
+        AND NOT ($3 = 'offen' AND ${ABGESAGT_SQL})`,
     [brand, postenId, abrechnen ? 'offen' : 'nicht_abrechnen']);
   return (rowCount ?? 0) > 0;
 }
@@ -368,13 +378,14 @@ export async function verbucheVergangeneTermine(
             (SELECT c.id FROM customers c WHERE lower(c.email) = lower(i.payload->>'email') LIMIT 1) AS klient_id
        FROM inbox_items i
       WHERE i.type = 'booking'
-        AND (i.payload ? 'freigegebenAm' OR (i.payload->>'adminCreated' = 'true' AND i.created_at >= '2026-10-20T00:00:00Z'))
+        AND (i.payload ? 'freigegebenAm' OR (i.payload->>'adminCreated' = 'true' AND i.created_at >= '2026-10-21T00:00:00Z'))
         AND (i.payload->>'slotEnd') IS NOT NULL
-        -- Prüfung L2 (B7): kaputte Zeitwerte überspringen statt die ganze Abfrage abzubrechen
-        AND (CASE WHEN (i.payload->>'slotEnd') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}' THEN (i.payload->>'slotEnd')::timestamptz END) <= $2
+        AND COALESCE(i.payload->>'state', '') <> 'storniert'
         AND NOT EXISTS (SELECT 1 FROM abrechnungsposten a
                          WHERE a.brand = $1 AND a.herkunft = 'termin' AND a.herkunft_ref = i.id::text)`,
-    [brand, jetzt.toISOString()]);
+    // Prüfung L2 (B7, N4): Ob der Termin vorbei ist, prüft termineZuPosten im Programm –
+    // ein ungültiger Zeitwert in einer einzelnen Buchung kann die Abfrage so nie abbrechen.
+    [brand]);
   if (rows.length === 0) return 0;
 
   const keys = new Set<string>();

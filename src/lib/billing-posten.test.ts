@@ -1,6 +1,6 @@
 // Rechnungswesen Stufe 3, T5: Abrechnungsposten (K2, K11, K14, K16).
 import { describe, expect, it } from 'vitest';
-import { pruefeSitzung, summenJeKlient, postenBetrag, termineZuPosten, pruefePreis, zeitenZuPosten, pruefeAuftragTitel, pruefePosition, postenAenderbar, type Posten, type TerminZeile, type ZeitZeile } from './billing-posten';
+import { pruefeSitzung, summenJeKlient, postenBetrag, termineZuPosten, pruefePreis, zeitenZuPosten, pruefeAuftragTitel, pruefePosition, postenAenderbar, terminAbgesagt, type Posten, type TerminZeile, type ZeitZeile } from './billing-posten';
 import type { Leistung } from './billing-leistungen';
 
 const leistung = (teil: Partial<Leistung> = {}): Leistung => ({
@@ -201,6 +201,16 @@ describe('Individuelle Aufträge (T8, K8–K10)', () => {
     expect(postenAenderbar('auf_entwurf')).toBe(false);
     expect(postenAenderbar('abgerechnet')).toBe(false);
     expect(postenAenderbar('erlassen')).toBe(false);
+  });
+});
+
+describe('Abgesagter Terminposten bleibt zu (Prüfung L2, N1)', () => {
+  const basis = { herkunft: 'termin' as const, notiz: null as string | null };
+  it('erkennt den Vermerk „Termin abgesagt“ nur bei Terminposten', () => {
+    expect(terminAbgesagt({ ...basis, notiz: 'Termin abgesagt' })).toBe(true);
+    expect(terminAbgesagt({ ...basis, notiz: 'Preis fehlt – bitte eintragen · Termin abgesagt' })).toBe(true);
+    expect(terminAbgesagt(basis)).toBe(false);
+    expect(terminAbgesagt({ herkunft: 'hand', notiz: 'Termin abgesagt' })).toBe(false);
   });
 });
 

@@ -377,6 +377,7 @@ async function run() {
       phone: '+49 123 456789',
       type: 'erstgespraech',
       message: 'Test booking',
+      agbAkzeptiert: true, // Rechnungswesen Stufe 3 (K21): AGB-Zustimmung ist Pflicht
       slotStart: '2026-05-01T10:00:00Z',
       slotEnd: '2026-05-01T11:00:00Z',
       slotDisplay: '10:00 - 11:00',

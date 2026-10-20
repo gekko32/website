@@ -97,7 +97,7 @@ export async function verbucheAusfaelle(
             (SELECT c.id FROM customers c WHERE lower(c.email) = lower(i.payload->>'email') LIMIT 1) AS klient_id
        FROM inbox_items i
       WHERE i.type = 'booking' AND i.payload->>'state' = 'storniert'
-        AND (i.payload ? 'freigegebenAm' OR (i.payload->>'adminCreated' = 'true' AND i.created_at >= '2026-10-20T00:00:00Z'))
+        AND (i.payload ? 'freigegebenAm' OR (i.payload->>'adminCreated' = 'true' AND i.created_at >= '2026-10-21T00:00:00Z'))
         AND NOT EXISTS (SELECT 1 FROM abrechnungsposten a
                          WHERE a.brand = $1 AND a.herkunft = 'ausfall' AND a.herkunft_ref = i.id::text)
         -- Prüfung L2 (B1): steht der Termin selbst schon auf einer Rechnung, kein zusätzliches Ausfallhonorar.
@@ -140,7 +140,7 @@ export async function gebuchteTermine(email: string): Promise<GebuchterTermin[]>
   const { rows } = await pool.query(
     `SELECT i.id::text AS id, i.payload FROM inbox_items i
       WHERE i.type = 'booking' AND lower(i.payload->>'email') = lower($1)
-        AND (i.payload ? 'freigegebenAm' OR (i.payload->>'adminCreated' = 'true' AND i.created_at >= '2026-10-20T00:00:00Z'))
+        AND (i.payload ? 'freigegebenAm' OR (i.payload->>'adminCreated' = 'true' AND i.created_at >= '2026-10-21T00:00:00Z'))
       ORDER BY i.payload->>'slotStart' DESC NULLS LAST LIMIT 50`, [email]);
   return rows.map((r: { id: string; payload: Record<string, unknown> }) => ({
     id: r.id, start: textWert(r.payload.slotStart), ende: textWert(r.payload.slotEnd),
