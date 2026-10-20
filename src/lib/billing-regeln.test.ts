@@ -1,6 +1,6 @@
 // Rechnungswesen Stufe 3, T1: Regeln über Formularfelder (K17, K36, K39, K40).
 import { describe, expect, it } from 'vitest';
-import { REGEL_FELDER, REGEL_STANDARD, pruefeRegeln, ausfallBetrag, regelTokenWerte } from './billing-regeln';
+import { REGEL_FELDER, REGEL_STANDARD, pruefeRegeln, ausfallBetrag, regelTokenWerte, pruefeZahlungsziel } from './billing-regeln';
 import { resolveRegelTokens } from './legal-tokens';
 import { getDefaultAgb } from './legal-defaults';
 
@@ -105,6 +105,17 @@ describe('billing-regeln: Platzhalter in den AGB (T2, K37, K38)', () => {
 
   it('unbekannte Platzhalter bleiben unangetastet', () => {
     expect(resolveRegelTokens('{{regeln.gibtsnicht}}', regelTokenWerte(REGEL_STANDARD, 14))).toBe('{{regeln.gibtsnicht}}');
+  });
+});
+
+describe('billing-regeln: Zahlungsziel prüfen (K39, Prüfung Runde 1)', () => {
+  it.each([['14', 14], ['0', 0], [' 30 ', 30], ['365', 365]])('nimmt "%s" an', (roh, zahl) => {
+    expect(pruefeZahlungsziel(roh)).toEqual({ wert: zahl, fehler: null });
+  });
+  it.each(['', 'abc', '-3', '2,5', '366'])('lehnt "%s" ab, mit Meldung', (roh) => {
+    const r = pruefeZahlungsziel(roh);
+    expect(r.wert).toBeNull();
+    expect(r.fehler).toMatch(/Zahlungsziel/);
   });
 });
 

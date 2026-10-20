@@ -1,6 +1,7 @@
 // Rechnungswesen Stufe 3, T1b: Absenderdaten aus einer Quelle, USt-IdNr. und
 // Steuernummer getrennt (K36, K36a, K39).
 import { describe, expect, it } from 'vitest';
+import { resolveTokens } from './legal-tokens';
 import { absenderAus, ustIdGueltig, normalisiereUstId, pruefeSteuerangaben, steuerangabeFuerRechnung } from './billing-absender';
 
 const einstellungen = {
@@ -73,6 +74,14 @@ describe('Steuerangabe auf der Rechnung (§ 14 Abs. 4 Nr. 2 UStG)', () => {
     expect(steuerangabeFuerRechnung({ vatId: 'DE123456789', taxNumber: '12/345/67890' })).toEqual({ label: 'USt-IdNr.', wert: 'DE123456789' });
     expect(steuerangabeFuerRechnung({ vatId: '', taxNumber: '12/345/67890' })).toEqual({ label: 'Steuernummer', wert: '12/345/67890' });
     expect(steuerangabeFuerRechnung({ vatId: '', taxNumber: '' })).toBeNull();
+  });
+});
+
+describe('Rechtstexte: {{stammdaten.ustId}} nur mit gültiger USt-IdNr. (K36a, Prüfung Runde 1)', () => {
+  it('Steuernummer im Stammdaten-Feld erscheint nicht', () => {
+    expect(resolveTokens('USt-IdNr.: {{stammdaten.ustId}}', { ustId: '33/111/22222' })).toBe('USt-IdNr.: ');
+    expect(resolveTokens('USt-IdNr.: {{stammdaten.ustId}}', { ustId: 'de 123 456 789' })).toBe('USt-IdNr.: DE123456789');
+    expect(resolveTokens('{{stammdaten.city}}', { city: 'Hamburg' })).toBe('Hamburg');
   });
 });
 

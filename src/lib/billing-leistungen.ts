@@ -127,9 +127,32 @@ export function websiteKategorien(kategorien: Kategorie[], leistungen: Leistung[
           key: l.key, name: l.name, price: preisAnzeige(l), unit: l.einheit ? `/ ${l.einheit}` : '',
           desc: l.beschreibung, ...(l.hervorheben ? { highlight: true } : {}),
           ...(l.dauerMin ? { durationMin: l.dauerMin } : {}),
+          // Zeiterfassung belegt den Stundensatz damit vor (Prüfung Runde 1, Befund 9).
+          ...(l.preis !== null && /stunde/i.test(l.einheit) ? { stundensatz_cents: Math.round(l.preis * 100) } : {}),
         })),
     }))
     .filter((c) => c.services.length > 0);
+}
+
+/**
+ * Öffentliche Buchung: Beide Felder (serviceKey, leistungKey) dürfen nur Leistungen
+ * aus dem öffentlichen Katalog nennen (K7). Liefert den ersten unbekannten Schlüssel.
+ */
+export function unbekannteBuchungsLeistung(
+  katalog: LeistungCategory[],
+  felder: { serviceKey?: unknown; leistungKey?: unknown },
+): string | null {
+  const erlaubt = new Set(katalog.flatMap((c) => c.services.map((s) => s.key)));
+  for (const wert of [felder.serviceKey, felder.leistungKey]) {
+    if (wert === undefined || wert === null || wert === '') continue;
+    if (typeof wert !== 'string' || !erlaubt.has(wert)) return String(wert);
+  }
+  return null;
+}
+
+/** Nur aktive Leistungen mit Preis über 0 dürfen automatisch abgerechnet werden (K3). */
+export function abrechenbar(l: Pick<Leistung, 'aktiv' | 'preis'> | null | undefined): boolean {
+  return !!l && l.aktiv && l.preis !== null && l.preis > 0;
 }
 
 export function schluesselAus(name: string, vorhanden: string[]): string {
@@ -179,6 +202,10 @@ export function pruefeLeistung(e: LeistungEingabe, kategorieIds: string[]): { we
 
   const einheit = (e.einheit ?? '').trim();
   if (einheit.length > 40) fehler.push({ key: 'einheit', meldung: 'Die Einheit darf höchstens 40 Zeichen haben.' });
+
+  if ((e.beschreibung ?? '').trim().length > 1000) {
+    fehler.push({ key: 'beschreibung', meldung: 'Die Beschreibung darf höchstens 1000 Zeichen haben.' });
+  }
 
   if (fehler.length > 0) return { werte: null, fehler };
   return {
@@ -238,19 +265,31 @@ async function befuelleEinmal(brand: string): Promise<void> {
   if (rows.length === 0) {
     // Die feste Code-Liste gehörte nur zu mentolder; andere Marken starten mit ihrer Inhaltsdatei.
     const { kategorien, leistungen } = startlisteAus(bundleLeistungen(brand), brand === 'mentolder' ? STARTLISTE_CODE_2026_10 : []);
-    for (const k of kategorien) {
-      await pool.query(
-        `INSERT INTO leistungs_kategorien (brand, id, titel, icon, beschreibung, sortierung)
-         VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`,
-        [brand, k.id, k.titel, k.icon, k.beschreibung, k.sortierung]);
-    }
-    for (const l of leistungen) {
-      await pool.query(
-        `INSERT INTO leistungen (brand, key, kategorie_id, name, beschreibung, preis, nach_vereinbarung,
-           einheit, dauer_min, website, hervorheben, aktiv, sortierung)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT DO NOTHING`,
-        [brand, l.key, l.kategorieId, l.name, l.beschreibung, l.preis, l.nachVereinbarung,
-          l.einheit, l.dauerMin, l.website, l.hervorheben, l.aktiv, l.sortierung]);
+    // Alles oder nichts: Bricht die Erstbefüllung ab, bleibt keine halbe Liste zurück
+    // (sonst gälte „Zeilen vorhanden“ und der Rest käme nie). Prüfung Runde 1, Befund 8.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const k of kategorien) {
+        await client.query(
+          `INSERT INTO leistungs_kategorien (brand, id, titel, icon, beschreibung, sortierung)
+           VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`,
+          [brand, k.id, k.titel, k.icon, k.beschreibung, k.sortierung]);
+      }
+      for (const l of leistungen) {
+        await client.query(
+          `INSERT INTO leistungen (brand, key, kategorie_id, name, beschreibung, preis, nach_vereinbarung,
+             einheit, dauer_min, website, hervorheben, aktiv, sortierung)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT DO NOTHING`,
+          [brand, l.key, l.kategorieId, l.name, l.beschreibung, l.preis, l.nachVereinbarung,
+            l.einheit, l.dauerMin, l.website, l.hervorheben, l.aktiv, l.sortierung]);
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
     }
   }
   befuellt.add(brand);
@@ -323,6 +362,12 @@ export async function setzeLeistungAktiv(brand: string, key: string, aktiv: bool
   await pool.query('UPDATE leistungen SET aktiv=$3, updated_at=now() WHERE brand=$1 AND key=$2', [brand, key, aktiv]);
 }
 
+/** Ohne Datenbank: Inhaltsdatei nach denselben Regeln (Pakete stillgelegt). */
+function rueckfallKatalog(brand: string): LeistungCategory[] {
+  const { kategorien, leistungen } = startlisteAus(bundleLeistungen(brand), []);
+  return websiteKategorien(kategorien, leistungen);
+}
+
 /** Auswahl für Rechnungsformulare: aktive Leistungen mit Preis (T4). */
 export async function leistungsOptionen(brand: string): Promise<{ key: string; name: string; cents: number }[]> {
   const alle = await listeLeistungen(brand, { nurAktiv: true });
@@ -337,7 +382,7 @@ export async function katalogIntern(brand: string): Promise<LeistungCategory[]> 
     const [kategorien, leistungen] = await Promise.all([listeKategorien(brand), listeLeistungen(brand, { nurAktiv: true })]);
     return websiteKategorien(kategorien, leistungen.map((l) => ({ ...l, website: true })));
   } catch {
-    return bundleLeistungen(brand);
+    return rueckfallKatalog(brand);
   }
 }
 
@@ -347,6 +392,6 @@ export async function websiteLeistungen(brand: string): Promise<LeistungCategory
     const [kategorien, leistungen] = await Promise.all([listeKategorien(brand), listeLeistungen(brand, { nurAktiv: true })]);
     return websiteKategorien(kategorien, leistungen);
   } catch {
-    return bundleLeistungen(brand);
+    return rueckfallKatalog(brand);
   }
 }

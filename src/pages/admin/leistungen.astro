@@ -17,12 +17,15 @@ function jsonParam<T>(name: string, fallback: T): T {
   try { return JSON.parse(q.get(name) ?? '') as T; } catch { return fallback; }
 }
 const gespeichert = q.get('gespeichert');
-const fehler = jsonParam<{ key: string; meldung: string }[]>('fehler', []);
+const fehlerRoh = jsonParam<{ key: string; meldung: string }[]>('fehler', []);
+// Kaputte oder fremde URL-Parameter dürfen die Seite nicht zum Absturz bringen.
+const fehler = Array.isArray(fehlerRoh) ? fehlerRoh.filter((x) => x && typeof x.key === 'string' && typeof x.meldung === 'string') : [];
 const bearbeiten = q.get('bearbeiten'); // Schlüssel, 'neu' oder null
 const zeigeStillgelegte = q.get('alle') === '1';
 
 const vorlage: Leistung | undefined = bearbeiten && bearbeiten !== 'neu' ? leistungen.find((l) => l.key === bearbeiten) : undefined;
-const eingabe = jsonParam<Record<string, string | boolean>>('eingabe', {});
+const eingabeRoh = jsonParam<Record<string, string | boolean>>('eingabe', {});
+const eingabe = eingabeRoh && typeof eingabeRoh === 'object' && !Array.isArray(eingabeRoh) ? eingabeRoh : {};
 const wert = (k: string, ausVorlage: unknown) => (k in eingabe ? eingabe[k] : ausVorlage);
 const f = {
   name: String(wert('name', vorlage?.name ?? '')),

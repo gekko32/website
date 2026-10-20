@@ -133,12 +133,29 @@ export function regelTokenWerte(regeln: Regeln, zahlungszielTage: number): { aus
   };
 }
 
+/** Zahlungsziel in Tagen: ganze Zahl 0–365 (K39). */
+export function pruefeZahlungsziel(roh: string | null | undefined): { wert: number | null; fehler: string | null } {
+  const s = (roh ?? '').trim();
+  if (!/^\d+$/.test(s) || Number(s) > 365) {
+    return { wert: null, fehler: 'Bitte als Zahlungsziel eine ganze Zahl von 0 bis 365 Tagen eintragen.' };
+  }
+  return { wert: Number(s), fehler: null };
+}
+
+/** Zahlungsziel aus Einstellungen → Rechnungen; ohne gültigen Wert 14 Tage. */
+export async function ladeZahlungsziel(brand: string): Promise<number> {
+  try {
+    return pruefeZahlungsziel(await getSiteSetting(brand, 'invoice_payment_days')).wert ?? 14;
+  } catch {
+    return 14;
+  }
+}
+
 /** Platzhalter-Werte direkt aus den Einstellungen; ohne Datenbank die Startwerte. */
 export async function ladeRegelTokenWerte(brand: string): Promise<ReturnType<typeof regelTokenWerte>> {
   try {
-    const [regeln, tage] = await Promise.all([ladeRegeln(brand), getSiteSetting(brand, 'invoice_payment_days')]);
-    const zahlungsziel = Number.parseInt(tage ?? '', 10);
-    return regelTokenWerte(regeln, Number.isFinite(zahlungsziel) && zahlungsziel >= 0 ? zahlungsziel : 14);
+    const [regeln, zahlungsziel] = await Promise.all([ladeRegeln(brand), ladeZahlungsziel(brand)]);
+    return regelTokenWerte(regeln, zahlungsziel);
   } catch {
     return regelTokenWerte(REGEL_STANDARD, 14);
   }

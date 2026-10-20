@@ -1,8 +1,9 @@
-import { pool, initBillingTables, getNextInvoiceNumber, getSiteSetting } from './website-db';
+import { pool, initBillingTables, getNextInvoiceNumber } from './website-db';
 import { getCustomerById, type Invoice } from './native-billing';
 import { addBooking } from './eur-bookkeeping';
 import { generateInvoicePdf, type InvoicePdfSeller } from './invoice-pdf';
 import { archiveBillingPdf } from './billing-archive';
+import { ladeAbsender } from './billing-absender';
 import { logBillingEvent, type BillingActor } from './billing-audit';
 
 function iso(d: Date): string {
@@ -150,34 +151,10 @@ export async function generateCreditNotePdf(invoiceId: string): Promise<Buffer |
   const customer = await getCustomerById(inv.brand, inv.customer_id);
   if (!customer) return null;
   const linesR = await pool.query(`SELECT * FROM billing_invoice_line_items WHERE invoice_id=$1 ORDER BY id`, [invoiceId]);
-  const [senderName, senderStreet, senderCity, senderZip, senderCountry, senderVat, senderIban, senderBic, senderBank, senderEmail, senderPhone] = await Promise.all([
-    getSiteSetting(inv.brand, 'invoice_sender_name'),
-    getSiteSetting(inv.brand, 'invoice_sender_street'),
-    getSiteSetting(inv.brand, 'invoice_sender_city'),
-    getSiteSetting(inv.brand, 'invoice_sender_zip'),
-    getSiteSetting(inv.brand, 'invoice_sender_country'),
-    getSiteSetting(inv.brand, 'invoice_sender_vat_id'),
-    getSiteSetting(inv.brand, 'invoice_bank_iban'),
-    getSiteSetting(inv.brand, 'invoice_bank_bic'),
-    getSiteSetting(inv.brand, 'invoice_bank_name'),
-    getSiteSetting(inv.brand, 'invoice_sender_email'),
-    getSiteSetting(inv.brand, 'invoice_sender_phone'),
-  ]);
+  // Prüfung Runde 1 (K36, K36a): Absender aus derselben Quelle wie alle Rechnungen.
+  const absender = await ladeAbsender(inv.brand);
 
-  const seller: InvoicePdfSeller = {
-    name: senderName || inv.brand,
-    address: senderStreet || '',
-    postalCode: senderZip || '',
-    city: senderCity || '',
-    country: senderCountry || 'DE',
-    vatId: senderVat || '',
-    taxNumber: '',
-    iban: senderIban || '',
-    bic: senderBic || '',
-    bankName: senderBank || '',
-    email: senderEmail || undefined,
-    phone: senderPhone || undefined,
-  };
+  const seller: InvoicePdfSeller = { ...absender, name: absender.name || inv.brand };
   const pdf = await generateInvoicePdf({
     invoice: {
       id: inv.id, brand: inv.brand, number: inv.number, status: inv.status,

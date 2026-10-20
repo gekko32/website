@@ -206,6 +206,38 @@ describe('invoice-dunning.runDunningDetection (no-op end-to-end)', () => {
     const insertCall = query.mock.calls.find((c) => /INSERT INTO billing_invoice_dunnings/.test(c[0] as string));
     expect(insertCall).toBeDefined();
     expect(insertCall![1]).toEqual(['inv-1', 'mentolder', 1, 0, expect.any(Number), 100, 'Billing/mentolder/R-1/mahnung-1-R-1.pdf']);
+  });
+
+  it('Mahnung nimmt Absender, IBAN und Steuernummer aus den Rechnungs-Einstellungen (K36, Prüfung Runde 1)', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [{
+        id: 'inv-1', number: 'R-1', status: 'open', dunning_level: 0,
+        due_date: new Date(Date.now() - 20 * 86_400_000), last_dunning_at: null,
+        gross_amount: '100', paid_amount: '0', customer_id: 'cust-1',
+      }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+    const einstellungen: Record<string, string> = {
+      invoice_sender_name: 'Gerald Korczewski', invoice_sender_street: 'Ludwig-Erhard-Str. 18',
+      invoice_sender_city: '20459 Hamburg', invoice_bank_iban: 'DE02120300000000202051',
+      invoice_tax_number: '12/345/67890',
+    };
+    getSiteSetting.mockImplementation(async (_b: string, k: string) => einstellungen[k]);
+    getInvoice.mockResolvedValueOnce({ id: 'inv-1', number: 'R-1', status: 'open' });
+    getCustomerById.mockResolvedValueOnce({
+      id: 'cust-1', name: 'Alice', email: 'a@b.com', company: null,
+      addressLine1: 'Str. 1', city: 'Berlin', postalCode: '10115', landIso: 'DE',
+    });
+    generateDunningPdf.mockResolvedValueOnce(Buffer.from('pdf'));
+    archiveBillingPdf.mockResolvedValueOnce('Billing/x.pdf');
+    logBillingEvent.mockResolvedValueOnce(undefined);
+
+    await runDunningDetection('mentolder');
+    const seller = (generateDunningPdf.mock.calls[0][0] as { seller: Record<string, string> }).seller;
+    expect(seller).toMatchObject({
+      name: 'Gerald Korczewski', address: 'Ludwig-Erhard-Str. 18', postalCode: '20459', city: 'Hamburg',
+      iban: 'DE02120300000000202051', taxNumber: '12/345/67890',
+    });
 
     const updateCall = query.mock.calls.find((c) => /UPDATE billing_invoices/.test(c[0] as string));
     expect(updateCall).toBeDefined();

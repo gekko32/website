@@ -1,4 +1,4 @@
-import { pool, initBillingTables, getSiteSetting } from './website-db';
+import { pool, initBillingTables } from './website-db';
 import { logger } from './logger';
 import {
   createCustomer as nativeCreateCustomer,
@@ -6,6 +6,7 @@ import {
   getCustomerById as nativeGetCustomerById,
 } from './native-billing';
 import { holeLeistung } from './billing-leistungen';
+import { ladeZahlungsziel } from './billing-regeln';
 
 // Die feste Preisliste (SERVICES) ist seit Rechnungswesen Stufe 3 (20.10.2026)
 // entfernt. Leistungen und Preise pflegt Gerald unter Admin → Leistungen
@@ -229,11 +230,11 @@ export async function createBillingInvoice(params: {
   // Stufe 3 T4: Preis, Name und Einheit aus der gepflegten Leistungstabelle (K1, K4).
   const service = await holeLeistung(brand, params.serviceKey);
   if (!service) throw new Error(`createBillingInvoice: unknown serviceKey "${params.serviceKey}"`);
+  if (!service.aktiv) throw new Error(`createBillingInvoice: service "${params.serviceKey}" ist stillgelegt`);
   if (service.preis === null || service.preis <= 0) {
     throw new Error(`createBillingInvoice: service "${params.serviceKey}" has no chargeable price`);
   }
-  const tage = Number.parseInt((await getSiteSetting(brand, 'invoice_payment_days')) ?? '', 10);
-  const dueDays = Number.isFinite(tage) && tage >= 0 ? tage : 14;
+  const dueDays = await ladeZahlungsziel(brand);
 
   // Verify the customer exists in this brand to fail fast with a clear message
   // instead of a foreign-key violation deep inside the INSERT.

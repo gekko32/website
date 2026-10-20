@@ -8,7 +8,7 @@ import { createTalkRoom, inviteGuestByEmail, sendChatMessage } from '../../../..
 import { sendRegistrationApproved, sendRegistrationDeclined, sendEmail } from '../../../../../lib/email';
 import { upsertCustomer, resolveBugTicket, setBookingInvoice, createMeeting, claimBrettLinkPost } from '../../../../../lib/website-db';
 import { getOrCreateCustomer, createBillingInvoice } from '../../../../../lib/stripe-billing';
-import { holeLeistung } from '../../../../../lib/billing-leistungen';
+import { holeLeistung, abrechenbar } from '../../../../../lib/billing-leistungen';
 import { verknuepfeRechnungskunde } from '../../../../../lib/klientenakte';
 
 const BRAND_NAME = process.env.BRAND_NAME || 'Workspace';
@@ -162,7 +162,7 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
         const brand = process.env.BRAND || 'mentolder';
         // Stufe 3 T4: Preis aus der gepflegten Leistungstabelle.
         const leistung = svcKey ? await holeLeistung(brand, svcKey).catch(() => null) : null;
-        if (svcKey && leistung && leistung.preis !== null && leistung.preis > 0) {
+        if (svcKey && abrechenbar(leistung)) {
           try {
             const billingCustomer = await getOrCreateCustomer({ brand, name: p.name, email: p.email });
             if (billingCustomer) {

@@ -115,7 +115,6 @@ export const mentolderConfig: BrandConfig = {
         ],
         pricing: [
           { label: 'Einzelbegleitung', price: 'Auf Anfrage', unit: 'pro Stunde', highlight: false },
-          { label: '5er-Paket', price: 'Auf Anfrage', unit: 'Auf Anfrage', highlight: true },
           { label: 'Kleine Gruppe', price: 'Auf Anfrage', unit: 'pro Person / Stunde', highlight: false },
         ],
         faq: [
@@ -159,7 +158,6 @@ export const mentolderConfig: BrandConfig = {
         ],
         pricing: [
           { label: 'Einzelsession (90 Min.)', price: 'nach Vereinbarung', highlight: false },
-          { label: 'Paket 6 Sessions', price: 'nach Vereinbarung', unit: '', highlight: true },
           { label: 'Intensiv-Tag (6 Std.)', price: 'nach Vereinbarung', highlight: false },
         ],
         faq: [
@@ -279,7 +277,6 @@ export const mentolderConfig: BrandConfig = {
         ],
         pricing: [
           { label: 'Einzelsession (90 Min.)', price: 'nach Vereinbarung', unit: 'pro Session', highlight: false },
-          { label: 'Paket 6 Sessions', price: 'nach Vereinbarung', unit: '', highlight: true },
           { label: 'Unternehmen & Teams', price: 'nach Vereinbarung', unit: 'ab 5 Personen möglich', highlight: false },
         ],
         faq: [],
@@ -323,8 +320,8 @@ export const mentolderConfig: BrandConfig = {
   ],
   leistungenPricingHighlight: [
     { label: 'Erstgespräch (30 Min.)', price: 'Kostenlos', note: 'Unverbindlich — kein Verkaufsgespräch', highlight: false },
-    { label: 'Einzelstunde Führungskräfte', price: 'nach Vereinbarung', note: 'Netto gem. §19 UStG', highlight: false },
-    { label: 'Einzelstunde 50+ Digital', price: 'nach Vereinbarung', note: 'Netto gem. §19 UStG', highlight: true },
+    { label: 'Einzelstunde Führungskräfte', price: 'nach Vereinbarung', note: 'Endpreis, keine USt. (§ 19 UStG)', highlight: false },
+    { label: 'Einzelstunde 50+ Digital', price: 'nach Vereinbarung', note: 'Endpreis, keine USt. (§ 19 UStG)', highlight: true },
   ],
   uebermich: {
     pageHeadline: 'Von der Polizei Hamburg in die digitale Begleitung',

@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../../lib/auth';
 import { pool } from '../../../../../lib/website-db';
 import { getInvoice, createInvoice, type InvoiceLine } from '../../../../../lib/native-billing';
+import { ladeZahlungsziel } from '../../../../../lib/billing-regeln';
 
 export const POST: APIRoute = async ({ params, request , locals }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -16,7 +17,9 @@ export const POST: APIRoute = async ({ params, request , locals }) => {
     if (prepayment.kind !== 'prepayment') return new Response('Invoice is not a prepayment', { status: 400 });
 
     const body = await request.json();
-    const { lines, notes, dueDays = 14 } = body;
+    const { lines, notes, dueDays: dueDaysAnfrage } = body;
+    // Prüfung Runde 1 (K38): ohne Angabe gilt das Zahlungsziel aus den Einstellungen.
+    const dueDays = typeof dueDaysAnfrage === 'number' ? dueDaysAnfrage : await ladeZahlungsziel(prepayment.brand);
 
     if (!lines || !Array.isArray(lines)) {
       return new Response(JSON.stringify({ error: 'lines array required' }), { status: 400 });

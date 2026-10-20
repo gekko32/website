@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   pruefeLeistung, schluesselAus, startlisteAus, websiteKategorien, preisAnzeige,
+  unbekannteBuchungsLeistung, abrechenbar,
   STARTLISTE_CODE_2026_10, type Leistung, type Kategorie,
 } from './billing-leistungen';
 import type { LeistungCategory } from '../content-schema/pages';
@@ -108,8 +109,35 @@ describe('Eingaben prüfen (K5, K39)', () => {
     expect(r.fehler.map((f) => f.key)).toContain(key);
   });
 
+  it('Beschreibung höchstens 1000 Zeichen (Prüfung Runde 1, Befund 12)', () => {
+    expect(pruefeLeistung({ ...gut, beschreibung: 'x'.repeat(1001) }, kategorien).fehler.map((f) => f.key)).toEqual(['beschreibung']);
+  });
+
   it('Dauer ist freiwillig', () => {
     expect(pruefeLeistung({ ...gut, dauerMin: '' }, kategorien).werte?.dauerMin).toBeNull();
+  });
+});
+
+describe('Öffentliche Buchung nur mit Website-Leistungen (K7, Prüfung Runde 1)', () => {
+  const katalog: LeistungCategory[] = [{ id: 'a', title: 'A', icon: '', services: [
+    { key: 'coaching-einzel', name: 'Einzel', price: 'nach Vereinbarung', unit: '', desc: '' },
+  ] }];
+
+  it('beide Felder werden geprüft: serviceKey und leistungKey', () => {
+    expect(unbekannteBuchungsLeistung(katalog, { serviceKey: 'coaching-einzel' })).toBeNull();
+    expect(unbekannteBuchungsLeistung(katalog, { leistungKey: 'coaching-einzel' })).toBeNull();
+    expect(unbekannteBuchungsLeistung(katalog, {})).toBeNull();
+    expect(unbekannteBuchungsLeistung(katalog, { leistungKey: 'beratung-tag' })).toBe('beratung-tag');
+    expect(unbekannteBuchungsLeistung(katalog, { serviceKey: 'coaching-einzel', leistungKey: 'coaching-6er' })).toBe('coaching-6er');
+  });
+
+  it('nur aktive Leistungen mit Preis über 0 sind abrechenbar (K3)', () => {
+    const l = { aktiv: true, preis: 150 };
+    expect(abrechenbar(l)).toBe(true);
+    expect(abrechenbar({ ...l, aktiv: false })).toBe(false);
+    expect(abrechenbar({ ...l, preis: 0 })).toBe(false);
+    expect(abrechenbar({ ...l, preis: null })).toBe(false);
+    expect(abrechenbar(null)).toBe(false);
   });
 });
 
@@ -148,6 +176,13 @@ describe('Website-Ansicht (K6, K7)', () => {
     const w = websiteKategorien(kat, leistungen);
     expect(w[0].services[0]).toMatchObject({ price: '150 €', unit: '/ Session' });
     expect(w[0].services[1]).toMatchObject({ price: 'nach Vereinbarung', unit: '/ Stunde' });
+  });
+
+  it('Stundensatz für die Zeiterfassung bei Einheit „Stunde“ (Prüfung Runde 1, Befund 9)', () => {
+    const w = websiteKategorien(kat, leistungen);
+    expect(w[0].services[1]).not.toHaveProperty('stundensatz_cents');
+    const mitPreis = websiteKategorien(kat, [{ ...basis, key: 'std', name: 'Std', einheit: 'Stunde', preis: 60 }]);
+    expect(mitPreis[0].services[0].stundensatz_cents).toBe(6000);
   });
 
   it('Preisanzeige mit Cent und Tausenderpunkt', () => {

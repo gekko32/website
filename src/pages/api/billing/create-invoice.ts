@@ -50,7 +50,8 @@ export const POST: APIRoute = async ({ request , locals }) => {
       );
     }
 
-    if (!(await holeLeistung(process.env.BRAND || 'mentolder', serviceKey))) {
+    const leistung = await holeLeistung(process.env.BRAND || 'mentolder', serviceKey);
+    if (!leistung || !leistung.aktiv) {
       return new Response(
         JSON.stringify({ error: `Unknown service: ${serviceKey}` }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }

@@ -8,7 +8,16 @@ export const STAMMDATEN_TOKENS = STAMMDATEN_FIELDS.map((f) => `{{stammdaten.${f}
 const TOKEN_RE = /\{\{\s*stammdaten\.([a-zA-Z]+)\s*\}\}/g;
 
 export function resolveTokens(html: string, sd: Partial<Stammdaten>): string {
-  return html.replace(TOKEN_RE, (_m, key: string) => String(sd[key as keyof Stammdaten] ?? ''));
+  return html.replace(TOKEN_RE, (_m, key: string) => {
+    const wert = String(sd[key as keyof Stammdaten] ?? '');
+    // Rechnungswesen Stufe 3 (K36a): Als USt-IdNr. erscheint nur eine gültige deutsche
+    // USt-IdNr. (DE + 9 Ziffern), nie eine Steuernummer.
+    if (key === 'ustId') {
+      const norm = wert.replace(/\s+/g, '').toUpperCase();
+      return /^DE\d{9}$/.test(norm) ? norm : '';
+    }
+    return wert;
+  });
 }
 
 // Rechnungswesen Stufe 3 T2: Werte aus Einstellungen → Regeln / Rechnungen (K37, K38).

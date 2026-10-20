@@ -3,6 +3,7 @@ import { getSession, isAdmin } from '../../../../lib/auth';
 import { createInvoice, type InvoiceLine } from '../../../../lib/native-billing';
 import { getCustomerByEmail, createCustomer } from '../../../../lib/native-billing';
 import { isE2ETestRequest } from '../../../../lib/e2e-marker';
+import { ladeZahlungsziel } from '../../../../lib/billing-regeln';
 
 export const POST: APIRoute = async ({ request , locals }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -17,7 +18,7 @@ export const POST: APIRoute = async ({ request , locals }) => {
       name, email, company, addressLine1, city, postalCode, vatNumber,
       lines, notes, servicePeriodStart, servicePeriodEnd, leitwegId,
       currency, supplyType, kind, parentInvoiceId,
-      dueDays = 14, taxRate = 19
+      dueDays: dueDaysAnfrage, taxRate = 19
     } = body;
 
     if (!name || !email || !lines || !Array.isArray(lines)) {
@@ -25,6 +26,8 @@ export const POST: APIRoute = async ({ request , locals }) => {
     }
 
     const brand = process.env.BRAND || 'mentolder';
+    // Prüfung Runde 1 (K38): ohne Angabe gilt das Zahlungsziel aus den Einstellungen.
+    const dueDays = typeof dueDaysAnfrage === 'number' ? dueDaysAnfrage : await ladeZahlungsziel(brand);
 
     let customer = await getCustomerByEmail(brand, email);
     if (!customer) {

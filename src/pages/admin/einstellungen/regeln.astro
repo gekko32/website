@@ -16,8 +16,11 @@ const saved = Astro.url.searchParams.get('saved') === '1';
 function jsonParam<T>(name: string, fallback: T): T {
   try { return JSON.parse(Astro.url.searchParams.get(name) ?? '') as T; } catch { return fallback; }
 }
-const fehler = jsonParam<RegelFehler[]>('fehler', []);
-const eingabe = jsonParam<Record<string, string>>('eingabe', {});
+const fehlerRoh = jsonParam<RegelFehler[]>('fehler', []);
+// Kaputte oder fremde URL-Parameter dürfen die Seite nicht zum Absturz bringen.
+const fehler = Array.isArray(fehlerRoh) ? fehlerRoh.filter((x) => x && typeof x.key === 'string' && typeof x.meldung === 'string') : [];
+const eingabeRoh = jsonParam<Record<string, string>>('eingabe', {});
+const eingabe: Record<string, string> = eingabeRoh && typeof eingabeRoh === 'object' && !Array.isArray(eingabeRoh) ? Object.fromEntries(Object.entries(eingabeRoh).map(([k, v]) => [k, String(v)])) : {};
 
 const gespeichert = formAus(await ladeRegeln(BRAND));
 const v = { ...gespeichert, ...eingabe };

@@ -20,14 +20,14 @@ vi.mock('./website-db', () => ({
 }));
 
 // Stufe 3 T4: Preise kommen aus der gepflegten Leistungstabelle, nicht aus dem Code.
-const leistungen: Record<string, { key: string; name: string; preis: number | null; einheit: string }> = {
+const leistungen: Record<string, { key: string; name: string; preis: number | null; einheit: string; aktiv?: boolean }> = {
   '50plus-digital-einzel': { key: '50plus-digital-einzel', name: 'Einzelstunde (60 Min.)', preis: 60, einheit: 'Stunde' },
   'coaching-session': { key: 'coaching-session', name: 'Führungskräfte-Coaching — Einzelsession (90 Min.)', preis: 150, einheit: 'Session' },
   'erstgespraech': { key: 'erstgespraech', name: 'Kostenloses Erstgespräch', preis: 0, einheit: 'Einheit' },
   'beratung-individuell': { key: 'beratung-individuell', name: 'Individuelles Angebot', preis: null, einheit: '' },
 };
 vi.mock('./billing-leistungen', () => ({
-  holeLeistung: vi.fn(async (_brand: string, key: string) => leistungen[key] ?? null),
+  holeLeistung: vi.fn(async (_brand: string, key: string) => (leistungen[key] ? { aktiv: true, ...leistungen[key] } : null)),
 }));
 
 const loggerWarn = vi.fn();
@@ -108,6 +108,13 @@ describe('createBillingInvoice (booking-confirmation shim)', () => {
     getSiteSetting.mockResolvedValue(null);
     await createBillingInvoice({ customerId: 'cust-1', serviceKey: 'coaching-session' });
     expect(mockedNative.createInvoice.mock.calls[1][0].dueDays).toBe(14);
+  });
+
+  it('stillgelegte Leistung ergibt keine Rechnung (K3, Prüfung Runde 1)', async () => {
+    leistungen['coaching-6er'] = { key: 'coaching-6er', name: 'Paket', preis: 800, einheit: 'Paket', aktiv: false } as never;
+    await expect(
+      createBillingInvoice({ customerId: 'cust-1', serviceKey: 'coaching-6er' }),
+    ).rejects.toThrow(/stillgelegt/);
   });
 
   it('Leistung „nach Vereinbarung“ ohne Preis ergibt keine Rechnung', async () => {

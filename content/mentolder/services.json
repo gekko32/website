@@ -28,8 +28,7 @@
         { "title": "Dienste", "items": ["Online-Banking sicher nutzen", "Sicher online einkaufen", "Bezahldienste verstehen"] }
       ],
       "pricing": [
-        { "label": "Einzelbegleitung", "price": "Auf Anfrage", "unit": "pro Stunde", "highlight": false },
-        { "label": "5er-Paket", "price": "Auf Anfrage", "unit": "Auf Anfrage", "highlight": true },
+        { "label": "Einzelbegleitung", "price": "Auf Anfrage", "unit": "pro Stunde", "highlight": true },
         { "label": "Kleine Gruppe", "price": "Auf Anfrage", "unit": "pro Person / Stunde", "highlight": false }
       ],
       "faq": [
@@ -66,8 +65,7 @@
         { "title": "Karriere-Strategie", "items": ["Zielpositionen definieren", "Branchen identifizieren"] }
       ],
       "pricing": [
-        { "label": "Einzelsession (90 Min.)", "price": "nach Vereinbarung", "highlight": false },
-        { "label": "Paket 6 Sessions", "price": "nach Vereinbarung", "unit": "", "highlight": true }
+        { "label": "Einzelsession (90 Min.)", "price": "nach Vereinbarung", "highlight": true }
       ],
       "faq": []
     }

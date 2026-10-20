@@ -28,6 +28,10 @@ const ustEingabe = Astro.url.searchParams.get('ustEingabe');
 const altWertVerschoben = !ustFehler && s.invoice_vat_id.trim() !== '' && !ustIdGueltig(s.invoice_vat_id) && s.invoice_tax_number.trim() === '';
 const ustFeld = ustEingabe ?? (altWertVerschoben ? '' : s.invoice_vat_id);
 const steuerFeld = altWertVerschoben ? s.invoice_vat_id : s.invoice_tax_number;
+// Prüfung Runde 1 (K39, K40): Zahlungsziel geprüft, jedes Feld sagt, wo es wirkt.
+const zahlungszielFehler = Astro.url.searchParams.get('zahlungszielFehler');
+const zahlungszielEingabe = zahlungszielFehler ? Astro.url.searchParams.get('zahlungszielEingabe') : null;
+const hinweis = 'font-size:0.75rem;color:var(--mute);line-height:1.4;margin:0.375rem 0 0;';
 ---
 
 <AdminLayout title="Rechnungen & Zahlungen">
@@ -98,7 +102,9 @@ const steuerFeld = altWertVerschoben ? s.invoice_vat_id : s.invoice_tax_number;
 
       <div style="margin-bottom: 1.5rem;">
         <label style="display: block; font-family: var(--font-mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--mute-2); margin-bottom: 0.5rem;">Zahlungsziel (Tage)</label>
-        <input type="number" name="invoice_payment_days" value={s.invoice_payment_days || '14'} min="0" style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
+        <input type="number" name="invoice_payment_days" value={zahlungszielEingabe ?? (s.invoice_payment_days || '14')} min="0" max="365" step="1" required style={`width:100%;background:var(--ink-800);border:1px solid ${zahlungszielFehler ? '#f87171' : 'var(--line)'};border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;`} />
+        <p style={hinweis}>Wirkt auf neue Rechnungen (Fälligkeitsdatum) und erscheint in den AGB. Bestehende Rechnungen bleiben unverändert.</p>
+        {zahlungszielFehler && <p role="alert" style="font-size:0.8rem;color:#fca5a5;margin:0.375rem 0 0;">{zahlungszielFehler}</p>}
       </div>
 
       <p style="font-family:var(--font-mono);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--mute-2);margin-bottom:0.75rem;">Rechnungsabsender</p>
@@ -107,6 +113,7 @@ const steuerFeld = altWertVerschoben ? s.invoice_vat_id : s.invoice_tax_number;
         <input type="text" name="invoice_sender_street" value={s.invoice_sender_street} placeholder="Straße, Hausnummer" style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
         <input type="text" name="invoice_sender_city"   value={s.invoice_sender_city}   placeholder="PLZ Ort"           style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
         <input type="text" name="invoice_sender_phone"  value={s.invoice_sender_phone}  placeholder="Telefon (für Footer)" style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
+        <p style={hinweis}>Erscheint als Absender auf Rechnungen, E-Rechnungen, Stornos und Mahnungen. Bitte die Geschäftsanschrift eintragen, nicht die Privatanschrift.</p>
       </div>
 
       <p style="font-family:var(--font-mono);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--mute-2);margin-bottom:0.75rem;">Bankverbindung</p>
@@ -116,6 +123,7 @@ const steuerFeld = altWertVerschoben ? s.invoice_vat_id : s.invoice_tax_number;
           <input type="text" name="invoice_bank_bic"  value={s.invoice_bank_bic}  placeholder="BIC"      style="background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
           <input type="text" name="invoice_bank_name" value={s.invoice_bank_name} placeholder="Bankname" style="background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
         </div>
+        <p style={hinweis}>Erscheint als Zahlungsverbindung auf Rechnungen, E-Rechnungen und Mahnungen.</p>
       </div>
 
       <p style="font-family:var(--font-mono);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--mute-2);margin-bottom:0.75rem;">Rechtliche Angaben</p>
@@ -126,7 +134,7 @@ const steuerFeld = altWertVerschoben ? s.invoice_vat_id : s.invoice_tax_number;
         {ustFehler && <p role="alert" style="font-size:0.8rem;color:#fca5a5;margin:0;">{ustFehler}</p>}
         <label for="invoice_tax_number" style="font-size:0.8rem;color:var(--fg);margin-top:0.5rem;">Steuernummer</label>
         <input type="text" id="invoice_tax_number" name="invoice_tax_number" value={steuerFeld} placeholder="z. B. 12/345/67890" style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
-        <p style="font-size:0.75rem;color:var(--mute);line-height:1.4;margin:0;">Nicht öffentlich: steht nur auf Rechnungen, und nur solange keine USt-IdNr. eingetragen ist.</p>
+        <p style="font-size:0.75rem;color:var(--mute);line-height:1.4;margin:0;">Nicht öffentlich: steht auf Rechnungen und in der E-Rechnung (Pflichtangabe), nie im Impressum.</p>
         {altWertVerschoben && <p style="font-size:0.8rem;color:#fcd34d;margin:0;">Im Feld USt-IdNr. stand eine Steuernummer. Sie steht jetzt unter Steuernummer – bitte einmal speichern.</p>}
         <input type="text" name="invoice_manager" value={s.invoice_manager} placeholder="Geschäftsführer (Vollname)"   style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
       </div>

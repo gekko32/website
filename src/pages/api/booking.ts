@@ -12,7 +12,7 @@ import { sendAdminNotification } from '../../lib/notifications';
 import { isSlotInAnyWindow, isSlotWhitelisted, claimSlot } from '../../lib/website-db';
 import { berlinDayKey } from '../../lib/caldav-cache';
 import { getEffectiveLeistungen } from '../../lib/content';
-import { websiteLeistungen } from '../../lib/billing-leistungen';
+import { websiteLeistungen, unbekannteBuchungsLeistung } from '../../lib/billing-leistungen';
 import { massageRowPriceLabel } from '../../lib/massage-pricing';
 import { checkRateLimit, getClientIp } from '../../lib/rate-limit';
 import { isE2ETestRequest } from '../../lib/e2e-marker';
@@ -91,10 +91,16 @@ export const POST: APIRoute = async ({ request , locals }) => {
     // Price/duration snapshot: freeze the catalogue entry at request time.
     // Later catalogue changes never touch the stored request.
     let serviceSnapshot: { key: string; name: string; price: string; durationMin: number | null } | null = null;
+    // Stufe 3 (K7): nur aktive Website-Leistungen sind öffentlich buchbar – in BEIDEN Feldern.
+    const brandId = process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder';
+    const catalogue = brandId === 'massage' ? await getEffectiveLeistungen() : await websiteLeistungen(process.env.BRAND || 'mentolder');
+    if (unbekannteBuchungsLeistung(catalogue, { serviceKey, leistungKey }) !== null) {
+      return new Response(
+        JSON.stringify({ error: 'Unbekannte Leistung.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
     if (serviceKey) {
-      // Stufe 3 T4: nur aktive Website-Leistungen sind öffentlich buchbar (K7).
-      const brandId = process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder';
-      const catalogue = brandId === 'massage' ? await getEffectiveLeistungen() : await websiteLeistungen(process.env.BRAND || 'mentolder');
       const entry = catalogue.flatMap((cat) => cat.services).find((svc) => svc.key === serviceKey);
       if (!entry) {
         return new Response(

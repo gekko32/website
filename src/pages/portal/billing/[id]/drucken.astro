@@ -23,7 +23,7 @@ const keys = [
   'invoice_sender_name', 'invoice_sender_street', 'invoice_sender_city',
   'invoice_sender_phone', 'invoice_bank_iban', 'invoice_bank_bic',
   'invoice_bank_name', 'invoice_payment_days', 'invoice_tax_rate',
-  'invoice_vat_id', 'invoice_tax_number', 'invoice_manager',
+  'invoice_vat_id', 'invoice_tax_number', 'invoice_manager', 'invoice_kleinunternehmer_notice',
 ] as const;
 const results = await Promise.all(keys.map(k => getSiteSetting(brand, k)));
 const s = Object.fromEntries(keys.map((k, i) => [k, results[i] ?? ''])) as Record<typeof keys[number], string>;
@@ -36,6 +36,11 @@ const iban         = s.invoice_bank_iban     || '';
 const bic          = s.invoice_bank_bic      || '';
 const bankName     = s.invoice_bank_name     || '';
 const paymentDays  = s.invoice_payment_days  || '14';
+// Prüfung Runde 1: Zahlungsziel aus der Rechnung selbst, nicht aus der heutigen Einstellung (K38);
+// Kleinunternehmer-Hinweis aus der Rechnungsvorlage (Inhalte → Rechnungen, K36).
+const tageAusRechnung = inv.date && inv.dueDate ? Math.round((new Date(inv.dueDate).getTime() - new Date(inv.date).getTime()) / 86_400_000) : NaN;
+const zahlungsziel = Number.isFinite(tageAusRechnung) && tageAusRechnung >= 0 ? String(tageAusRechnung) : paymentDays;
+const kleinunternehmerHinweis = s.invoice_kleinunternehmer_notice || 'Kein Ausweis der Umsatzsteuer aufgrund der Anwendung der Kleinunternehmerregelung gemäß § 19 UStG.';
 const taxRate      = parseFloat(s.invoice_tax_rate || '0');
 // Stufe 3 T1b: USt-IdNr. nur wenn gültig, sonst Steuernummer (§ 14 Abs. 4 Nr. 2 UStG).
 const steuerangabe  = steuerangabeFuerRechnung(absenderAus({ invoice_vat_id: s.invoice_vat_id, invoice_tax_number: s.invoice_tax_number }));
@@ -425,8 +430,7 @@ const buyerVatId = dbCustomer?.vatNumber ?? null;
             <>
               <div class="lab">Steuerlicher Hinweis</div>
               <p>
-                Der Rechnungssteller ist Kleinunternehmer gemäß § 19 Abs. 1 UStG.
-                Es wird keine Umsatzsteuer ausgewiesen.
+                {kleinunternehmerHinweis}
               </p>
             </>
           ) : (
@@ -436,7 +440,7 @@ const buyerVatId = dbCustomer?.vatNumber ?? null;
             </>
           )}
           <p style="margin-top:3mm">
-            Zahlungsziel: {paymentDays} Tage netto ab Rechnungsdatum.
+            Zahlungsziel: {zahlungsziel} Tage ohne Abzug ab Rechnungsdatum.
           </p>
           {manager && <p style="margin-top:2mm">Ansprechpartner: {manager}</p>}
         </div>

@@ -2,6 +2,7 @@ import { pool, getSiteSetting, initBillingTables } from './website-db';
 import { getInvoice, getCustomerById, type Invoice, type Customer } from './native-billing';
 import { generateDunningPdf, type InvoicePdfCustomer, type InvoicePdfSeller } from './invoice-pdf';
 import { archiveBillingPdf } from './billing-archive';
+import { ladeAbsender } from './billing-absender';
 import { sendEmail } from './email';
 import { logBillingEvent } from './billing-audit';
 
@@ -41,19 +42,8 @@ async function buildDunningPdf(params: {
   feeAmount: number;
   interestAmount: number;
 }): Promise<Buffer> {
-  const [senderName, senderStreet, senderCity, senderZip, senderCountry, senderVat, senderIban, senderBic, senderBank, senderEmail, senderPhone] = await Promise.all([
-    getSiteSetting(params.brand, 'invoice_sender_name'),
-    getSiteSetting(params.brand, 'invoice_sender_street'),
-    getSiteSetting(params.brand, 'invoice_sender_city'),
-    getSiteSetting(params.brand, 'invoice_sender_zip'),
-    getSiteSetting(params.brand, 'invoice_sender_country'),
-    getSiteSetting(params.brand, 'invoice_sender_vat_id'),
-    getSiteSetting(params.brand, 'invoice_sender_iban'),
-    getSiteSetting(params.brand, 'invoice_sender_bic'),
-    getSiteSetting(params.brand, 'invoice_sender_bank'),
-    getSiteSetting(params.brand, 'invoice_sender_email'),
-    getSiteSetting(params.brand, 'invoice_sender_phone'),
-  ]);
+  // Prüfung Runde 1 (K36, K36a): Absender aus derselben Quelle wie alle Rechnungen.
+  const absender = await ladeAbsender(params.brand);
 
   const customer: InvoicePdfCustomer = {
     name: params.customer.name,
@@ -65,20 +55,7 @@ async function buildDunningPdf(params: {
     email: params.customer.email,
   };
 
-  const seller: InvoicePdfSeller = {
-    name: senderName || params.brand,
-    address: senderStreet || '',
-    postalCode: senderZip || '',
-    city: senderCity || '',
-    country: senderCountry || 'DE',
-    vatId: senderVat || '',
-    taxNumber: '', // optional
-    iban: senderIban || '',
-    bic: senderBic || '',
-    bankName: senderBank || '',
-    email: senderEmail || undefined,
-    phone: senderPhone || undefined,
-  };
+  const seller: InvoicePdfSeller = { ...absender, name: absender.name || params.brand };
 
   return generateDunningPdf({
     dunning: {
