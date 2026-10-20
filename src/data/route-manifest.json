@@ -252,6 +252,14 @@
       "media": false
     },
     {
+      "route": "/admin/einstellungen/rechnungstexte",
+      "authTier": "admin",
+      "brand": "both",
+      "dynamic": false,
+      "excludeFromSweep": false,
+      "media": false
+    },
+    {
       "route": "/admin/einstellungen/regeln",
       "authTier": "admin",
       "brand": "both",
