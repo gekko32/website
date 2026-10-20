@@ -1,6 +1,6 @@
 // Rechnungswesen Stufe 3, T5: Abrechnungsposten (K2, K11, K14, K16).
 import { describe, expect, it } from 'vitest';
-import { pruefeSitzung, summenJeKlient, postenBetrag, termineZuPosten, pruefePreis, zeitenZuPosten, type Posten, type TerminZeile, type ZeitZeile } from './billing-posten';
+import { pruefeSitzung, summenJeKlient, postenBetrag, termineZuPosten, pruefePreis, zeitenZuPosten, pruefeAuftragTitel, pruefePosition, postenAenderbar, type Posten, type TerminZeile, type ZeitZeile } from './billing-posten';
 import type { Leistung } from './billing-leistungen';
 
 const leistung = (teil: Partial<Leistung> = {}): Leistung => ({
@@ -163,6 +163,44 @@ describe('Zeiterfassung wird zu Posten (T7, K13)', () => {
     ['schon über das alte System abgerechnet', { schonAbgerechnet: true }],
   ])('kein Posten: %s', (_n, teil) => {
     expect(zeitenZuPosten([zeit(teil)], finde)).toEqual([]);
+  });
+});
+
+describe('Individuelle Aufträge (T8, K8–K10)', () => {
+  it('Auftragstitel 2–120 Zeichen', () => {
+    expect(pruefeAuftragTitel('Moderation Strategietag Firma X')).toEqual({ titel: 'Moderation Strategietag Firma X', fehler: null });
+    expect(pruefeAuftragTitel(' x ').fehler).toMatch(/Titel/);
+    expect(pruefeAuftragTitel('x'.repeat(121)).fehler).toMatch(/Titel/);
+  });
+
+  const pos = { datum: '2026-11-05', text: 'Moderation ganztägig', menge: '1', einheit: 'Tag', preis: '1.200' };
+
+  it('eigene Position mit Text, Menge, Einheit, Preis und Leistungsdatum (K8)', () => {
+    expect(pruefePosition({ ...pos, preis: '1200' })).toEqual({
+      werte: { datum: '2026-11-05', text: 'Moderation ganztägig', menge: 1, einheit: 'Tag', einzelpreis: 1200 },
+      fehler: [],
+    });
+  });
+
+  it('Tausenderpunkt ist kein gültiger Preis (eindeutig bleiben)', () => {
+    expect(pruefePosition(pos).fehler.map((f) => f.key)).toEqual(['preis']);
+  });
+
+  it.each([
+    ['text', ''], ['text', 'x'.repeat(301)], ['datum', '2026-02-30'], ['menge', '0'],
+    ['preis', ''], ['preis', '-1'], ['einheit', 'x'.repeat(41)],
+  ])('lehnt %s = "%s" ab', (key, wert) => {
+    const r = pruefePosition({ ...pos, preis: '1200', [key]: wert });
+    expect(r.werte).toBeNull();
+    expect(r.fehler.map((f) => f.key)).toContain(key);
+  });
+
+  it('K10: änderbar nur, solange der Posten auf keiner Rechnung steht', () => {
+    expect(postenAenderbar('offen')).toBe(true);
+    expect(postenAenderbar('nicht_abrechnen')).toBe(true);
+    expect(postenAenderbar('auf_entwurf')).toBe(false);
+    expect(postenAenderbar('abgerechnet')).toBe(false);
+    expect(postenAenderbar('erlassen')).toBe(false);
   });
 });
 

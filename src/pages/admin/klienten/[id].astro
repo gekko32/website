@@ -7,7 +7,7 @@ import CreateInvoiceModal from '../../../components/admin/CreateInvoiceModal.sve
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
 import { leistungsOptionen, listeLeistungen, preisAnzeige, holeLeistung } from '../../../lib/billing-leistungen';
-import { postenDesKlienten, postenBetrag, verbucheQuellen, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten } from '../../../lib/billing-posten';
+import { postenDesKlienten, postenBetrag, verbucheQuellen, auftraegeDesKlienten, postenAenderbar, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -46,6 +46,11 @@ const se = seRoh && typeof seRoh === 'object' && !Array.isArray(seRoh) ? seRoh :
 const sfFuer = (k: string) => sitzungFehler.find((f) => f.key === k)?.meldung;
 const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
 const postenGespeichert = q.get('gespeichert') === '1';
+// T8: individuelle Aufträge mit eigenen Positionen (K8–K10).
+const auftraege = await auftraegeDesKlienten(brand, klient.id).catch((): Auftrag[] => []);
+const auftragFehler = q.get('auftragFehler');
+const positionenVon = (auftragId: string) => posten.filter((p) => p.auftragId === auftragId);
+const zahlFeld = (n: number | null) => (n === null ? '' : String(n).replace('.', ','));
 const postenFehler = q.get('fehler');
 ---
 
@@ -154,6 +159,59 @@ const postenFehler = q.get('fehler');
           </div>
         </form>
       </details>
+    </section>
+
+    <section id="auftraege" class="mb-8">
+      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">Individuelle Aufträge ({auftraege.length})</h2>
+      <p class="text-xs text-muted mb-2">Vorträge, Moderationen, Analysen … mit eigenen Positionen, die es nur hier gibt. Sie erscheinen nicht auf der Website.</p>
+      {auftragFehler && <p role="alert" class="text-sm text-red-400 mb-2">{auftragFehler}</p>}
+
+      {auftraege.map((a) => {
+        const pos = positionenVon(a.id);
+        const summe = pos.filter((p) => p.zustand === 'offen').reduce((s, p) => Math.round((s + postenBetrag(p)) * 100) / 100, 0);
+        return (
+          <div class="border border-dark-lighter rounded-xl p-4 mb-3">
+            <h3 class="text-sm font-semibold text-light mb-2">{a.titel} <span class="text-xs text-muted font-normal">· offen {euro(summe)}</span></h3>
+            {pos.length === 0 ? <p class="text-xs text-muted mb-2">Noch keine Positionen.</p> : (
+              <div class="space-y-1 mb-3">{pos.map((p) => (
+                postenAenderbar(p.zustand) ? (
+                  <form method="POST" action="/api/admin/posten" class="flex flex-wrap gap-1 items-center text-xs">
+                    <input type="hidden" name="aktion" value="position_aendern" />
+                    <input type="hidden" name="postenId" value={p.id} />
+                    <input type="date" name="datum" value={p.datum} aria-label="Leistungsdatum" class="px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+                    <input name="text" value={p.text} aria-label="Bezeichnung" class="flex-1 min-w-[10rem] px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+                    <input name="menge" value={zahlFeld(p.menge)} aria-label="Menge" class="w-14 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+                    <input name="einheit" value={p.einheit} aria-label="Einheit" class="w-20 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+                    <input name="preis" value={zahlFeld(p.einzelpreis)} aria-label="Einzelpreis" class="w-20 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+                    <span class="w-24 text-right">{euro(postenBetrag(p))}</span>
+                    <button type="submit" class="px-2 py-0.5 rounded border border-dark-lighter">Ändern</button>
+                  </form>
+                ) : (
+                  <p class="text-xs text-muted">{datum(p.datum)} · {p.text} · {p.menge.toLocaleString('de-DE')} {p.einheit} × {p.einzelpreis === null ? '–' : euro(p.einzelpreis)} = {euro(postenBetrag(p))} ({ZUSTAND_TEXT[p.zustand]}, nicht mehr änderbar)</p>
+                )
+              ))}</div>
+            )}
+            <form method="POST" action="/api/admin/posten" class="flex flex-wrap gap-1 items-center text-xs">
+              <input type="hidden" name="aktion" value="position" />
+              <input type="hidden" name="auftragId" value={a.id} />
+              <input type="date" name="datum" required value={heute} aria-label="Leistungsdatum" class="px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+              <input name="text" required placeholder="Neue Position, z. B. Vortrag 90 Min." aria-label="Bezeichnung" class="flex-1 min-w-[10rem] px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+              <input name="menge" required value="1" aria-label="Menge" class="w-14 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+              <input name="einheit" placeholder="Einheit" aria-label="Einheit" class="w-20 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+              <input name="preis" required placeholder="Preis €" aria-label="Einzelpreis" class="w-20 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+              <button type="submit" class="px-2 py-0.5 rounded bg-gold text-dark font-semibold">Hinzufügen</button>
+            </form>
+          </div>
+        );
+      })}
+
+      <form method="POST" action="/api/admin/posten" class="flex gap-2 items-center">
+        <input type="hidden" name="aktion" value="auftrag" />
+        <input type="hidden" name="klientId" value={klient.id} />
+        <input name="titel" required minlength="2" maxlength="120" placeholder="Neuer Auftrag, z. B. Moderation Strategietag" aria-label="Titel des Auftrags"
+          class="flex-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+        <button type="submit" class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">Auftrag anlegen</button>
+      </form>
     </section>
 
     <section class="mb-8">

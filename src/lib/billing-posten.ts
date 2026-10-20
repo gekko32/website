@@ -23,6 +23,8 @@ export interface Posten {
   zustand: PostenZustand;
   invoiceId: string | null;
   notiz: string | null;
+  /** Nur bei Positionen eines individuellen Auftrags (T8). */
+  auftragId?: string | null;
 }
 
 export const HERKUNFT_TEXT: Record<Herkunft, string> = {
@@ -196,6 +198,41 @@ export function zeitenZuPosten(zeiten: ZeitZeile[], findeLeistung: (key: string)
   return neu;
 }
 
+// ── T8: Individuelle Aufträge (K8–K10) ─────────────────────────────────────
+
+export interface Auftrag { id: string; klientId: string; titel: string; createdAt: string }
+
+export function pruefeAuftragTitel(roh: string | null | undefined): { titel: string | null; fehler: string | null } {
+  const titel = (roh ?? '').trim();
+  if (titel.length < 2 || titel.length > 120) return { titel: null, fehler: 'Bitte einen Titel mit 2 bis 120 Zeichen eintragen.' };
+  return { titel, fehler: null };
+}
+
+export interface PositionEingabe { datum?: string; text?: string; menge?: string; einheit?: string; preis?: string }
+export interface PositionWerte { datum: string; text: string; menge: number; einheit: string; einzelpreis: number }
+
+/** Eigene Position eines Auftrags: Text, Menge, Einheit, Einzelpreis, Leistungsdatum (K8). */
+export function pruefePosition(e: PositionEingabe): { werte: PositionWerte | null; fehler: { key: string; meldung: string }[] } {
+  const fehler: { key: string; meldung: string }[] = [];
+  const datum = (e.datum ?? '').trim();
+  if (!gueltigesDatum(datum)) fehler.push({ key: 'datum', meldung: 'Bitte ein gültiges Leistungsdatum wählen.' });
+  const t = (e.text ?? '').trim();
+  if (t.length < 1 || t.length > 300) fehler.push({ key: 'text', meldung: 'Bitte eine Bezeichnung mit höchstens 300 Zeichen eintragen.' });
+  const menge = dezimal(e.menge ?? '');
+  if (menge === null || menge <= 0 || menge > 1000) fehler.push({ key: 'menge', meldung: 'Die Menge muss größer als 0 und höchstens 1000 sein.' });
+  const einheit = (e.einheit ?? '').trim();
+  if (einheit.length > 40) fehler.push({ key: 'einheit', meldung: 'Die Einheit darf höchstens 40 Zeichen haben.' });
+  const preis = pruefePreis(e.preis);
+  if (preis === null) fehler.push({ key: 'preis', meldung: 'Bitte einen Einzelpreis ab 0 eintragen (ohne Tausenderpunkt, z. B. 1200 oder 1200,50).' });
+  if (fehler.length > 0) return { werte: null, fehler };
+  return { werte: { datum, text: t, menge: menge!, einheit, einzelpreis: preis! }, fehler };
+}
+
+/** K10: Posten lassen sich nur ändern, solange sie auf keiner Rechnung stehen und nicht erlassen sind. */
+export function postenAenderbar(zustand: PostenZustand): boolean {
+  return zustand === 'offen' || zustand === 'nicht_abrechnen';
+}
+
 export interface KlientSumme { klientId: string; klientName: string; anzahl: number; summe: number; ohnePreis: number }
 
 /** Übersicht offener Posten je Klient, größte Summe zuerst (K16). */
@@ -244,12 +281,22 @@ export function initPostenTabelle(): Promise<void> {
       CREATE UNIQUE INDEX IF NOT EXISTS abrechnungsposten_herkunft_uniq
         ON abrechnungsposten (brand, herkunft, herkunft_ref) WHERE herkunft_ref IS NOT NULL`);
     await pool.query(`CREATE INDEX IF NOT EXISTS abrechnungsposten_klient_idx ON abrechnungsposten (brand, klient_id, zustand)`);
+    // T8: individuelle Aufträge; ihre Positionen sind Posten mit auftrag_id.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS auftraege (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        brand       TEXT NOT NULL,
+        klient_id   UUID NOT NULL,
+        titel       TEXT NOT NULL,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`);
+    await pool.query(`ALTER TABLE abrechnungsposten ADD COLUMN IF NOT EXISTS auftrag_id UUID`);
   })().catch((err) => { tabelleBereit = null; throw err; });
   return tabelleBereit;
 }
 
 const POSTEN_SPALTEN = `p.id, p.klient_id, COALESCE(c.name, '') AS klient_name, p.herkunft, p.datum::text AS datum,
-  p.leistung_key, p.text, p.menge, p.einheit, p.einzelpreis, p.zustand, p.invoice_id, p.notiz`;
+  p.leistung_key, p.text, p.menge, p.einheit, p.einzelpreis, p.zustand, p.invoice_id, p.notiz, p.auftrag_id`;
 
 function zeileZuPosten(r: Record<string, unknown>): Posten {
   return {
@@ -258,6 +305,7 @@ function zeileZuPosten(r: Record<string, unknown>): Posten {
     text: r.text as string, menge: Number(r.menge), einheit: (r.einheit as string) ?? '',
     einzelpreis: r.einzelpreis === null || r.einzelpreis === undefined ? null : Number(r.einzelpreis),
     zustand: r.zustand as PostenZustand, invoiceId: (r.invoice_id as string | null) ?? null, notiz: (r.notiz as string | null) ?? null,
+    auftragId: (r.auftrag_id as string | null) ?? null,
   };
 }
 
@@ -425,6 +473,48 @@ export async function setzePostenPreis(brand: string, postenId: string, preis: n
        updated_at = now()
       WHERE brand = $1 AND id = $2 AND zustand IN ('offen','nicht_abrechnen')`,
     [brand, postenId, preis]);
+  return (rowCount ?? 0) > 0;
+}
+
+export async function legeAuftragAn(brand: string, klientId: string, titel: string): Promise<string> {
+  await initPostenTabelle();
+  const { rows } = await pool.query(
+    'INSERT INTO auftraege (brand, klient_id, titel) VALUES ($1,$2,$3) RETURNING id', [brand, klientId, titel]);
+  return rows[0].id as string;
+}
+
+export async function auftraegeDesKlienten(brand: string, klientId: string): Promise<Auftrag[]> {
+  await initPostenTabelle();
+  const { rows } = await pool.query(
+    `SELECT id, klient_id, titel, created_at::text AS created_at FROM auftraege
+      WHERE brand = $1 AND klient_id = $2 ORDER BY created_at DESC`, [brand, klientId]);
+  return rows.map((r: Record<string, unknown>) => ({
+    id: r.id as string, klientId: r.klient_id as string, titel: r.titel as string, createdAt: r.created_at as string,
+  }));
+}
+
+export async function klientDesAuftrags(brand: string, auftragId: string): Promise<string | null> {
+  await initPostenTabelle();
+  const { rows } = await pool.query('SELECT klient_id FROM auftraege WHERE brand = $1 AND id = $2', [brand, auftragId]);
+  return (rows[0]?.klient_id as string | undefined) ?? null;
+}
+
+export async function legePositionAn(brand: string, klientId: string, auftragId: string, w: PositionWerte): Promise<string> {
+  await initPostenTabelle();
+  const { rows } = await pool.query(
+    `INSERT INTO abrechnungsposten (brand, klient_id, herkunft, auftrag_id, datum, text, menge, einheit, einzelpreis, zustand)
+     VALUES ($1,$2,'auftrag',$3,$4,$5,$6,$7,$8,'offen') RETURNING id`,
+    [brand, klientId, auftragId, w.datum, w.text, w.menge, w.einheit, w.einzelpreis]);
+  return rows[0].id as string;
+}
+
+/** K10: Position eines Auftrags ändern – nur solange sie auf keiner Rechnung steht. */
+export async function aenderePosition(brand: string, postenId: string, w: PositionWerte): Promise<boolean> {
+  await initPostenTabelle();
+  const { rowCount } = await pool.query(
+    `UPDATE abrechnungsposten SET datum=$3, text=$4, menge=$5, einheit=$6, einzelpreis=$7, updated_at=now()
+      WHERE brand=$1 AND id=$2 AND herkunft='auftrag' AND zustand IN ('offen','nicht_abrechnen')`,
+    [brand, postenId, w.datum, w.text, w.menge, w.einheit, w.einzelpreis]);
   return (rowCount ?? 0) > 0;
 }
 
