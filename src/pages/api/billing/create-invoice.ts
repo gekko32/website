@@ -3,9 +3,8 @@ import {
   getOrCreateCustomer,
   createBillingInvoice,
   createBillingQuote,
-  SERVICES,
 } from '../../../lib/stripe-billing';
-import type { ServiceKey } from '../../../lib/stripe-billing';
+import { holeLeistung } from '../../../lib/billing-leistungen';
 import { isE2ETestRequest } from '../../../lib/e2e-marker';
 import { getSession, isAdmin } from '../../../lib/auth';
 import { createCustomer } from '../../../lib/native-billing';
@@ -51,7 +50,7 @@ export const POST: APIRoute = async ({ request , locals }) => {
       );
     }
 
-    if (!(serviceKey in SERVICES)) {
+    if (!(await holeLeistung(process.env.BRAND || 'mentolder', serviceKey))) {
       return new Response(
         JSON.stringify({ error: `Unknown service: ${serviceKey}` }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -79,7 +78,7 @@ export const POST: APIRoute = async ({ request , locals }) => {
       );
     }
 
-    const key = serviceKey as ServiceKey;
+    const key = serviceKey as string;
 
     if (asQuote) {
       const quote = await createBillingQuote({

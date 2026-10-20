@@ -7,9 +7,9 @@ import { createCalendarEvent } from '../../../../../lib/caldav';
 import { createTalkRoom, inviteGuestByEmail, sendChatMessage } from '../../../../../lib/talk';
 import { sendRegistrationApproved, sendRegistrationDeclined, sendEmail } from '../../../../../lib/email';
 import { upsertCustomer, resolveBugTicket, setBookingInvoice, createMeeting, claimBrettLinkPost } from '../../../../../lib/website-db';
-import { getOrCreateCustomer, createBillingInvoice, SERVICES } from '../../../../../lib/stripe-billing';
+import { getOrCreateCustomer, createBillingInvoice } from '../../../../../lib/stripe-billing';
+import { holeLeistung } from '../../../../../lib/billing-leistungen';
 import { verknuepfeRechnungskunde } from '../../../../../lib/klientenakte';
-import type { ServiceKey } from '../../../../../lib/stripe-billing';
 
 const BRAND_NAME = process.env.BRAND_NAME || 'Workspace';
 const PROD_DOMAIN = process.env.PROD_DOMAIN || '';
@@ -158,9 +158,11 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
           locals.requestLogger.error({ err }, '[brett] auto-post failed (non-fatal):');
         }
 
-        const svcKey = (p.serviceKey ?? p.leistungKey) as ServiceKey | undefined;
-        if (svcKey && svcKey in SERVICES && SERVICES[svcKey].cents > 0) {
-          const brand = process.env.BRAND || 'mentolder';
+        const svcKey = (p.serviceKey ?? p.leistungKey) as string | undefined;
+        const brand = process.env.BRAND || 'mentolder';
+        // Stufe 3 T4: Preis aus der gepflegten Leistungstabelle.
+        const leistung = svcKey ? await holeLeistung(brand, svcKey).catch(() => null) : null;
+        if (svcKey && leistung && leistung.preis !== null && leistung.preis > 0) {
           try {
             const billingCustomer = await getOrCreateCustomer({ brand, name: p.name, email: p.email });
             if (billingCustomer) {

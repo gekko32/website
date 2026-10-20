@@ -236,7 +236,8 @@ async function befuelleEinmal(brand: string): Promise<void> {
   if (befuellt.has(brand)) return;
   const { rows } = await pool.query('SELECT 1 FROM leistungen WHERE brand = $1 LIMIT 1', [brand]);
   if (rows.length === 0) {
-    const { kategorien, leistungen } = startlisteAus(bundleLeistungen(brand), STARTLISTE_CODE_2026_10);
+    // Die feste Code-Liste gehörte nur zu mentolder; andere Marken starten mit ihrer Inhaltsdatei.
+    const { kategorien, leistungen } = startlisteAus(bundleLeistungen(brand), brand === 'mentolder' ? STARTLISTE_CODE_2026_10 : []);
     for (const k of kategorien) {
       await pool.query(
         `INSERT INTO leistungs_kategorien (brand, id, titel, icon, beschreibung, sortierung)
@@ -320,6 +321,24 @@ export async function speichereLeistung(brand: string, key: string | null, w: Le
 export async function setzeLeistungAktiv(brand: string, key: string, aktiv: boolean): Promise<void> {
   await initLeistungenTabellen(brand);
   await pool.query('UPDATE leistungen SET aktiv=$3, updated_at=now() WHERE brand=$1 AND key=$2', [brand, key, aktiv]);
+}
+
+/** Auswahl für Rechnungsformulare: aktive Leistungen mit Preis (T4). */
+export async function leistungsOptionen(brand: string): Promise<{ key: string; name: string; cents: number }[]> {
+  const alle = await listeLeistungen(brand, { nurAktiv: true });
+  return alle
+    .filter((l) => l.preis !== null)
+    .map((l) => ({ key: l.key, name: l.name, cents: Math.round((l.preis as number) * 100) }));
+}
+
+/** Alle aktiven Leistungen (auch interne) in der Form des Website-Katalogs, für Admin-Seiten. */
+export async function katalogIntern(brand: string): Promise<LeistungCategory[]> {
+  try {
+    const [kategorien, leistungen] = await Promise.all([listeKategorien(brand), listeLeistungen(brand, { nurAktiv: true })]);
+    return websiteKategorien(kategorien, leistungen.map((l) => ({ ...l, website: true })));
+  } catch {
+    return bundleLeistungen(brand);
+  }
 }
 
 /** Website-Ansicht; ohne Datenbank fällt sie auf die Inhaltsdatei zurück. */

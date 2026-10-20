@@ -1,9 +1,17 @@
 import type { APIRoute } from 'astro';
 import { getEffectiveLeistungen } from '../../lib/content';
+import { getSession, isAdmin } from '../../lib/auth';
+import { katalogIntern, websiteLeistungen } from '../../lib/billing-leistungen';
 
-export const GET: APIRoute = async ({ locals }) => {
+// Stufe 3 T4 (K7): Besucher sehen nur aktive Website-Leistungen, Admins alle aktiven.
+export const GET: APIRoute = async ({ locals, request }) => {
   try {
-    const cats = await getEffectiveLeistungen();
+    const brand = process.env.BRAND || 'mentolder';
+    const brandId = process.env.BRAND_ID ?? brand;
+    const session = await getSession(request.headers.get('cookie')).catch(() => null);
+    const cats = brandId === 'massage' ? await getEffectiveLeistungen()
+      : session && isAdmin(session) ? await katalogIntern(brand)
+      : await websiteLeistungen(brand);
     const flat = cats.flatMap(cat =>
       cat.services.map(svc => ({
         key: svc.key,

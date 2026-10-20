@@ -3,7 +3,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import AdminPageHeader from '../../components/admin/ui/AdminPageHeader.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
 import { getLastTimeEntryRate, listAllTimeEntries } from '../../lib/website-db';
-import { getEffectiveLeistungen } from '../../lib/content';
+import { katalogIntern } from '../../lib/billing-leistungen';
 import type { TimeEntry } from '../../lib/website-db';
 import { listProjects } from '../../lib/projects-db';
 import type { Project } from '../../lib/projects-db';
@@ -26,7 +26,7 @@ let dbError = '';
 const lastRate = await getLastTimeEntryRate();
 let leistungen: LeistungCategory[] = [];
 try {
-  leistungen = await getEffectiveLeistungen();
+  leistungen = await katalogIntern(process.env.BRAND || 'mentolder');
 } catch { /* ignore */ }
 
 try {

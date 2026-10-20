@@ -6,7 +6,7 @@ import { getAllBookings } from '../../lib/caldav';
 import type { AdminBooking } from '../../lib/caldav';
 import { getBookingProjects, getBookingInvoices, getBookingLeistungen, getVacationPeriods, getFreeTimeWindows, type BookingInvoiceInfo, type VacationPeriod, type FreeTimeWindow } from '../../lib/website-db';
 import { listProjects, type Project } from '../../lib/projects-db';
-import { getEffectiveLeistungen } from '../../lib/content';
+import { katalogIntern } from '../../lib/billing-leistungen';
 import type { LeistungCategory } from '../../config/types';
 import AdminBookingModal from '../../components/admin/AdminBookingModal.svelte';
 import { logger } from '../../lib/logger';
@@ -51,7 +51,7 @@ try {
     getBookingProjects(uids, brand),
     getBookingInvoices(uids, brand),
     getBookingLeistungen(uids, brand),
-    getEffectiveLeistungen(),
+    katalogIntern(process.env.BRAND || 'mentolder'),
   ]);
   bookingProjectMap = bpMap;
   bookingInvoiceMap = biMap;

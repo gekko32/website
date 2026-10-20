@@ -4,14 +4,16 @@ import CallToAction from '../components/CallToAction.svelte';
 import { config } from '../config/index';
 import { getEffectiveLeistungen, getPriceListUrl, getEffectiveStammdaten, getEffectiveKontakt, bundleSeo } from '../lib/content';
 import { massageRowPriceLabel } from '../lib/massage-pricing';
+import { websiteLeistungen } from '../lib/billing-leistungen';
 
 const BRAND_ID = process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder';
 const isMassage = BRAND_ID === 'massage';
 const layoutBrand = BRAND_ID === 'korczewski' ? 'korczewski-kore' : undefined;
 
 const { leistungenCta, contact } = config;
+// Stufe 3 T4 (K6, K7): mentolder liest die gepflegte Leistungstabelle; Massage behält ihr eigenes Preisformat.
 const [leistungen, priceListUrl, stammdaten] = await Promise.all([
-  getEffectiveLeistungen(),
+  isMassage ? getEffectiveLeistungen() : websiteLeistungen(process.env.BRAND || 'mentolder'),
   getPriceListUrl(),
   getEffectiveStammdaten().catch(() => null),
 ]);

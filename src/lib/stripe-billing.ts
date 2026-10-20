@@ -1,28 +1,15 @@
-import { pool, initBillingTables } from './website-db';
+import { pool, initBillingTables, getSiteSetting } from './website-db';
 import { logger } from './logger';
 import {
   createCustomer as nativeCreateCustomer,
   createInvoice as nativeCreateInvoice,
   getCustomerById as nativeGetCustomerById,
 } from './native-billing';
+import { holeLeistung } from './billing-leistungen';
 
-// ---- Static service catalog ----
-export const SERVICES = {
-  'erstgespraech':       { name: 'Kostenloses Erstgespräch',                          cents: 0,      unit: 'Einheit',       stripePriceId: null },
-  'callback':            { name: 'Rückruf',                                           cents: 0,      unit: 'Einheit',       stripePriceId: null },
-  'meeting':             { name: 'Online-Meeting',                                     cents: 0,      unit: 'Einheit',       stripePriceId: null },
-  'termin':              { name: 'Termin vor Ort',                                     cents: 0,      unit: 'Einheit',       stripePriceId: null },
-  '50plus-digital-einzel':  { name: '50+ digital — Einzelbegleitung',                 cents: 6000,   unit: 'Stunde',        stripePriceId: 'price_1TQpf1PmjoQCVSEjnmgFkS8K' },
-  '50plus-digital-gruppe':  { name: '50+ digital — Kleine Gruppe',                    cents: 4000,   unit: 'Person/Stunde', stripePriceId: 'price_1TQpf1PmjoQCVSEjJ4owABi3' },
-  '50plus-digital-5er':     { name: '50+ digital — 5er-Paket',                        cents: 27000,  unit: 'Paket',         stripePriceId: 'price_1TQpf2PmjoQCVSEjXXJ8yzjL' },
-  '50plus-digital-10er':    { name: '50+ digital — 10er-Paket',                       cents: 50000,  unit: 'Paket',         stripePriceId: 'price_1TQpf3PmjoQCVSEjEaHsjWdy' },
-  'coaching-session':    { name: 'Führungskräfte-Coaching — Einzelsession (90 Min.)', cents: 15000,  unit: 'Session',       stripePriceId: 'price_1TQpf3PmjoQCVSEj7wrNVb5P' },
-  'coaching-6er':        { name: 'Führungskräfte-Coaching — 6er-Paket',               cents: 80000,  unit: 'Paket',         stripePriceId: 'price_1TQpf4PmjoQCVSEjVYaoLJR4' },
-  'coaching-intensiv':   { name: 'Führungskräfte-Coaching — Intensiv-Tag (6 Std.)',   cents: 50000,  unit: 'Tag',           stripePriceId: 'price_1TQpf4PmjoQCVSEjLybAjVOi' },
-  'beratung-tag':        { name: 'Unternehmensberatung — Tagessatz',                   cents: 100000, unit: 'Tag',           stripePriceId: 'price_1TQpf5PmjoQCVSEjy1MDFQRL' },
-} as const;
-
-export type ServiceKey = keyof typeof SERVICES;
+// Die feste Preisliste (SERVICES) ist seit Rechnungswesen Stufe 3 (20.10.2026)
+// entfernt. Leistungen und Preise pflegt Gerald unter Admin → Leistungen
+// (billing-leistungen.ts); der alte Stand liegt dort als STARTLISTE_CODE_2026_10.
 
 // ---- Types ----
 interface BillingCustomer {
@@ -222,13 +209,14 @@ export async function getFullInvoice(invoiceId: string): Promise<FullInvoice | n
  * use. The legacy name comes from the pre-2026 Stripe integration; today it
  * delegates to native-billing's `createInvoice`.
  *
- * SERVICES.cents is in cents — convert to euros (the unit native-billing stores
- * in `unit_price`). The returned shape mirrors `BillingInvoice` so existing
+ * Name, Preis (in Euro, wie native-billing ihn in `unit_price` speichert) und
+ * Einheit kommen aus der gepflegten Leistung (billing-leistungen). The returned shape mirrors `BillingInvoice` so existing
  * callers (which read `id`, `number`, `amountDue`) keep working unchanged.
  */
 export async function createBillingInvoice(params: {
   customerId: string;
-  serviceKey: ServiceKey;
+  /** Schlüssel einer gepflegten Leistung (Admin → Leistungen). */
+  serviceKey: string;
   quantity?: number;
   sendEmail?: boolean;
   /** Leistungsdatum (YYYY-MM-DD), z. B. Termin der Buchung; Pflichtangabe nach § 14 UStG. */
@@ -238,11 +226,14 @@ export async function createBillingInvoice(params: {
   isTestData?: boolean;
 }): Promise<BillingInvoice> {
   const brand = process.env.BRAND || 'mentolder';
-  const service = SERVICES[params.serviceKey];
+  // Stufe 3 T4: Preis, Name und Einheit aus der gepflegten Leistungstabelle (K1, K4).
+  const service = await holeLeistung(brand, params.serviceKey);
   if (!service) throw new Error(`createBillingInvoice: unknown serviceKey "${params.serviceKey}"`);
-  if (service.cents <= 0) {
+  if (service.preis === null || service.preis <= 0) {
     throw new Error(`createBillingInvoice: service "${params.serviceKey}" has no chargeable price`);
   }
+  const tage = Number.parseInt((await getSiteSetting(brand, 'invoice_payment_days')) ?? '', 10);
+  const dueDays = Number.isFinite(tage) && tage >= 0 ? tage : 14;
 
   // Verify the customer exists in this brand to fail fast with a clear message
   // instead of a foreign-key violation deep inside the INSERT.
@@ -252,19 +243,19 @@ export async function createBillingInvoice(params: {
   }
 
   const quantity = params.quantity ?? 1;
-  const unitPriceEur = service.cents / 100;
+  const unitPriceEur = service.preis;
 
   const inv = await nativeCreateInvoice({
     brand,
     customerId: params.customerId,
     issueDate: new Date().toISOString().split('T')[0],
-    dueDays: 14,
+    dueDays,
     // Steuerart kommt zentral aus der Einstellung (Befund R3) – vorher fest 19 % USt.
     lines: [{
       description: service.name,
       quantity,
       unitPrice: unitPriceEur,
-      unit: service.unit,
+      unit: service.einheit,
     }],
     servicePeriodStart: params.leistungsdatum,
     notes: params.notes,

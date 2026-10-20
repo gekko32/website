@@ -1,5 +1,6 @@
 ---
-import { getCustomerInvoices, SERVICES } from '../../lib/stripe-billing';
+import { getCustomerInvoices } from '../../lib/stripe-billing';
+import { leistungsOptionen } from '../../lib/billing-leistungen';
 import type { BillingInvoice } from '../../lib/stripe-billing';
 import CreateInvoiceModal from '../admin/CreateInvoiceModal.svelte';
 import InlineInvoicePayment from '../portal/InlineInvoicePayment.svelte';
@@ -10,11 +11,8 @@ interface Props {
 }
 const { clientEmail } = Astro.props;
 
-const serviceOptions = Object.entries(SERVICES).map(([key, val]) => ({
-  key,
-  name: val.name,
-  cents: val.cents,
-}));
+// Stufe 3 T4: Auswahl aus der gepflegten Leistungstabelle.
+const serviceOptions = await leistungsOptionen(process.env.BRAND || 'mentolder').catch(() => []);
 
 let invoices: BillingInvoice[] = [];
 try {

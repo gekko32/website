@@ -9,17 +9,13 @@ import type { AdminBillingInvoice } from '../../lib/stripe-billing';
 import CreateInvoiceModal from '../../components/admin/CreateInvoiceModal.svelte';
 import TaxMonitorWidget from '../../components/admin/TaxMonitorWidget.svelte';
 import DatevExportWidget from '../../components/admin/DatevExportWidget.svelte';
-import { SERVICES } from '../../lib/stripe-billing';
+import { leistungsOptionen } from '../../lib/billing-leistungen';
 import { logger } from '../../lib/logger';
-
-const serviceOptions = Object.entries(SERVICES).map(([key, val]) => ({
-  key,
-  name: val.name,
-  cents: val.cents,
-}));
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+// Stufe 3 T4: Auswahl aus der gepflegten Leistungstabelle.
+const serviceOptions = await leistungsOptionen(process.env.BRAND || 'mentolder');
 if (!isAdmin(session)) return Astro.redirect('/admin');
 
 const statusFilter = Astro.url.searchParams.get('status') ?? '';

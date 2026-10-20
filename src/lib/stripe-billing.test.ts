@@ -12,16 +12,29 @@ vi.mock('./native-billing', () => ({
 
 const query = vi.fn();
 const initBillingTables = vi.fn();
+const getSiteSetting = vi.fn();
 vi.mock('./website-db', () => ({
   pool: { query: (...a: unknown[]) => query(...a) },
   initBillingTables: (...a: unknown[]) => initBillingTables(...a),
+  getSiteSetting: (...a: unknown[]) => getSiteSetting(...a),
+}));
+
+// Stufe 3 T4: Preise kommen aus der gepflegten Leistungstabelle, nicht aus dem Code.
+const leistungen: Record<string, { key: string; name: string; preis: number | null; einheit: string }> = {
+  '50plus-digital-einzel': { key: '50plus-digital-einzel', name: 'Einzelstunde (60 Min.)', preis: 60, einheit: 'Stunde' },
+  'coaching-session': { key: 'coaching-session', name: 'Führungskräfte-Coaching — Einzelsession (90 Min.)', preis: 150, einheit: 'Session' },
+  'erstgespraech': { key: 'erstgespraech', name: 'Kostenloses Erstgespräch', preis: 0, einheit: 'Einheit' },
+  'beratung-individuell': { key: 'beratung-individuell', name: 'Individuelles Angebot', preis: null, einheit: '' },
+};
+vi.mock('./billing-leistungen', () => ({
+  holeLeistung: vi.fn(async (_brand: string, key: string) => leistungen[key] ?? null),
 }));
 
 const loggerWarn = vi.fn();
 vi.mock('./logger', () => ({ logger: { warn: (...a: unknown[]) => loggerWarn(...a) } }));
 
 import {
-  createBillingInvoice, SERVICES, getOrCreateCustomer,
+  createBillingInvoice, getOrCreateCustomer,
   getAllBillingInvoices, getDraftInvoices, getCustomerInvoices,
   getDraftInvoiceDetail, getFullInvoice, createBillingQuote,
   createMonthlyDraftInvoices, updateDraftInvoiceItem, addDraftInvoiceItem,
@@ -42,6 +55,8 @@ describe('createBillingInvoice (booking-confirmation shim)', () => {
     initBillingTables.mockReset();
     initBillingTables.mockResolvedValue(undefined);
     loggerWarn.mockReset();
+    getSiteSetting.mockReset();
+    getSiteSetting.mockResolvedValue(null);
     mockedNative.getCustomerById.mockResolvedValue({
       id: 'cust-1', brand: 'mentolder', name: 'Test', email: 't@e.de', landIso: 'DE',
     });
@@ -62,17 +77,43 @@ describe('createBillingInvoice (booking-confirmation shim)', () => {
     await expect(promise).resolves.toBeDefined();
   });
 
-  it('converts SERVICES.cents to euros for the line unitPrice', async () => {
+  it('nimmt Name, Preis und Einheit aus der gepflegten Leistung (K1, K4)', async () => {
     await createBillingInvoice({
       customerId: 'cust-1',
-      serviceKey: '50plus-digital-einzel', // cents: 6000 → €60
+      serviceKey: '50plus-digital-einzel',
     });
     expect(mockedNative.createInvoice).toHaveBeenCalledTimes(1);
     const args = mockedNative.createInvoice.mock.calls[0][0];
     expect(args.lines).toHaveLength(1);
     expect(args.lines[0].unitPrice).toBe(60);
-    expect(args.lines[0].description).toBe(SERVICES['50plus-digital-einzel'].name);
-    expect(args.lines[0].unit).toBe(SERVICES['50plus-digital-einzel'].unit);
+    expect(args.lines[0].description).toBe('Einzelstunde (60 Min.)');
+    expect(args.lines[0].unit).toBe('Stunde');
+  });
+
+  it('geänderter Preis gilt sofort für neue Rechnungen (K1)', async () => {
+    leistungen['coaching-session'].preis = 175;
+    try {
+      await createBillingInvoice({ customerId: 'cust-1', serviceKey: 'coaching-session' });
+      expect(mockedNative.createInvoice.mock.calls[0][0].lines[0].unitPrice).toBe(175);
+    } finally {
+      leistungen['coaching-session'].preis = 150;
+    }
+  });
+
+  it('Zahlungsziel aus den Einstellungen, sonst 14 Tage (K38)', async () => {
+    getSiteSetting.mockImplementation(async (_b: string, k: string) => (k === 'invoice_payment_days' ? '30' : null));
+    await createBillingInvoice({ customerId: 'cust-1', serviceKey: 'coaching-session' });
+    expect(mockedNative.createInvoice.mock.calls[0][0].dueDays).toBe(30);
+
+    getSiteSetting.mockResolvedValue(null);
+    await createBillingInvoice({ customerId: 'cust-1', serviceKey: 'coaching-session' });
+    expect(mockedNative.createInvoice.mock.calls[1][0].dueDays).toBe(14);
+  });
+
+  it('Leistung „nach Vereinbarung“ ohne Preis ergibt keine Rechnung', async () => {
+    await expect(
+      createBillingInvoice({ customerId: 'cust-1', serviceKey: 'beratung-individuell' }),
+    ).rejects.toThrow(/no chargeable price/);
   });
 
   it('returns a BillingInvoice shape compatible with action.ts callers', async () => {
