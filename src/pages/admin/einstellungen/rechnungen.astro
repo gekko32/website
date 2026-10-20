@@ -5,6 +5,7 @@ import AdminEinstellungenTabs from '../../../components/AdminEinstellungenTabs.a
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getSiteSetting } from '../../../lib/website-db';
 import { getTaxMode } from '../../../lib/tax-monitor';
+import { ustIdGueltig } from '../../../lib/billing-absender';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -13,12 +14,20 @@ if (!isAdmin(session)) return Astro.redirect('/admin');
 const BRAND = process.env.BRAND || 'mentolder';
 const saved = Astro.url.searchParams.get('saved') === '1';
 
-const keys = ['invoice_payment_days','invoice_tax_rate','invoice_sender_name','invoice_sender_street','invoice_sender_city','invoice_sender_phone','invoice_bank_iban','invoice_bank_bic','invoice_bank_name','invoice_vat_id','invoice_manager'] as const;
+const keys = ['invoice_payment_days','invoice_tax_rate','invoice_sender_name','invoice_sender_street','invoice_sender_city','invoice_sender_phone','invoice_bank_iban','invoice_bank_bic','invoice_bank_name','invoice_vat_id','invoice_tax_number','invoice_manager'] as const;
 const [results, taxMode] = await Promise.all([
   Promise.all(keys.map(k => getSiteSetting(BRAND, k))),
   getTaxMode(BRAND),
 ]);
 const s = Object.fromEntries(keys.map((k, i) => [k, results[i] ?? ''])) as Record<typeof keys[number], string>;
+
+// Stufe 3 T1b: USt-IdNr. und Steuernummer getrennt. Alte Daten mit Steuernummer im
+// USt-IdNr.-Feld werden zur Korrektur ins richtige Feld vorgeschlagen.
+const ustFehler = Astro.url.searchParams.get('ustFehler');
+const ustEingabe = Astro.url.searchParams.get('ustEingabe');
+const altWertVerschoben = !ustFehler && s.invoice_vat_id.trim() !== '' && !ustIdGueltig(s.invoice_vat_id) && s.invoice_tax_number.trim() === '';
+const ustFeld = ustEingabe ?? (altWertVerschoben ? '' : s.invoice_vat_id);
+const steuerFeld = altWertVerschoben ? s.invoice_vat_id : s.invoice_tax_number;
 ---
 
 <AdminLayout title="Rechnungen & Zahlungen">
@@ -111,7 +120,14 @@ const s = Object.fromEntries(keys.map((k, i) => [k, results[i] ?? ''])) as Recor
 
       <p style="font-family:var(--font-mono);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--mute-2);margin-bottom:0.75rem;">Rechtliche Angaben</p>
       <div style="display:flex;flex-direction:column;gap:0.625rem;margin-bottom:2rem;">
-        <input type="text" name="invoice_vat_id"  value={s.invoice_vat_id}  placeholder="USt-ID (z.B. DE123456789)"  style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
+        <label for="invoice_vat_id" style="font-size:0.8rem;color:var(--fg);">USt-IdNr.</label>
+        <input type="text" id="invoice_vat_id" name="invoice_vat_id" value={ustFeld} placeholder="leer lassen, solange keine erteilt ist (Format DE123456789)" style={`width:100%;background:var(--ink-800);border:1px solid ${ustFehler ? '#f87171' : 'var(--line)'};border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;`} />
+        <p style="font-size:0.75rem;color:var(--mute);line-height:1.4;margin:0;">Öffentlich: erscheint im Impressum und auf Rechnungen. Nur DE + 9 Ziffern.</p>
+        {ustFehler && <p role="alert" style="font-size:0.8rem;color:#fca5a5;margin:0;">{ustFehler}</p>}
+        <label for="invoice_tax_number" style="font-size:0.8rem;color:var(--fg);margin-top:0.5rem;">Steuernummer</label>
+        <input type="text" id="invoice_tax_number" name="invoice_tax_number" value={steuerFeld} placeholder="z. B. 12/345/67890" style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
+        <p style="font-size:0.75rem;color:var(--mute);line-height:1.4;margin:0;">Nicht öffentlich: steht nur auf Rechnungen, und nur solange keine USt-IdNr. eingetragen ist.</p>
+        {altWertVerschoben && <p style="font-size:0.8rem;color:#fcd34d;margin:0;">Im Feld USt-IdNr. stand eine Steuernummer. Sie steht jetzt unter Steuernummer – bitte einmal speichern.</p>}
         <input type="text" name="invoice_manager" value={s.invoice_manager} placeholder="Geschäftsführer (Vollname)"   style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
       </div>
 

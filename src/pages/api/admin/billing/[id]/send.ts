@@ -5,6 +5,7 @@ import { generateInvoicePdf, type InvoicePdfSeller } from '../../../../../lib/in
 import { generateFacturX } from '../../../../../lib/einvoice/factur-x';
 import { sendEmail } from '../../../../../lib/email';
 import { pool, getSiteSetting, initBillingTables } from '../../../../../lib/website-db';
+import { ladeAbsender } from '../../../../../lib/billing-absender';
 import { errorResponse } from '../../../_errors';
 
 function interpolate(t: string, vars: Record<string, string>) {
@@ -24,36 +25,17 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
   );
   if (!draftCheck.rows[0]) return new Response('Not found or not draft', { status: 404 });
 
-  // Load seller settings
-  const settingKeys = ['invoice_sender_name','invoice_sender_street','invoice_sender_city',
-    'invoice_bank_iban','invoice_bank_bic','invoice_bank_name','invoice_vat_id',
-    'invoice_sender_phone'] as const;
-  const [settingVals, customer] = await Promise.all([
-    Promise.all(settingKeys.map(k => getSiteSetting(brand, k))),
+  // Absender aus einer Quelle (Stufe 3 T1b, billing-absender).
+  const [absender, customer] = await Promise.all([
+    ladeAbsender(brand),
     getCustomerById(brand, draftCheck.rows[0].customer_id),
   ]);
-  const s = Object.fromEntries(settingKeys.map((k,i) => [k, settingVals[i] ?? '']));
   if (!customer) return new Response('Customer not found', { status: 404 });
 
-  const cityParts = (s.invoice_sender_city ?? '').trim();
-  if (!cityParts) {
+  if (!absender.city) {
     locals.requestLogger.warn({ brand }, '[billing/send] invoice_sender_city not configured');
   }
-  const seller: InvoicePdfSeller = {
-    name:       s.invoice_sender_name,
-    address:    s.invoice_sender_street,
-    postalCode: cityParts.split(' ')[0] ?? '',
-    city:       cityParts.split(' ').slice(1).join(' '),
-    country:    'DE',
-    vatId:      s.invoice_vat_id,
-    taxNumber:  '',
-    iban:       s.invoice_bank_iban,
-    bic:        s.invoice_bank_bic,
-    bankName:   s.invoice_bank_name,
-    email:      process.env.CONTACT_EMAIL || '',
-    phone:      s.invoice_sender_phone || '',
-    website:    process.env.LEGAL_WEBSITE || process.env.PROD_DOMAIN || '',
-  };
+  const seller: InvoicePdfSeller = { ...absender };
 
   // Load email/pdf templates from site_settings
   const tmplKeys = ['invoice_email_subject','invoice_email_body','invoice_intro_text',

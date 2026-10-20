@@ -36,6 +36,8 @@ describe('native-billing (mocked pool)', () => {
       },
       initBillingTables: vi.fn().mockResolvedValue(undefined),
       getNextInvoiceNumber: vi.fn().mockResolvedValue('RE-2026-0001'),
+      // Stufe 3 T1b: keine Einstellungen gespeichert → Rückfall auf SELLER_*.
+      getSiteSetting: vi.fn().mockResolvedValue(null),
     }));
     vi.doMock('./invoice-payments', () => ({
       recordPayment: vi.fn().mockResolvedValue({ id: 1 }),

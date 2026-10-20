@@ -2,8 +2,9 @@ import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
 import { setSiteSetting } from '../../../../lib/website-db';
 import { setTaxMode } from '../../../../lib/tax-monitor';
+import { normalisiereUstId, pruefeSteuerangaben } from '../../../../lib/billing-absender';
 
-const STRING_KEYS = ['invoice_sender_name','invoice_sender_street','invoice_sender_city','invoice_sender_phone','invoice_bank_iban','invoice_bank_bic','invoice_bank_name','invoice_vat_id','invoice_manager'] as const;
+const STRING_KEYS = ['invoice_sender_name','invoice_sender_street','invoice_sender_city','invoice_sender_phone','invoice_bank_iban','invoice_bank_bic','invoice_bank_name','invoice_tax_number','invoice_manager'] as const;
 const INT_KEYS = ['invoice_payment_days'] as const;
 
 export const POST: APIRoute = async ({ request, redirect }) => {
@@ -13,7 +14,18 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   const form = await request.formData();
   const brand = process.env.BRAND || 'mentolder';
 
+  // Stufe 3 T1b (K36a, K39): Ins USt-IdNr.-Feld nur eine gültige USt-IdNr.;
+  // sonst wird gar nichts gespeichert und die Seite zeigt den Grund.
+  const ustRoh = ((form.get('invoice_vat_id') as string) ?? '').trim();
+  const steuerRoh = ((form.get('invoice_tax_number') as string) ?? '').trim();
+  const fehler = pruefeSteuerangaben(ustRoh, steuerRoh);
+  if (fehler.length > 0) {
+    const params = new URLSearchParams({ ustFehler: fehler[0].meldung, ustEingabe: ustRoh });
+    return redirect(`/admin/einstellungen/rechnungen?${params.toString()}`, 303);
+  }
+
   const saves: Promise<void>[] = [];
+  saves.push(setSiteSetting(brand, 'invoice_vat_id', ustRoh === '' ? '' : normalisiereUstId(ustRoh)));
 
   for (const key of STRING_KEYS) {
     saves.push(setSiteSetting(brand, key, (form.get(key) as string)?.trim() ?? ''));

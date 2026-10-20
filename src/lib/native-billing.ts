@@ -3,6 +3,7 @@ import { checkAndApplyTaxModeSwitch, resolveEffectiveTaxMode } from './tax-monit
 import { canonicalInvoiceForHash, sha256Hex, type HashableLine } from './invoice-hash';
 import { logBillingEvent, type BillingActor } from './billing-audit';
 import { validateLeitwegId, formatLeitwegId } from './leitweg';
+import { ladeAbsender } from './billing-absender';
 
 export { initBillingTables };
 
@@ -422,7 +423,7 @@ import type { InvoiceInput } from './einvoice/types';
 /**
  * Loads a finalized invoice and assembles the EInvoiceInput payload used by
  * the e-invoice generators (Factur-X minimum, XRechnung CII, XRechnung UBL).
- * Seller data is sourced from process.env (SELLER_* with BRAND_NAME fallback).
+ * Seller data comes from the invoice settings (billing-absender), SELLER_* only as fallback.
  */
 export async function getInvoiceForEInvoice(id: string): Promise<EInvoiceInput | null> {
   await initBillingTables();
@@ -442,6 +443,8 @@ export async function getInvoiceForEInvoice(id: string): Promise<EInvoiceInput |
       [id]
     )
   ).rows;
+
+  const absender = await ladeAbsender(row.brand);
 
   const toIsoDate = (v: unknown): string => {
     if (v instanceof Date) return v.toISOString().slice(0, 10);
@@ -476,18 +479,19 @@ export async function getInvoiceForEInvoice(id: string): Promise<EInvoiceInput |
       country: 'DE',
       leitwegId: row.c_leitweg ?? undefined,
     },
+    // Stufe 3 T1b: Absender aus den Einstellungen, SELLER_* nur Rückfall.
     seller: {
-      name:       process.env.SELLER_NAME        || process.env.BRAND_NAME || 'Unbekannt',
-      address:    process.env.SELLER_ADDRESS     || '',
-      postalCode: process.env.SELLER_POSTAL_CODE || '',
-      city:       process.env.SELLER_CITY        || '',
-      country:    process.env.SELLER_COUNTRY     || 'DE',
-      vatId:      process.env.SELLER_VAT_ID      || '',
-      taxNumber:  process.env.SELLER_TAX_NUMBER  || undefined,
-      iban:       process.env.SELLER_IBAN        || undefined,
-      bic:        process.env.SELLER_BIC         || undefined,
-      email:      process.env.SELLER_EMAIL       || undefined,
-      phone:      process.env.SELLER_PHONE       || undefined,
+      name:       absender.name || 'Unbekannt',
+      address:    absender.address,
+      postalCode: absender.postalCode,
+      city:       absender.city,
+      country:    absender.country,
+      vatId:      absender.vatId,
+      taxNumber:  absender.taxNumber || undefined,
+      iban:       absender.iban || undefined,
+      bic:        absender.bic || undefined,
+      email:      absender.email || undefined,
+      phone:      absender.phone || undefined,
     },
   };
 }
