@@ -72,6 +72,10 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       if (!(err instanceof TransitionError)) throw err;
       return json({ error: 'Diese Anfrage kann nicht mehr storniert werden.' }, { status: 409 });
     }
+    // Rechnungswesen Stufe 3 (Prüfung L2, B1): vergangene Termine nicht mehr absagbar.
+    if (req.slotEnd !== null && new Date(req.slotEnd).getTime() < Date.now()) {
+      return json({ error: 'Dieser Termin liegt in der Vergangenheit. Bitte nehmen Sie direkt Kontakt auf.' }, { status: 409 });
+    }
 
     // Rechnungswesen Stufe 3, T9: Absage durch den Kunden; die geltende Ausfallregel
     // wird festgehalten, damit spätere Regeländerungen nichts ändern.

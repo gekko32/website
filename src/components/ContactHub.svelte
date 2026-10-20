@@ -156,6 +156,8 @@
           date: berlinDayKeyLocal(new Date(slot.start)),
           serviceKey: service.key,
           idempotencyKey: journeyKey,
+          // Rechnungswesen Stufe 3 (K21): Pflicht-Haken jConsent bestätigt die AGB.
+          agbAkzeptiert: jConsent,
         }),
       });
       const data = (await res.json()) as { requestToken?: unknown; error?: unknown };

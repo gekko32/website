@@ -50,8 +50,8 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!klient) return new Response('Klient nicht gefunden', { status: 404 });
     const von = text('von');
     if (von !== 'kunde' && von !== 'gerald' && von !== 'nicht_erschienen') return new Response('Unbekannte Absage', { status: 400 });
-    const email = await vermerkeAbsage(brand, text('terminId'), von);
-    const hinweis = email && email.toLowerCase() === klient.email.toLowerCase()
+    const email = await vermerkeAbsage(brand, text('terminId'), von, klient.email);
+    const hinweis = email
       ? 'gespeichert=1'
       : `fehler=${encodeURIComponent('Der Termin war schon abgesagt oder gehört nicht zu dieser Akte.')}`;
     return redirect(`/admin/klienten/${klient.id}?${hinweis}#termine`, 303);

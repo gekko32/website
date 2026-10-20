@@ -368,9 +368,10 @@ export async function verbucheVergangeneTermine(
             (SELECT c.id FROM customers c WHERE lower(c.email) = lower(i.payload->>'email') LIMIT 1) AS klient_id
        FROM inbox_items i
       WHERE i.type = 'booking'
-        AND (i.payload ? 'freigegebenAm' OR i.payload->>'adminCreated' = 'true')
+        AND (i.payload ? 'freigegebenAm' OR (i.payload->>'adminCreated' = 'true' AND i.created_at >= '2026-10-20T00:00:00Z'))
         AND (i.payload->>'slotEnd') IS NOT NULL
-        AND (i.payload->>'slotEnd')::timestamptz <= $2
+        -- Prüfung L2 (B7): kaputte Zeitwerte überspringen statt die ganze Abfrage abzubrechen
+        AND (CASE WHEN (i.payload->>'slotEnd') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}' THEN (i.payload->>'slotEnd')::timestamptz END) <= $2
         AND NOT EXISTS (SELECT 1 FROM abrechnungsposten a
                          WHERE a.brand = $1 AND a.herkunft = 'termin' AND a.herkunft_ref = i.id::text)`,
     [brand, jetzt.toISOString()]);
@@ -463,7 +464,29 @@ export async function verbucheQuellen(
 ): Promise<void> {
   await verbucheVergangeneTermine(brand, findeLeistung).catch(() => 0);
   await verbucheZeiten(brand, findeLeistung).catch(() => 0);
+  await neutralisiereAbgesagteTermine(brand).catch(() => 0);
   await verbucheAusfaelle(brand, findeLeistung).catch(() => 0);
+}
+
+/**
+ * Prüfung L2 (B1, B2): Wurde ein Termin abgesagt oder abgelehnt, nachdem er schon
+ * Posten geworden ist, wird dieser Terminposten nicht abgerechnet – sonst käme bei
+ * „Nicht erschienen“ der volle Preis plus Ausfallhonorar, bei „Ich habe abgesagt“
+ * der volle Preis. Posten auf einer Rechnung bleiben unberührt.
+ */
+export async function neutralisiereAbgesagteTermine(brand: string): Promise<number> {
+  await initPostenTabelle();
+  const { rowCount } = await pool.query(
+    `UPDATE abrechnungsposten a
+        SET zustand = 'nicht_abrechnen',
+            notiz = CASE WHEN a.notiz IS NULL OR a.notiz = '' THEN 'Termin abgesagt' ELSE a.notiz || ' · Termin abgesagt' END,
+            updated_at = now()
+       FROM inbox_items i
+      WHERE a.brand = $1 AND a.herkunft = 'termin' AND a.herkunft_ref = i.id::text
+        AND a.zustand = 'offen'
+        AND (i.payload->>'state' = 'storniert' OR i.payload->>'abgelehnt' = 'true')`,
+    [brand]);
+  return rowCount ?? 0;
 }
 
 /** Preis eines offenen Postens nachtragen oder ändern (z. B. „nach Vereinbarung“). */

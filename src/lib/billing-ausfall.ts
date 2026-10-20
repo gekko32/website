@@ -97,9 +97,13 @@ export async function verbucheAusfaelle(
             (SELECT c.id FROM customers c WHERE lower(c.email) = lower(i.payload->>'email') LIMIT 1) AS klient_id
        FROM inbox_items i
       WHERE i.type = 'booking' AND i.payload->>'state' = 'storniert'
-        AND (i.payload ? 'freigegebenAm' OR i.payload->>'adminCreated' = 'true')
+        AND (i.payload ? 'freigegebenAm' OR (i.payload->>'adminCreated' = 'true' AND i.created_at >= '2026-10-20T00:00:00Z'))
         AND NOT EXISTS (SELECT 1 FROM abrechnungsposten a
-                         WHERE a.brand = $1 AND a.herkunft = 'ausfall' AND a.herkunft_ref = i.id::text)`,
+                         WHERE a.brand = $1 AND a.herkunft = 'ausfall' AND a.herkunft_ref = i.id::text)
+        -- Prüfung L2 (B1): steht der Termin selbst schon auf einer Rechnung, kein zusätzliches Ausfallhonorar.
+        AND NOT EXISTS (SELECT 1 FROM abrechnungsposten t
+                         WHERE t.brand = $1 AND t.herkunft = 'termin' AND t.herkunft_ref = i.id::text
+                           AND t.zustand IN ('auf_entwurf','abgerechnet'))`,
     [brand]);
   if (rows.length === 0) return 0;
   const regeln = await ladeRegeln(brand);
@@ -136,7 +140,7 @@ export async function gebuchteTermine(email: string): Promise<GebuchterTermin[]>
   const { rows } = await pool.query(
     `SELECT i.id::text AS id, i.payload FROM inbox_items i
       WHERE i.type = 'booking' AND lower(i.payload->>'email') = lower($1)
-        AND (i.payload ? 'freigegebenAm' OR i.payload->>'adminCreated' = 'true')
+        AND (i.payload ? 'freigegebenAm' OR (i.payload->>'adminCreated' = 'true' AND i.created_at >= '2026-10-20T00:00:00Z'))
       ORDER BY i.payload->>'slotStart' DESC NULLS LAST LIMIT 50`, [email]);
   return rows.map((r: { id: string; payload: Record<string, unknown> }) => ({
     id: r.id, start: textWert(r.payload.slotStart), ende: textWert(r.payload.slotEnd),
@@ -148,7 +152,7 @@ export async function gebuchteTermine(email: string): Promise<GebuchterTermin[]>
 }
 
 /** Absage durch Gerald vermerken (Kunde hat abgesagt / ich habe abgesagt / nicht erschienen). */
-export async function vermerkeAbsage(brand: string, inboxId: string, von: AbsageVon, jetzt = new Date()): Promise<string | null> {
+export async function vermerkeAbsage(brand: string, inboxId: string, von: AbsageVon, klientEmail: string, jetzt = new Date()): Promise<string | null> {
   const regeln = await ladeRegeln(brand);
   const vermerk = absageVermerk(von, jetzt, regeln);
   if (von === 'nicht_erschienen') {
@@ -159,8 +163,9 @@ export async function vermerkeAbsage(brand: string, inboxId: string, von: Absage
   const { rows } = await pool.query(
     `UPDATE inbox_items SET payload = payload || $1::jsonb
       WHERE id::text = $2 AND type = 'booking' AND COALESCE(payload->>'state','') <> 'storniert'
+        AND lower(payload->>'email') = lower($3)  -- nur Termine der geöffneten Akte (Prüfung L2, B9)
       RETURNING payload->>'email' AS email`,
-    [JSON.stringify(vermerk), inboxId]);
+    [JSON.stringify(vermerk), inboxId, klientEmail]);
   return (rows[0]?.email as string | undefined) ?? null;
 }
 

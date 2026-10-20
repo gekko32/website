@@ -74,6 +74,10 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       if (!(err instanceof TransitionError)) throw err;
       return json({ error: 'Diese Anfrage kann nicht mehr umgebucht werden.' }, { status: 409 });
     }
+    // Rechnungswesen Stufe 3 (Prüfung L2): vergangene Termine nicht mehr verschiebbar.
+    if (req.slotEnd !== null && new Date(req.slotEnd).getTime() < Date.now()) {
+      return json({ error: 'Dieser Termin liegt in der Vergangenheit. Bitte nehmen Sie direkt Kontakt auf.' }, { status: 409 });
+    }
 
     let body: Record<string, unknown>;
     try {
@@ -135,6 +139,11 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       date: berlinDayKey(start),
       serviceKey: req.serviceKey,
       serviceSnapshot: req.serviceSnapshot,
+      // Rechnungswesen Stufe 3 (Prüfung L2, B6): gewählte Leistung, Projekt und
+      // AGB-Zustimmung gehen beim Verschieben nicht verloren.
+      leistungKey: typeof oldPayload.leistungKey === 'string' ? oldPayload.leistungKey : null,
+      projectId: typeof oldPayload.projectId === 'string' ? oldPayload.projectId : null,
+      agbAkzeptiertAm: typeof oldPayload.agbAkzeptiertAm === 'string' ? oldPayload.agbAkzeptiertAm : null,
       message: req.message,
       token: newToken,
       state: 'offen',
