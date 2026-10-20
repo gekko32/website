@@ -231,6 +231,12 @@
 
   <div class={sectionCls}>
     <h3 class="text-xl font-bold text-light font-serif">Leistungskatalog</h3>
+    <!-- Rechnungswesen Stufe 3: Dieser Katalog wirkt nicht mehr auf Website, Buchung und Rechnung. -->
+    <p role="note" class="p-3 rounded-lg border border-gold text-sm text-light">
+      Veraltet: Leistungen und Preise pflegst du jetzt unter
+      <a href="/admin/leistungen" class="text-gold underline">Admin → Leistungen</a>.
+      Änderungen hier erscheinen weder auf der Website noch auf Rechnungen.
+    </p>
     {#each leistungen as cat}
       <div class="p-4 bg-dark rounded-lg border border-dark-lighter space-y-3">
         <div class="grid grid-cols-2 gap-4">
