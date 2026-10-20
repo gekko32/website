@@ -1,6 +1,6 @@
 // Rechnungswesen Stufe 3, T5: Abrechnungsposten (K2, K11, K14, K16).
 import { describe, expect, it } from 'vitest';
-import { pruefeSitzung, summenJeKlient, postenBetrag, termineZuPosten, pruefePreis, type Posten, type TerminZeile } from './billing-posten';
+import { pruefeSitzung, summenJeKlient, postenBetrag, termineZuPosten, pruefePreis, zeitenZuPosten, type Posten, type TerminZeile, type ZeitZeile } from './billing-posten';
 import type { Leistung } from './billing-leistungen';
 
 const leistung = (teil: Partial<Leistung> = {}): Leistung => ({
@@ -129,6 +129,40 @@ describe('Termine werden zu Posten (T6, K12, K15)', () => {
   it('serviceKey wird genutzt, wenn leistungKey fehlt', () => {
     const t = termin({ payload: { ...termin().payload, leistungKey: null, serviceKey: 'coaching-session' } });
     expect(termineZuPosten([t], jetzt, finde)).toHaveLength(1);
+  });
+});
+
+describe('Zeiterfassung wird zu Posten (T7, K13)', () => {
+  const zeit = (teil: Partial<ZeitZeile> = {}): ZeitZeile => ({
+    id: 'z1', klientId: 'k1', minuten: 90, abrechenbar: true, satzCent: 8000, leistungKey: null,
+    beschreibung: 'Workshop vorbereiten', projektTitel: 'Strategietag Firma X', datum: '2026-10-15',
+    schonAbgerechnet: false, ...teil,
+  });
+  const finde = (k: string) => (k === 'stunde' ? leistung({ key: 'stunde', name: 'Beratung je Stunde', einheit: 'Stunde', preis: 120 }) : null);
+
+  it('abrechenbare Zeit → Posten in Stunden zum erfassten Satz', () => {
+    expect(zeitenZuPosten([zeit()], finde)).toEqual([{
+      klientId: 'k1', herkunftRef: 'z1', leistungKey: null, datum: '2026-10-15',
+      text: 'Strategietag Firma X: Workshop vorbereiten', menge: 1.5, einheit: 'Stunde',
+      einzelpreis: 80, zustand: 'offen', notiz: null,
+    }]);
+  });
+
+  it('ohne Satz: Preis der Leistung, sonst „Preis fehlt“', () => {
+    expect(zeitenZuPosten([zeit({ satzCent: 0, leistungKey: 'stunde' })], finde)[0]).toMatchObject({ einzelpreis: 120, leistungKey: 'stunde' });
+    expect(zeitenZuPosten([zeit({ satzCent: 0 })], finde)[0]).toMatchObject({ einzelpreis: null, notiz: 'Preis fehlt – bitte eintragen' });
+  });
+
+  it('Text ohne Beschreibung: Projekt', () => {
+    expect(zeitenZuPosten([zeit({ beschreibung: null })], finde)[0].text).toBe('Strategietag Firma X');
+  });
+
+  it.each([
+    ['nicht abrechenbar', { abrechenbar: false }],
+    ['Projekt ohne Klient', { klientId: null }],
+    ['schon über das alte System abgerechnet', { schonAbgerechnet: true }],
+  ])('kein Posten: %s', (_n, teil) => {
+    expect(zeitenZuPosten([zeit(teil)], finde)).toEqual([]);
   });
 });
 

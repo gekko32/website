@@ -160,6 +160,42 @@ export function termineZuPosten(
   return neu;
 }
 
+// ── T7: Zeiterfassung wird zu Posten (K13) ─────────────────────────────────
+
+export interface ZeitZeile {
+  id: string;
+  klientId: string | null;
+  minuten: number;
+  abrechenbar: boolean;
+  satzCent: number;
+  leistungKey: string | null;
+  beschreibung: string | null;
+  projektTitel: string;
+  datum: string;
+  /** Altdaten: schon über das frühere Stripe-System abgerechnet. */
+  schonAbgerechnet: boolean;
+}
+
+export type NeuerZeitPosten = Omit<NeuerPosten, 'isTestData' | 'leistungKey'> & { leistungKey: string | null };
+
+export function zeitenZuPosten(zeiten: ZeitZeile[], findeLeistung: (key: string) => Leistung | null): NeuerZeitPosten[] {
+  const neu: NeuerZeitPosten[] = [];
+  for (const z of zeiten) {
+    if (!z.abrechenbar || !z.klientId || z.schonAbgerechnet || z.minuten <= 0) continue;
+    const leistung = z.leistungKey ? findeLeistung(z.leistungKey) : null;
+    const preis = z.satzCent > 0 ? z.satzCent / 100 : (leistung?.preis ?? null);
+    const beschreibung = text(z.beschreibung);
+    neu.push({
+      klientId: z.klientId, herkunftRef: z.id, leistungKey: leistung?.key ?? null, datum: z.datum,
+      text: beschreibung ? `${z.projektTitel}: ${beschreibung}` : z.projektTitel,
+      menge: Math.round((z.minuten / 60) * 100) / 100, einheit: 'Stunde',
+      einzelpreis: preis, zustand: 'offen',
+      notiz: preis === null ? 'Preis fehlt – bitte eintragen' : null,
+    });
+  }
+  return neu;
+}
+
 export interface KlientSumme { klientId: string; klientName: string; anzahl: number; summe: number; ohnePreis: number }
 
 /** Übersicht offener Posten je Klient, größte Summe zuerst (K16). */
@@ -319,6 +355,65 @@ export async function verbucheVergangeneTermine(
     angelegt += res.rowCount ?? 0;
   }
   return angelegt;
+}
+
+/** Übernimmt abrechenbare Zeiteinträge als Posten (T7), je Eintrag höchstens einmal. */
+export async function verbucheZeiten(
+  brand: string,
+  findeLeistung: (key: string) => Promise<Leistung | null>,
+): Promise<number> {
+  await initPostenTabelle();
+  let rows: Record<string, unknown>[];
+  try {
+    ({ rows } = await pool.query(
+      `SELECT t.id::text AS id, t.minutes, t.billable, t.rate_cents, t.leistung_key, t.description,
+              t.entry_date::text AS datum, t.stripe_invoice_id, p.title,
+              COALESCE(p.customer_id, pp.customer_id) AS klient_id
+         FROM time_entries t
+         JOIN public.customer_projects p ON p.id = t.project_id
+         LEFT JOIN public.customer_projects pp ON pp.id = p.parent_id
+        WHERE p.brand = $1 AND t.billable AND t.stripe_invoice_id IS NULL
+          AND NOT EXISTS (SELECT 1 FROM abrechnungsposten a
+                           WHERE a.brand = $1 AND a.herkunft = 'zeit' AND a.herkunft_ref = t.id::text)`,
+      [brand]));
+  } catch {
+    return 0; // Zeiterfassung noch nie benutzt (Tabelle fehlt)
+  }
+  if (rows.length === 0) return 0;
+
+  const katalog = new Map<string, Leistung | null>();
+  for (const r of rows) {
+    const k = text(r.leistung_key);
+    if (k && !katalog.has(k)) katalog.set(k, await findeLeistung(k));
+  }
+  const neu = zeitenZuPosten(rows.map((r) => ({
+    id: r.id as string, klientId: (r.klient_id as string | null) ?? null, minuten: Number(r.minutes),
+    abrechenbar: r.billable === true, satzCent: Number(r.rate_cents ?? 0), leistungKey: text(r.leistung_key),
+    beschreibung: (r.description as string | null) ?? null, projektTitel: String(r.title ?? 'Projekt'),
+    datum: r.datum as string, schonAbgerechnet: !!r.stripe_invoice_id,
+  })), (k) => katalog.get(k) ?? null);
+
+  let angelegt = 0;
+  for (const p of neu) {
+    const res = await pool.query(
+      `INSERT INTO abrechnungsposten (brand, klient_id, herkunft, herkunft_ref, leistung_key, datum, text,
+         menge, einheit, einzelpreis, zustand, notiz)
+       VALUES ($1,$2,'zeit',$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       ON CONFLICT DO NOTHING`,
+      [brand, p.klientId, p.herkunftRef, p.leistungKey, p.datum, p.text, p.menge, p.einheit,
+        p.einzelpreis, p.zustand, p.notiz]);
+    angelegt += res.rowCount ?? 0;
+  }
+  return angelegt;
+}
+
+/** Holt alles Abrechenbare aus Terminen und Zeiterfassung (vor Akte, Übersicht, Abrechnung). */
+export async function verbucheQuellen(
+  brand: string,
+  findeLeistung: (key: string) => Promise<Leistung | null>,
+): Promise<void> {
+  await verbucheVergangeneTermine(brand, findeLeistung).catch(() => 0);
+  await verbucheZeiten(brand, findeLeistung).catch(() => 0);
 }
 
 /** Preis eines offenen Postens nachtragen oder ändern (z. B. „nach Vereinbarung“). */

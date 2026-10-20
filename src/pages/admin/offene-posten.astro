@@ -3,7 +3,7 @@
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import AdminPageHeader from '../../components/admin/ui/AdminPageHeader.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
-import { alleOffenenPosten, summenJeKlient, verbucheVergangeneTermine, type Posten } from '../../lib/billing-posten';
+import { alleOffenenPosten, summenJeKlient, verbucheQuellen, type Posten } from '../../lib/billing-posten';
 import { holeLeistung } from '../../lib/billing-leistungen';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
@@ -12,7 +12,7 @@ if (!isAdmin(session)) return Astro.redirect('/admin');
 
 const brand = process.env.BRAND || 'mentolder';
 // T6: vergangene, freigegebene Termine zuerst als Posten übernehmen (K12).
-await verbucheVergangeneTermine(brand, (k) => holeLeistung(brand, k)).catch(() => 0);
+await verbucheQuellen(brand, (k) => holeLeistung(brand, k));
 let dbFehler = false;
 const posten: Posten[] = await alleOffenenPosten(brand).catch(() => { dbFehler = true; return []; });
 const summen = summenJeKlient(posten);

@@ -7,7 +7,7 @@ import CreateInvoiceModal from '../../../components/admin/CreateInvoiceModal.sve
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
 import { leistungsOptionen, listeLeistungen, preisAnzeige, holeLeistung } from '../../../lib/billing-leistungen';
-import { postenDesKlienten, postenBetrag, verbucheVergangeneTermine, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten } from '../../../lib/billing-posten';
+import { postenDesKlienten, postenBetrag, verbucheQuellen, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten } from '../../../lib/billing-posten';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -28,7 +28,7 @@ const STATUS: Record<string, string> = { draft: 'Entwurf', open: 'offen', paid: 
 
 // Rechnungswesen Stufe 3, T5/T6: vergangene, freigegebene Termine zuerst als Posten
 // übernehmen, dann Posten und „Sitzung erfassen“ (K11, K12, K14, K16).
-await verbucheVergangeneTermine(brand, (k) => holeLeistung(brand, k)).catch(() => 0);
+await verbucheQuellen(brand, (k) => holeLeistung(brand, k));
 const [posten, aktiveLeistungen] = await Promise.all([
   postenDesKlienten(brand, klient.id).catch((): Posten[] => []),
   listeLeistungen(brand, { nurAktiv: true }).catch(() => []),
