@@ -5,7 +5,7 @@ import { getSession, isAdmin } from '../../../lib/auth';
 import { getKlient } from '../../../lib/klientenakte';
 import { holeLeistung } from '../../../lib/billing-leistungen';
 import {
-  aenderePosition, klientDesAuftrags, klientDesPostens, legeAuftragAn, legePositionAn, legeSitzungAn,
+  aenderePosition, loeschePosten, klientDesAuftrags, klientDesPostens, legeAuftragAn, legePositionAn, legeSitzungAn,
   pruefeAuftragTitel, pruefePosition, pruefePreis, pruefeSitzung, setzeAbrechnen, setzePostenPreis,
 } from '../../../lib/billing-posten';
 import { erlasseAusfall, vermerkeAbsage } from '../../../lib/billing-ausfall';
@@ -77,9 +77,24 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     return redirect(`/admin/klienten/${klient.id}?gespeichert=1#auftraege`, 303);
   }
 
+  // Handtest L2: von Hand erfasste Posten löschen, solange sie auf keiner Rechnung stehen.
+  if (aktion === 'loeschen') {
+    const postenId = text('postenId');
+    if (!/^[0-9a-f-]{36}$/i.test(postenId)) return new Response('Posten nicht gefunden', { status: 404 });
+    const klientId = await klientDesPostens(brand, postenId);
+    if (!klientId) return new Response('Posten nicht gefunden', { status: 404 });
+    const ok = await loeschePosten(brand, postenId);
+    const hinweis = ok ? 'gespeichert=1' : `fehler=${encodeURIComponent('Löschen geht nur bei von Hand erfassten Posten, die auf keiner Rechnung stehen. Andere bitte ausnehmen.')}`;
+    return redirect(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
+  }
+
   if (aktion === 'position' || aktion === 'position_aendern') {
     const eingabe = { datum: text('datum'), text: text('text'), menge: text('menge'), einheit: text('einheit'), preis: text('preis') };
     const { werte, fehler } = pruefePosition(eingabe);
+    // Änderung aus der Abrechnungsliste (Handtest L2) oder aus einem Auftrag.
+    const inAbrechnung = text('bereich') === 'abrechnung';
+    const anker = inAbrechnung ? '#abrechnung' : '#auftraege';
+    const fehlerParam = inAbrechnung ? 'fehler' : 'auftragFehler';
     let klientId: string | null;
     if (aktion === 'position') {
       const auftragId = text('auftragId');
@@ -93,11 +108,11 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       if (!/^[0-9a-f-]{36}$/i.test(postenId)) return new Response('Posten nicht gefunden', { status: 404 });
       klientId = await klientDesPostens(brand, postenId);
       if (!klientId) return new Response('Posten nicht gefunden', { status: 404 });
-      if (!werte) return redirect(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent(fehler.map((f) => f.meldung).join(' '))}#auftraege`, 303);
+      if (!werte) return redirect(`/admin/klienten/${klientId}?${fehlerParam}=${encodeURIComponent(fehler.map((f) => f.meldung).join(' '))}${anker}`, 303);
       const ok = await aenderePosition(brand, postenId, werte);
-      if (!ok) return redirect(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent('Diese Position steht schon auf einer Rechnung und lässt sich nicht mehr ändern.')}#auftraege`, 303);
+      if (!ok) return redirect(`/admin/klienten/${klientId}?${fehlerParam}=${encodeURIComponent('Dieser Posten steht schon auf einer Rechnung (oder der Termin wurde abgesagt) und lässt sich nicht mehr ändern.')}${anker}`, 303);
     }
-    return redirect(`/admin/klienten/${klientId}?gespeichert=1#auftraege`, 303);
+    return redirect(`/admin/klienten/${klientId}?gespeichert=1${anker}`, 303);
   }
 
   if (aktion !== 'sitzung') return new Response('Unbekannte Aktion', { status: 400 });

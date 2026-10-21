@@ -32,7 +32,7 @@ export const HERKUNFT_TEXT: Record<Herkunft, string> = {
   hand: 'von Hand', termin: 'Termin', zeit: 'Zeiterfassung', ausfall: 'Ausfallhonorar', auftrag: 'Auftrag',
 };
 export const ZUSTAND_TEXT: Record<PostenZustand, string> = {
-  offen: 'offen', nicht_abrechnen: 'nicht abrechnen', erlassen: 'erlassen',
+  offen: 'offen', nicht_abrechnen: 'ausgenommen', erlassen: 'erlassen',
   auf_entwurf: 'auf Rechnungsentwurf', abgerechnet: 'abgerechnet',
 };
 
@@ -232,6 +232,15 @@ export function pruefePosition(e: PositionEingabe): { werte: PositionWerte | nul
 /** K10: Posten lassen sich nur ändern, solange sie auf keiner Rechnung stehen und nicht erlassen sind. */
 export function postenAenderbar(zustand: PostenZustand): boolean {
   return zustand === 'offen' || zustand === 'nicht_abrechnen';
+}
+
+/**
+ * Löschen nur bei Posten, die von Hand entstanden sind (Sitzung, Auftragsposition) und auf
+ * keiner Rechnung stehen. Termin-, Zeit- und Ausfallposten würden beim nächsten Öffnen neu
+ * entstehen – sie werden stattdessen ausgenommen.
+ */
+export function postenLoeschbar(herkunft: Herkunft, zustand: PostenZustand): boolean {
+  return (herkunft === 'hand' || herkunft === 'auftrag') && postenAenderbar(zustand);
 }
 
 export interface KlientSumme { klientId: string; klientName: string; anzahl: number; summe: number; ohnePreis: number }
@@ -544,13 +553,27 @@ export async function legePositionAn(brand: string, klientId: string, auftragId:
   return rows[0].id as string;
 }
 
-/** K10: Position eines Auftrags ändern – nur solange sie auf keiner Rechnung steht. */
+/**
+ * K10, erweitert nach Handtest L2 (21.10.2026): jeden Posten ändern (Datum, Text, Menge,
+ * Einheit, Preis) – nur solange er auf keiner Rechnung steht. Abgesagte Terminposten bleiben zu.
+ */
 export async function aenderePosition(brand: string, postenId: string, w: PositionWerte): Promise<boolean> {
   await initPostenTabelle();
   const { rowCount } = await pool.query(
-    `UPDATE abrechnungsposten SET datum=$3, text=$4, menge=$5, einheit=$6, einzelpreis=$7, updated_at=now()
-      WHERE brand=$1 AND id=$2 AND herkunft='auftrag' AND zustand IN ('offen','nicht_abrechnen')`,
+    `UPDATE abrechnungsposten SET datum=$3, text=$4, menge=$5, einheit=$6, einzelpreis=$7,
+       notiz = CASE WHEN notiz = 'Preis fehlt – bitte eintragen' THEN NULL ELSE notiz END, updated_at=now()
+      WHERE brand=$1 AND id=$2 AND zustand IN ('offen','nicht_abrechnen') AND NOT ${ABGESAGT_SQL}`,
     [brand, postenId, w.datum, w.text, w.menge, w.einheit, w.einzelpreis]);
+  return (rowCount ?? 0) > 0;
+}
+
+/** Von Hand entstandenen Posten löschen (Sitzung, Auftragsposition), solange auf keiner Rechnung. */
+export async function loeschePosten(brand: string, postenId: string): Promise<boolean> {
+  await initPostenTabelle();
+  const { rowCount } = await pool.query(
+    `DELETE FROM abrechnungsposten
+      WHERE brand=$1 AND id=$2 AND herkunft IN ('hand','auftrag') AND zustand IN ('offen','nicht_abrechnen')`,
+    [brand, postenId]);
   return (rowCount ?? 0) > 0;
 }
 

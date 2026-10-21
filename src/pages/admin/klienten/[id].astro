@@ -8,7 +8,7 @@ import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
 import { leistungsOptionen, listeLeistungen, listeKategorien, preisAnzeige, holeLeistung } from '../../../lib/billing-leistungen';
 import { gebuchteTermine } from '../../../lib/billing-ausfall';
-import { postenDesKlienten, postenBetrag, verbucheQuellen, auftraegeDesKlienten, postenAenderbar, terminAbgesagt, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
+import { postenDesKlienten, postenBetrag, verbucheQuellen, auftraegeDesKlienten, postenAenderbar, terminAbgesagt, postenLoeschbar, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -95,6 +95,7 @@ const postenFehler = q.get('fehler');
 
       {posten.length === 0 ? <p class="text-sm text-muted mb-3">Noch keine Posten.</p> :
         <table class="w-full text-sm mb-4"><tbody>{posten.map((p) => (
+          <>
           <tr class={`border-t border-dark-lighter ${p.zustand === 'offen' ? '' : 'opacity-60'}`}>
             <td class="py-1 pr-3 whitespace-nowrap">{datum(p.datum)}</td>
             <td class="py-1 pr-3">{p.text}<br /><span class="text-xs text-muted">{HERKUNFT_TEXT[p.herkunft]}{p.notiz ? ` · ${p.notiz}` : ''}</span></td>
@@ -125,13 +126,40 @@ const postenFehler = q.get('fehler');
                 <form method="POST" action="/api/admin/posten" style="display:inline;">
                   <input type="hidden" name="postenId" value={p.id} />
                   <input type="hidden" name="aktion" value={p.zustand === 'offen' ? 'nicht_abrechnen' : 'abrechnen'} />
-                  <button type="submit" class="px-2 py-1 rounded border border-dark-lighter text-xs">
-                    {p.zustand === 'offen' ? 'Nicht abrechnen' : 'Doch abrechnen'}
+                  <button type="submit" class="px-2 py-1 rounded border border-dark-lighter text-xs"
+                    title={p.zustand === 'offen' ? 'Diesen Posten nicht in Rechnung stellen (z. B. Kulanz)' : 'Wieder in die Abrechnung aufnehmen'}>
+                    {p.zustand === 'offen' ? 'Ausnehmen' : 'Wieder aufnehmen'}
                   </button>
                 </form>
               )}
+              {postenLoeschbar(p.herkunft, p.zustand) && (
+                <form method="POST" action="/api/admin/posten" style="display:inline;" class="posten-loeschen">
+                  <input type="hidden" name="postenId" value={p.id} />
+                  <input type="hidden" name="aktion" value="loeschen" />
+                  <button type="submit" class="px-2 py-1 rounded border border-red-400 text-red-300 text-xs" title="Falsch erfasst? Posten löschen.">Löschen</button>
+                </form>
+              )}
             </td>
-          </tr>))}</tbody></table>}
+          </tr>
+          {postenAenderbar(p.zustand) && !terminAbgesagt(p) && p.herkunft !== 'auftrag' && (
+            <tr><td colspan="6" class="pb-2">
+              <details>
+                <summary class="cursor-pointer text-xs text-gold">Ändern</summary>
+                <form method="POST" action="/api/admin/posten" class="flex flex-wrap gap-1 items-center text-xs mt-1">
+                  <input type="hidden" name="aktion" value="position_aendern" />
+                  <input type="hidden" name="bereich" value="abrechnung" />
+                  <input type="hidden" name="postenId" value={p.id} />
+                  <input type="date" name="datum" value={p.datum} aria-label="Datum" class="px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+                  <input name="text" value={p.text} aria-label="Text auf der Rechnung" class="flex-1 min-w-[12rem] px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+                  <input name="menge" value={zahlFeld(p.menge)} aria-label="Menge" class="w-14 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+                  <input name="einheit" value={p.einheit} aria-label="Einheit" class="w-20 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+                  <input name="preis" value={zahlFeld(p.einzelpreis)} required aria-label="Preis je Einheit" class="w-20 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
+                  <button type="submit" class="px-2 py-0.5 rounded bg-gold text-dark font-semibold">Speichern</button>
+                </form>
+              </details>
+            </td></tr>
+          )}
+          </>))}</tbody></table>}
 
       <details class="border border-dark-lighter rounded-xl p-4" open={sitzungFehler.length > 0}>
         <summary class="cursor-pointer text-sm font-semibold text-gold">Sitzung erfassen</summary>
@@ -175,7 +203,7 @@ const postenFehler = q.get('fehler');
             {sfFuer('text') && <span class="block text-red-400">{sfFuer('text')}</span>}
           </label>
           <label class="text-sm text-light" style="grid-column:1/-1;">
-            <input type="checkbox" name="nichtAbrechnen" checked={se.nichtAbrechnen === true} /> Nicht abrechnen (z. B. kostenloses Erstgespräch, Kulanz)
+            <input type="checkbox" name="nichtAbrechnen" checked={se.nichtAbrechnen === true} /> Von der Abrechnung ausnehmen (z. B. kostenloses Erstgespräch, Kulanz)
           </label>
           <div style="grid-column:1/-1;">
             <button type="submit" class="px-4 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">Erfassen</button>
@@ -309,6 +337,13 @@ const postenFehler = q.get('fehler');
     const opt = leistungWahl.selectedOptions[0];
     if (preisFeld) preisFeld.value = opt?.dataset.preis ?? '';
     if (textFeld) textFeld.value = opt?.dataset.text ?? '';
+  });
+
+  // Löschen nur nach Rückfrage.
+  document.querySelectorAll<HTMLFormElement>('form.posten-loeschen').forEach((f) => {
+    f.addEventListener('submit', (e) => {
+      if (!confirm('Diesen Posten wirklich löschen?')) e.preventDefault();
+    });
   });
 
   const knopf = document.getElementById('konto-einrichten') as HTMLButtonElement | null;
