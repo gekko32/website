@@ -2,6 +2,7 @@ import { defineMiddleware, sequence } from 'astro:middleware';
 import { getLocaleFromCookie, defaultLocale, type Locale } from './i18n/index';
 import { loggingMiddleware } from './middleware/logging';
 import { resolveRedirect } from './middleware/redirect-map';
+import { testschnittstelleGesperrt } from './lib/billing-testschutz';
 
 const VALID_LOCALES: Locale[] = ['de', 'en'];
 
@@ -30,4 +31,15 @@ const sdlcRootRedirect = defineMiddleware(async (context, next) => {
   return next();
 });
 
-export const onRequest = sequence(loggingMiddleware, sdlcRootRedirect, redirectMiddleware, localeMiddleware);
+// Schutz der Live-Daten (Vorfall 21.10.2026): Test-Schnittstellen, die Daten löschen oder
+// anlegen, sind ohne SYSTEMTEST_FREIGABE=ja gesperrt (siehe lib/billing-testschutz.ts).
+const testschutz = defineMiddleware(async (context, next) => {
+  if (testschnittstelleGesperrt(context.url.pathname)) {
+    return new Response(JSON.stringify({ error: 'Test-Schnittstellen sind auf diesem Server gesperrt.' }), {
+      status: 403, headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  return next();
+});
+
+export const onRequest = sequence(loggingMiddleware, testschutz, sdlcRootRedirect, redirectMiddleware, localeMiddleware);
