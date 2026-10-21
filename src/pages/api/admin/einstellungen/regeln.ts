@@ -2,6 +2,7 @@
 import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
 import { REGEL_FELDER, pruefeRegeln, speichereRegeln } from '../../../../lib/billing-regeln';
+import { pruefeEinheiten, speichereEinheiten } from '../../../../lib/billing-einheiten';
 
 export const POST: APIRoute = async ({ request, redirect }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -13,7 +14,11 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   for (const f of REGEL_FELDER) eingabe[f.key] = String(form.get(f.key) ?? '');
 
   const { werte, fehler } = pruefeRegeln(eingabe);
-  if (!werte) {
+  // Einheitenliste (eine je Zeile) auf derselben Seite.
+  eingabe.einheiten = String(form.get('einheiten') ?? '');
+  const einheiten = pruefeEinheiten(eingabe.einheiten);
+  if (einheiten.fehler) fehler.push({ key: 'einheiten', meldung: einheiten.fehler });
+  if (!werte || !einheiten.werte) {
     // Fehler und Eingaben zurück an die Seite, damit nichts verloren geht.
     const params = new URLSearchParams();
     params.set('fehler', JSON.stringify(fehler));
@@ -23,5 +28,6 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 
   const brand = process.env.BRAND || 'mentolder';
   await speichereRegeln(brand, werte);
+  await speichereEinheiten(brand, einheiten.werte);
   return redirect('/admin/einstellungen/regeln?saved=1', 303);
 };

@@ -8,6 +8,7 @@ import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
 import { leistungsOptionen, listeLeistungen, listeKategorien, preisAnzeige, holeLeistung } from '../../../lib/billing-leistungen';
 import { gebuchteTermine } from '../../../lib/billing-ausfall';
+import { ladeEinheiten } from '../../../lib/billing-einheiten';
 import { postenDesKlienten, postenBetrag, verbucheQuellen, auftraegeDesKlienten, postenAenderbar, terminAbgesagt, postenLoeschbar, auftragLoeschbar, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
@@ -58,6 +59,10 @@ const gebucht = await gebuchteTermine(klient.email).catch(() => []);
 const leistungsName = new Map(aktiveLeistungen.map((l) => [l.key, l.name]));
 const ABSAGE_TEXT: Record<string, string> = { kunde: 'durch Kunde', gerald: 'durch mich', nicht_erschienen: 'nicht erschienen', umbuchung: 'verschoben' };
 const postenFehler = q.get('fehler');
+// Einheiten als Auswahl (Handtest 21.10.2026); gepflegt unter Einstellungen → Regeln.
+// Ein alter Wert, der nicht mehr in der Liste steht, bleibt wählbar.
+const einheiten = await ladeEinheiten(brand);
+const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.includes(aktuell) ? [aktuell, ...einheiten] : einheiten);
 ---
 
 <AdminLayout title={`Akte ${klient.name}`}>
@@ -109,7 +114,7 @@ const postenFehler = q.get('fehler');
                     class="w-20 px-1 py-0.5 rounded bg-dark border border-red-400 text-xs text-light" />
                   <button type="submit" class="px-2 py-0.5 rounded border border-dark-lighter text-xs">OK</button>
                 </form>
-              ) : <>{p.menge.toLocaleString('de-DE')} × {p.einzelpreis === null ? '–' : euro(p.einzelpreis)}</>}
+              ) : <>{p.menge.toLocaleString('de-DE')}{p.einheit ? ` ${p.einheit}` : ''} × {p.einzelpreis === null ? '–' : euro(p.einzelpreis)}</>}
             </td>
             <td class="py-1 pr-3 text-right whitespace-nowrap">{p.einzelpreis === null ? <span class="text-red-400">Preis fehlt</span> : euro(postenBetrag(p))}</td>
             <td class="py-1 pr-3 text-muted whitespace-nowrap">{ZUSTAND_TEXT[p.zustand]}</td>
@@ -145,16 +150,24 @@ const postenFehler = q.get('fehler');
             <tr><td colspan="6" class="pb-2">
               <details>
                 <summary class="cursor-pointer text-xs text-gold">Ändern</summary>
-                <form method="POST" action="/api/admin/posten" autocomplete="off" class="flex flex-wrap gap-1 items-center text-xs mt-1 merk-ungespeichert">
+                <form method="POST" action="/api/admin/posten" autocomplete="off" class="position-raster text-xs mt-1 merk-ungespeichert">
                   <input type="hidden" name="aktion" value="position_aendern" />
                   <input type="hidden" name="bereich" value="abrechnung" />
                   <input type="hidden" name="postenId" value={p.id} />
-                  <input type="date" name="datum" value={p.datum} aria-label="Datum" class="px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
-                  <input name="text" value={p.text} aria-label="Text auf der Rechnung" class="flex-1 min-w-[12rem] px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
-                  <input name="menge" value={zahlFeld(p.menge)} aria-label="Menge" class="w-14 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
-                  <input name="einheit" value={p.einheit} aria-label="Einheit" class="w-20 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
-                  <input name="preis" value={zahlFeld(p.einzelpreis)} required aria-label="Preis je Einheit" class="w-20 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
-                  <button type="submit" class="px-2 py-0.5 rounded bg-gold text-dark font-semibold">Speichern</button>
+                  <label class="text-muted">Datum
+                    <input type="date" name="datum" value={p.datum} class="feld" /></label>
+                  <label class="text-muted breit">Text auf der Rechnung
+                    <input name="text" value={p.text} class="feld" /></label>
+                  <label class="text-muted">Menge
+                    <input name="menge" value={zahlFeld(p.menge)} inputmode="decimal" class="feld" /></label>
+                  <label class="text-muted">Einheit
+                    <select name="einheit" class="feld">
+                      <option value="" selected={!p.einheit}>–</option>
+                      {einheitOptionen(p.einheit).map((e) => <option value={e} selected={e === p.einheit}>{e}</option>)}
+                    </select></label>
+                  <label class="text-muted">Preis je Einheit in €
+                    <input name="preis" value={zahlFeld(p.einzelpreis)} required inputmode="decimal" class="feld" /></label>
+                  <button type="submit" class="px-3 py-1.5 rounded bg-gold text-dark font-semibold">Speichern</button>
                 </form>
               </details>
             </td></tr>
@@ -247,7 +260,8 @@ const postenFehler = q.get('fehler');
               <table class="w-full text-xs mb-3">
                 <thead><tr class="text-left text-muted">
                   <th class="py-1 pr-2 font-normal">Datum</th><th class="py-1 pr-2 font-normal">Bezeichnung</th>
-                  <th class="py-1 pr-2 font-normal text-right">Menge</th><th class="py-1 pr-2 font-normal text-right">Preis</th>
+                  <th class="py-1 pr-2 font-normal text-right">Menge</th><th class="py-1 pr-2 font-normal">Einheit</th>
+                  <th class="py-1 pr-2 font-normal text-right">Preis je Einheit</th>
                   <th class="py-1 pr-2 font-normal text-right">Betrag</th><th></th>
                 </tr></thead>
                 <tbody>{pos.map((p) => (
@@ -255,7 +269,8 @@ const postenFehler = q.get('fehler');
                   <tr class="border-t border-dark-lighter">
                     <td class="py-1 pr-2 whitespace-nowrap">{datum(p.datum)}</td>
                     <td class="py-1 pr-2">{p.text}</td>
-                    <td class="py-1 pr-2 text-right whitespace-nowrap">{p.menge.toLocaleString('de-DE')} {p.einheit}</td>
+                    <td class="py-1 pr-2 text-right whitespace-nowrap">{p.menge.toLocaleString('de-DE')}</td>
+                    <td class="py-1 pr-2 whitespace-nowrap">{p.einheit || '–'}</td>
                     <td class="py-1 pr-2 text-right whitespace-nowrap">{p.einzelpreis === null ? '–' : euro(p.einzelpreis)}</td>
                     <td class="py-1 pr-2 text-right whitespace-nowrap">{euro(postenBetrag(p))}</td>
                     <td class="py-1 text-right whitespace-nowrap">
@@ -269,18 +284,26 @@ const postenFehler = q.get('fehler');
                     </td>
                   </tr>
                   {postenAenderbar(p.zustand) && (
-                    <tr><td colspan="6" class="pb-1">
+                    <tr><td colspan="7" class="pb-1">
                       <details>
                         <summary class="cursor-pointer text-gold">Ändern</summary>
-                        <form method="POST" action="/api/admin/posten" autocomplete="off" class="flex flex-wrap gap-1 items-center mt-1 merk-ungespeichert">
+                        <form method="POST" action="/api/admin/posten" autocomplete="off" class="position-raster mt-1 merk-ungespeichert">
                           <input type="hidden" name="aktion" value="position_aendern" />
                           <input type="hidden" name="postenId" value={p.id} />
-                          <input type="date" name="datum" value={p.datum} aria-label="Leistungsdatum" class="px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
-                          <input name="text" value={p.text} aria-label="Bezeichnung" class="flex-1 min-w-[10rem] px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
-                          <input name="menge" value={zahlFeld(p.menge)} aria-label="Menge" class="w-14 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
-                          <input name="einheit" value={p.einheit} placeholder="Einheit" aria-label="Einheit" class="w-20 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
-                          <input name="preis" value={zahlFeld(p.einzelpreis)} aria-label="Einzelpreis" class="w-20 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
-                          <button type="submit" class="px-2 py-0.5 rounded bg-gold text-dark font-semibold">Speichern</button>
+                          <label class="text-muted">Leistungsdatum
+                            <input type="date" name="datum" value={p.datum} class="feld" /></label>
+                          <label class="text-muted breit">Bezeichnung auf der Rechnung
+                            <input name="text" value={p.text} class="feld" /></label>
+                          <label class="text-muted">Menge
+                            <input name="menge" value={zahlFeld(p.menge)} inputmode="decimal" class="feld" /></label>
+                          <label class="text-muted">Einheit
+                            <select name="einheit" class="feld">
+                              <option value="" selected={!p.einheit}>–</option>
+                              {einheitOptionen(p.einheit).map((e) => <option value={e} selected={e === p.einheit}>{e}</option>)}
+                            </select></label>
+                          <label class="text-muted">Preis je Einheit in €
+                            <input name="preis" value={zahlFeld(p.einzelpreis)} inputmode="decimal" class="feld" /></label>
+                          <button type="submit" class="px-3 py-1.5 rounded bg-gold text-dark font-semibold">Speichern</button>
                         </form>
                       </details>
                     </td></tr>
@@ -291,7 +314,8 @@ const postenFehler = q.get('fehler');
             )}
             {/* Handtest L2 (21.10.2026): Positionsformular deutlich beschriftet, sonst als Textfeld missverstanden. */}
             <form method="POST" action="/api/admin/posten" autocomplete="off" class="mt-3 p-3 rounded-lg border border-gold/60 bg-dark merk-ungespeichert">
-              <p class="text-sm font-semibold text-gold mb-2">Neue Position mit Preis</p>
+              <p class="text-sm font-semibold text-gold mb-2">Neue Position mit Preis
+                <a href="/admin/einstellungen/regeln" class="ml-2 text-xs font-normal text-muted hover:underline">Einheiten-Liste pflegen</a></p>
               <input type="hidden" name="aktion" value="position" />
               <input type="hidden" name="auftragId" value={a.id} />
               <div class="grid gap-2 items-end" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr));">
@@ -305,7 +329,10 @@ const postenFehler = q.get('fehler');
                   <input name="menge" required value="1" inputmode="decimal" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
                 </label>
                 <label class="text-xs text-muted">Einheit
-                  <input name="einheit" placeholder="Tag, Vortrag …" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+                  <select name="einheit" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light">
+                    <option value="">–</option>
+                    {einheiten.map((e) => <option value={e}>{e}</option>)}
+                  </select>
                 </label>
                 <label class="text-xs text-muted">Preis je Einheit in €
                   <input name="preis" required inputmode="decimal" placeholder="z. B. 1200" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
@@ -389,7 +416,22 @@ const postenFehler = q.get('fehler');
   </div>
 </AdminLayout>
 
+<style>
+  /* Kalender-Symbol auf dunklem Grund sichtbar (Handtest 21.10.2026). */
+  input[type='date'] { color-scheme: dark; cursor: pointer; }
+  /* Ändern-Formulare: beschriftete Felder in einem Raster statt einer Zeile. */
+  .position-raster { display: grid; gap: 0.5rem; align-items: end; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+  .position-raster .breit { grid-column: span 2; }
+  .position-raster .feld { display: block; width: 100%; margin-top: 0.25rem; padding: 0.25rem 0.5rem; border-radius: 0.25rem;
+    background: var(--color-dark, #111); border: 1px solid var(--color-dark-lighter, #333); color: var(--color-light, #eee); }
+</style>
+
 <script>
+  // Datum: Klick ins Feld öffnet den Kalender, nicht nur das kleine Symbol.
+  document.querySelectorAll<HTMLInputElement>('input[type="date"]').forEach((d) => {
+    d.addEventListener('click', () => { try { d.showPicker(); } catch { /* ältere Browser: Symbol bleibt */ } });
+  });
+
   // Sitzung erfassen: Preis und Rechnungstext der gewählten Leistung vorbelegen (änderbar).
   const leistungWahl = document.getElementById('sitzung-leistung') as HTMLSelectElement | null;
   const preisFeld = document.getElementById('sitzung-preis') as HTMLInputElement | null;

@@ -5,6 +5,7 @@ import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte
 import AdminEinstellungenTabs from '../../../components/AdminEinstellungenTabs.astro';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { REGEL_FELDER, formAus, ladeRegeln, type RegelFehler } from '../../../lib/billing-regeln';
+import { ladeEinheiten } from '../../../lib/billing-einheiten';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -23,6 +24,7 @@ const eingabeRoh = jsonParam<Record<string, string>>('eingabe', {});
 const eingabe: Record<string, string> = eingabeRoh && typeof eingabeRoh === 'object' && !Array.isArray(eingabeRoh) ? Object.fromEntries(Object.entries(eingabeRoh).map(([k, v]) => [k, String(v)])) : {};
 
 const gespeichert = formAus(await ladeRegeln(BRAND));
+const einheitenText = typeof eingabe.einheiten === 'string' ? eingabe.einheiten : (await ladeEinheiten(BRAND)).join('\n');
 const v = { ...gespeichert, ...eingabe };
 const fehlerFuer = (key: string) => fehler.find((f) => f.key === key)?.meldung;
 const feld = (key: string) => REGEL_FELDER.find((f) => f.key === key)!;
@@ -90,6 +92,14 @@ const fehlerStyle = 'font-size:0.8rem;color:#fca5a5;margin-top:0.375rem;';
           {fehlerFuer(key) && <p style={fehlerStyle}>{fehlerFuer(key)}</p>}
         </div>
       ))}
+
+      <p style={labelStyle}>Einheiten</p>
+      <div style="margin-bottom:1.25rem;">
+        <label for="einheiten" style={labelStyle}>Auswahlliste der Einheiten (eine je Zeile)</label>
+        <textarea id="einheiten" name="einheiten" rows="8" style={inputStyle}>{einheitenText}</textarea>
+        <p style={hinweisStyle}>Erscheint als Auswahl bei Auftragspositionen, beim Ändern von Posten und bei Leistungen. Eigene Eingaben bleiben dort möglich.</p>
+        {fehlerFuer('einheiten') && <p style={fehlerStyle}>{fehlerFuer('einheiten')}</p>}
+      </div>
 
       <div style="background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:8px;padding:0.75rem 1rem;margin:1.5rem 0;font-size:0.8rem;color:var(--mute);line-height:1.5;">
         Weitere Werte an anderer Stelle:
