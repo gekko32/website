@@ -145,7 +145,7 @@ const postenFehler = q.get('fehler');
             <tr><td colspan="6" class="pb-2">
               <details>
                 <summary class="cursor-pointer text-xs text-gold">Ändern</summary>
-                <form method="POST" action="/api/admin/posten" class="flex flex-wrap gap-1 items-center text-xs mt-1">
+                <form method="POST" action="/api/admin/posten" autocomplete="off" class="flex flex-wrap gap-1 items-center text-xs mt-1 merk-ungespeichert">
                   <input type="hidden" name="aktion" value="position_aendern" />
                   <input type="hidden" name="bereich" value="abrechnung" />
                   <input type="hidden" name="postenId" value={p.id} />
@@ -163,7 +163,7 @@ const postenFehler = q.get('fehler');
 
       <details class="border border-dark-lighter rounded-xl p-4" open={sitzungFehler.length > 0}>
         <summary class="cursor-pointer text-sm font-semibold text-gold">Sitzung erfassen</summary>
-        <form method="POST" action="/api/admin/posten" class="mt-4 grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">
+        <form method="POST" action="/api/admin/posten" autocomplete="off" class="mt-4 grid gap-3 merk-ungespeichert" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">
           <input type="hidden" name="aktion" value="sitzung" />
           <input type="hidden" name="klientId" value={klient.id} />
           {sitzungFehler.length > 0 && <p role="alert" class="text-sm text-red-400" style="grid-column:1/-1;">Nicht gespeichert. Bitte die markierten Felder korrigieren.</p>}
@@ -227,7 +227,7 @@ const postenFehler = q.get('fehler');
             {pos.length === 0 ? <p class="text-xs text-muted mb-2">Noch keine Positionen – bitte unten eine Position mit Preis hinzufügen.</p> : (
               <div class="space-y-1 mb-3">{pos.map((p) => (
                 postenAenderbar(p.zustand) ? (
-                  <form method="POST" action="/api/admin/posten" class="flex flex-wrap gap-1 items-center text-xs">
+                  <form method="POST" action="/api/admin/posten" autocomplete="off" class="flex flex-wrap gap-1 items-center text-xs merk-ungespeichert">
                     <input type="hidden" name="aktion" value="position_aendern" />
                     <input type="hidden" name="postenId" value={p.id} />
                     <input type="date" name="datum" value={p.datum} aria-label="Leistungsdatum" class="px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
@@ -236,7 +236,7 @@ const postenFehler = q.get('fehler');
                     <input name="einheit" value={p.einheit} aria-label="Einheit" class="w-20 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
                     <input name="preis" value={zahlFeld(p.einzelpreis)} aria-label="Einzelpreis" class="w-20 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-light" />
                     <span class="w-24 text-right">{euro(postenBetrag(p))}</span>
-                    <button type="submit" class="px-2 py-0.5 rounded border border-dark-lighter">Ändern</button>
+                    <button type="submit" class="px-2 py-0.5 rounded bg-gold text-dark font-semibold">Speichern</button>
                   </form>
                 ) : (
                   <p class="text-xs text-muted">{datum(p.datum)} · {p.text} · {p.menge.toLocaleString('de-DE')} {p.einheit} × {p.einzelpreis === null ? '–' : euro(p.einzelpreis)} = {euro(postenBetrag(p))} ({ZUSTAND_TEXT[p.zustand]}, nicht mehr änderbar)</p>
@@ -244,11 +244,11 @@ const postenFehler = q.get('fehler');
               ))}</div>
             )}
             {/* Handtest L2 (21.10.2026): Positionsformular deutlich beschriftet, sonst als Textfeld missverstanden. */}
-            <form method="POST" action="/api/admin/posten" class="mt-3 p-3 rounded-lg border border-gold/60 bg-dark">
-              <p class="text-sm font-semibold text-gold mb-2">Position mit Preis hinzufügen</p>
+            <form method="POST" action="/api/admin/posten" autocomplete="off" class="mt-3 p-3 rounded-lg border border-gold/60 bg-dark merk-ungespeichert">
+              <p class="text-sm font-semibold text-gold mb-2">Neue Position mit Preis</p>
               <input type="hidden" name="aktion" value="position" />
               <input type="hidden" name="auftragId" value={a.id} />
-              <div class="grid gap-2" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr));">
+              <div class="grid gap-2 items-end" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr));">
                 <label class="text-xs text-muted">Leistungsdatum
                   <input type="date" name="datum" required value={heute} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
                 </label>
@@ -264,8 +264,8 @@ const postenFehler = q.get('fehler');
                 <label class="text-xs text-muted">Preis je Einheit in €
                   <input name="preis" required inputmode="decimal" placeholder="z. B. 1200" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
                 </label>
+                <button type="submit" class="px-4 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Speichern</button>
               </div>
-              <button type="submit" class="mt-3 px-4 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">Position hinzufügen</button>
             </form>
           </div>
         );
@@ -352,6 +352,17 @@ const postenFehler = q.get('fehler');
     const opt = leistungWahl.selectedOptions[0];
     if (preisFeld) preisFeld.value = opt?.dataset.preis ?? '';
     if (textFeld) textFeld.value = opt?.dataset.text ?? '';
+  });
+
+  // Warnung vor ungespeicherten Eingaben (Handtest L2: Positionen wurden ausgefüllt, aber
+  // mit dem Stammdaten-Knopf weiter unten „gespeichert“ – und gingen verloren).
+  const ungespeichert = new Set<HTMLFormElement>();
+  document.querySelectorAll<HTMLFormElement>('form.merk-ungespeichert').forEach((f) => {
+    f.addEventListener('input', () => ungespeichert.add(f));
+    f.addEventListener('submit', () => ungespeichert.delete(f));
+  });
+  window.addEventListener('beforeunload', (e) => {
+    if (ungespeichert.size > 0) { e.preventDefault(); e.returnValue = ''; }
   });
 
   // Löschen nur nach Rückfrage.

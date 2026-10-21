@@ -98,6 +98,6 @@
 
   <button type="submit" disabled={sendet}
     class="px-4 py-2 rounded-lg bg-gold text-dark text-sm font-semibold disabled:opacity-50">
-    {sendet ? 'Speichert …' : klientId ? 'Änderungen speichern' : 'Klient anlegen'}
+    {sendet ? 'Speichert …' : klientId ? 'Stammdaten speichern' : 'Klient anlegen'}
   </button>
 </form>
