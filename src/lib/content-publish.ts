@@ -14,8 +14,8 @@
 //   3. Create a branch `content/<brand>-<domain>-<Date.now()>`,
 //      PUT the new file content on that branch with the
 //      current blob SHA (so the write is race-free on the branch
-//      level too), open a PR labelled `content`, and enable
-//      `squash` + `auto-merge`. The bot token is fine-grained and
+//      level too), open a PR labelled `content` and squash-merge it
+//      right away. The bot token is fine-grained and
 //      scoped to `contents: write` + `pull-requests: write`.
 //
 // All GitHub interactions are routed through the injectable
@@ -24,6 +24,7 @@
 // reads `GITHUB_CONTENT_TOKEN` + `CONTENT_REPO` + `CONTENT_BRANCH_BASE`
 // + `CONTENT_PATH_PREFIX` from env.
 import { ContentBundleSchema, type Domain, type SchemaOf } from '../content-schema';
+import { logger } from './logger';
 
 /** Default repo for the content PR. */
 const DEFAULT_REPO = process.env.CONTENT_REPO || 'gekko32/website';
@@ -182,22 +183,39 @@ export const realGitHubClient: GitHubClient = {
     if (!r.ok) throw new Error(`github openPr ${r.status}`);
     const created = await r.json() as { number: number; html_url: string };
     if (squash || autoMerge) {
-      await fetch(`https://api.github.com/repos/${repo}/pulls/${created.number}`, {
-        method: 'PATCH',
-        headers: ghHeaders(token),
-        body: JSON.stringify({ squash: !!squash }),
-      });
-      // Enable auto-merge (GraphQL would be cleaner, REST works for
-      // repos with auto-merge enabled at the org level).
-      await fetch(`https://api.github.com/repos/${repo}/pulls/${created.number}/auto-merge`, {
-        method: 'PUT',
-        headers: ghHeaders(token),
-        body: JSON.stringify({ commit_message: 'auto-merge: bot content publish', merge_method: 'squash' }),
-      });
+      // Merge directly with squash. GitHub's auto-merge needs branch protection
+      // with required checks, which gekko32/website does not have, and REST has
+      // no auto-merge endpoint. Failure is non-fatal: the PR stays open for a
+      // manual merge.
+      await mergePr(token, repo, created.number, branch, title);
     }
     return { prNumber: created.number, prUrl: created.html_url };
   },
 };
+
+/** Squash-merges the PR and deletes its branch. GitHub answers 405 while it is
+ *  still computing mergeability right after the PR was opened, so retry briefly. */
+async function mergePr(token: string, repo: string, prNumber: number, branch: string, title: string): Promise<void> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const r = await fetch(`https://api.github.com/repos/${repo}/pulls/${prNumber}/merge`, {
+      method: 'PUT',
+      headers: ghHeaders(token),
+      body: JSON.stringify({ merge_method: 'squash', commit_title: `${title} (#${prNumber})` }),
+    });
+    if (r.ok) {
+      await fetch(`https://api.github.com/repos/${repo}/git/refs/heads/${branch}`, {
+        method: 'DELETE',
+        headers: ghHeaders(token),
+      });
+      return;
+    }
+    if (r.status !== 405 || attempt === 4) {
+      logger.warn({ status: r.status, prNumber }, '[content-publish] merge failed, PR left open');
+      return;
+    }
+    await new Promise((res) => setTimeout(res, 1000 * (attempt + 1)));
+  }
+}
 
 function requireToken(): string {
   const t = process.env.GITHUB_CONTENT_TOKEN;
