@@ -1,6 +1,6 @@
 // Rechnungswesen Stufe 3, T5: Abrechnungsposten (K2, K11, K14, K16).
 import { describe, expect, it } from 'vitest';
-import { pruefeSitzung, summenJeKlient, postenBetrag, termineZuPosten, pruefePreis, zeitenZuPosten, pruefeAuftragTitel, pruefePosition, postenAenderbar, terminAbgesagt, postenLoeschbar, ZUSTAND_TEXT, type Posten, type TerminZeile, type ZeitZeile } from './billing-posten';
+import { pruefeSitzung, summenJeKlient, postenBetrag, termineZuPosten, pruefePreis, zeitenZuPosten, pruefeAuftragTitel, pruefePosition, postenAenderbar, terminAbgesagt, postenLoeschbar, auftragLoeschbar, ZUSTAND_TEXT, type Posten, type TerminZeile, type ZeitZeile } from './billing-posten';
 import type { Leistung } from './billing-leistungen';
 
 const leistung = (teil: Partial<Leistung> = {}): Leistung => ({
@@ -228,6 +228,16 @@ describe('Ändern und Löschen offener Posten (Handtest L2, 21.10.2026)', () => 
 
   it('verständliche Bezeichnungen: ausgenommen statt „nicht abrechnen“', () => {
     expect(ZUSTAND_TEXT.nicht_abrechnen).toBe('ausgenommen');
+  });
+});
+
+describe('Auftrag löschen (Handtest L2, 21.10.2026)', () => {
+  it('nur solange keine Position auf einer Rechnung steht', () => {
+    expect(auftragLoeschbar([])).toBe(true);
+    expect(auftragLoeschbar(['offen', 'nicht_abrechnen'])).toBe(true);
+    expect(auftragLoeschbar(['offen', 'auf_entwurf'])).toBe(false);
+    expect(auftragLoeschbar(['abgerechnet'])).toBe(false);
+    expect(auftragLoeschbar(['erlassen'])).toBe(false);
   });
 });
 

@@ -5,7 +5,7 @@ import { getSession, isAdmin } from '../../../lib/auth';
 import { getKlient } from '../../../lib/klientenakte';
 import { holeLeistung } from '../../../lib/billing-leistungen';
 import {
-  aenderePosition, loeschePosten, klientDesAuftrags, klientDesPostens, legeAuftragAn, legePositionAn, legeSitzungAn,
+  aenderePosition, loeschePosten, klientDesAuftrags, benenneAuftragUm, loescheAuftrag, klientDesPostens, legeAuftragAn, legePositionAn, legeSitzungAn,
   pruefeAuftragTitel, pruefePosition, pruefePreis, pruefeSitzung, setzeAbrechnen, setzePostenPreis,
 } from '../../../lib/billing-posten';
 import { erlasseAusfall, vermerkeAbsage } from '../../../lib/billing-ausfall';
@@ -86,6 +86,33 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const ok = await loeschePosten(brand, postenId);
     const hinweis = ok ? 'gespeichert=1' : `fehler=${encodeURIComponent('Löschen geht nur bei von Hand erfassten Posten, die auf keiner Rechnung stehen. Andere bitte ausnehmen.')}`;
     return redirect(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
+  }
+
+  // Handtest L2: ganzen Auftrag umbenennen oder löschen.
+  if (aktion === 'auftrag_umbenennen' || aktion === 'auftrag_loeschen') {
+    const auftragId = text('auftragId');
+    if (!/^[0-9a-f-]{36}$/i.test(auftragId)) return new Response('Auftrag nicht gefunden', { status: 404 });
+    const klientId = await klientDesAuftrags(brand, auftragId);
+    if (!klientId) return new Response('Auftrag nicht gefunden', { status: 404 });
+    if (aktion === 'auftrag_umbenennen') {
+      const { titel, fehler } = pruefeAuftragTitel(text('titel'));
+      if (!titel) return redirect(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent(fehler!)}#auftraege`, 303);
+      await benenneAuftragUm(brand, auftragId, titel);
+    } else {
+      const ok = await loescheAuftrag(brand, auftragId);
+      if (!ok) return redirect(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent('Dieser Auftrag hat Positionen auf einer Rechnung und lässt sich nicht mehr löschen.')}#auftraege`, 303);
+    }
+    return redirect(`/admin/klienten/${klientId}?gespeichert=1#auftraege`, 303);
+  }
+
+  if (aktion === 'loeschen_auftragsposition') {
+    const postenId = text('postenId');
+    if (!/^[0-9a-f-]{36}$/i.test(postenId)) return new Response('Posten nicht gefunden', { status: 404 });
+    const klientId = await klientDesPostens(brand, postenId);
+    if (!klientId) return new Response('Posten nicht gefunden', { status: 404 });
+    const ok = await loeschePosten(brand, postenId);
+    const hinweis = ok ? 'gespeichert=1' : `auftragFehler=${encodeURIComponent('Diese Position steht schon auf einer Rechnung und lässt sich nicht mehr löschen.')}`;
+    return redirect(`/admin/klienten/${klientId}?${hinweis}#auftraege`, 303);
   }
 
   if (aktion === 'position' || aktion === 'position_aendern') {

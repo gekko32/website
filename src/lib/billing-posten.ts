@@ -243,6 +243,11 @@ export function postenLoeschbar(herkunft: Herkunft, zustand: PostenZustand): boo
   return (herkunft === 'hand' || herkunft === 'auftrag') && postenAenderbar(zustand);
 }
 
+/** Ein Auftrag lässt sich samt Positionen löschen, solange keine Position auf einer Rechnung steht. */
+export function auftragLoeschbar(zustaende: PostenZustand[]): boolean {
+  return zustaende.every(postenAenderbar);
+}
+
 export interface KlientSumme { klientId: string; klientName: string; anzahl: number; summe: number; ohnePreis: number }
 
 /** Übersicht offener Posten je Klient, größte Summe zuerst (K16). */
@@ -565,6 +570,36 @@ export async function aenderePosition(brand: string, postenId: string, w: Positi
       WHERE brand=$1 AND id=$2 AND zustand IN ('offen','nicht_abrechnen') AND NOT ${ABGESAGT_SQL}`,
     [brand, postenId, w.datum, w.text, w.menge, w.einheit, w.einzelpreis]);
   return (rowCount ?? 0) > 0;
+}
+
+export async function benenneAuftragUm(brand: string, auftragId: string, titel: string): Promise<boolean> {
+  await initPostenTabelle();
+  const { rowCount } = await pool.query('UPDATE auftraege SET titel=$3 WHERE brand=$1 AND id=$2', [brand, auftragId, titel]);
+  return (rowCount ?? 0) > 0;
+}
+
+/** Auftrag samt Positionen löschen – nur wenn keine Position auf einer Rechnung steht (alles oder nichts). */
+export async function loescheAuftrag(brand: string, auftragId: string): Promise<boolean> {
+  await initPostenTabelle();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'SELECT zustand FROM abrechnungsposten WHERE brand=$1 AND auftrag_id=$2 FOR UPDATE', [brand, auftragId]);
+    if (!auftragLoeschbar(rows.map((r: { zustand: PostenZustand }) => r.zustand))) {
+      await client.query('ROLLBACK');
+      return false;
+    }
+    await client.query('DELETE FROM abrechnungsposten WHERE brand=$1 AND auftrag_id=$2', [brand, auftragId]);
+    const del = await client.query('DELETE FROM auftraege WHERE brand=$1 AND id=$2', [brand, auftragId]);
+    await client.query('COMMIT');
+    return (del.rowCount ?? 0) > 0;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /** Von Hand entstandenen Posten löschen (Sitzung, Auftragsposition), solange auf keiner Rechnung. */
