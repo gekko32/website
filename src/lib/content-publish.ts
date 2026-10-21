@@ -22,13 +22,16 @@
 // `GitHubClient` so unit tests can drive the 409/200/422 matrix
 // without a real network round-trip. The default `realGitHubClient`
 // reads `GITHUB_CONTENT_TOKEN` + `CONTENT_REPO` + `CONTENT_BRANCH_BASE`
-// from env.
+// + `CONTENT_PATH_PREFIX` from env.
 import { ContentBundleSchema, type Domain, type SchemaOf } from '../content-schema';
 
 /** Default repo for the content PR. */
-const DEFAULT_REPO = process.env.CONTENT_REPO || 'Paddione/Bachelorprojekt';
+const DEFAULT_REPO = process.env.CONTENT_REPO || 'gekko32/website';
 const DEFAULT_BASE = process.env.CONTENT_BRANCH_BASE || 'main';
-const FILE_PATH = (brand: string, domain: Domain) => `components/website/content/${brand}/${domain}.json`;
+/** Bundle directory inside CONTENT_REPO. In gekko32/website the bundle lives at the
+ *  repo root (`content/`), in the former monorepo under `components/website/content`. */
+const CONTENT_PATH_PREFIX = (process.env.CONTENT_PATH_PREFIX || 'content').replace(/\/+$/, '');
+const FILE_PATH = (brand: string, domain: Domain) => `${CONTENT_PATH_PREFIX}/${brand}/${domain}.json`;
 
 /** Per-request result of `publishContent`. */
 export type PublishResult =
