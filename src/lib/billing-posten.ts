@@ -26,6 +26,8 @@ export interface Posten {
   notiz: string | null;
   /** Nur bei Positionen eines individuellen Auftrags (T8). */
   auftragId?: string | null;
+  /** Ende eines Leistungszeitraums; null = nur ein Tag (datum). */
+  datumBis?: string | null;
 }
 
 export const HERKUNFT_TEXT: Record<Herkunft, string> = {
@@ -209,14 +211,35 @@ export function pruefeAuftragTitel(roh: string | null | undefined): { titel: str
   return { titel, fehler: null };
 }
 
-export interface PositionEingabe { datum?: string; text?: string; menge?: string; einheit?: string; preis?: string }
-export interface PositionWerte { datum: string; text: string; menge: number; einheit: string; einzelpreis: number }
+export interface PositionEingabe { datum?: string; datumBis?: string; text?: string; menge?: string; einheit?: string; preis?: string }
+export interface PositionWerte { datum: string; datumBis: string | null; text: string; menge: number; einheit: string; einzelpreis: number }
 
-/** Eigene Position eines Auftrags: Text, Menge, Einheit, Einzelpreis, Leistungsdatum (K8). */
+/**
+ * Leistungszeitraum für Anzeige und Rechnung (Handtest 21.10.2026): ohne Ende ein Tag,
+ * sonst kompakt „20.–22.10.2026“, „28.10.–02.11.2026“ oder „30.12.2026–02.01.2027“.
+ */
+export function leistungszeitraum(von: string, bis?: string | null): string {
+  const [vj, vm, vt] = von.split('-');
+  if (!bis || bis === von) return `${vt}.${vm}.${vj}`;
+  const [bj, bm, bt] = bis.split('-');
+  if (vj !== bj) return `${vt}.${vm}.${vj}–${bt}.${bm}.${bj}`;
+  if (vm !== bm) return `${vt}.${vm}.–${bt}.${bm}.${bj}`;
+  return `${vt}.–${bt}.${bm}.${bj}`;
+}
+
+/** Eigene Position eines Auftrags: Text, Menge, Einheit, Einzelpreis, Leistungsdatum oder -zeitraum (K8). */
 export function pruefePosition(e: PositionEingabe): { werte: PositionWerte | null; fehler: { key: string; meldung: string }[] } {
   const fehler: { key: string; meldung: string }[] = [];
   const datum = (e.datum ?? '').trim();
   if (!gueltigesDatum(datum)) fehler.push({ key: 'datum', meldung: 'Bitte ein gültiges Leistungsdatum wählen.' });
+  // „bis“ ist freiwillig; gleicher Tag zählt als ein Tag.
+  const bisRoh = (e.datumBis ?? '').trim();
+  const datumBis = bisRoh === '' || bisRoh === datum ? null : bisRoh;
+  if (datumBis !== null) {
+    if (!gueltigesDatum(datumBis)) fehler.push({ key: 'datumBis', meldung: 'Bitte ein gültiges Ende des Zeitraums wählen.' });
+    else if (gueltigesDatum(datum) && datumBis < datum) fehler.push({ key: 'datumBis', meldung: 'Das Ende des Zeitraums liegt vor dem Beginn.' });
+    else if (gueltigesDatum(datum) && Date.parse(datumBis) - Date.parse(datum) > 366 * 86400000) fehler.push({ key: 'datumBis', meldung: 'Der Zeitraum darf höchstens ein Jahr umfassen.' });
+  }
   const t = (e.text ?? '').trim();
   if (t.length < 1 || t.length > 300) fehler.push({ key: 'text', meldung: 'Bitte eine Bezeichnung mit höchstens 300 Zeichen eintragen.' });
   const menge = dezimal(e.menge ?? '');
@@ -226,7 +249,7 @@ export function pruefePosition(e: PositionEingabe): { werte: PositionWerte | nul
   const preis = pruefePreis(e.preis);
   if (preis === null) fehler.push({ key: 'preis', meldung: 'Bitte einen Einzelpreis ab 0 eintragen (ohne Tausenderpunkt, z. B. 1200 oder 1200,50).' });
   if (fehler.length > 0) return { werte: null, fehler };
-  return { werte: { datum, text: t, menge: menge!, einheit, einzelpreis: preis! }, fehler };
+  return { werte: { datum, datumBis, text: t, menge: menge!, einheit, einzelpreis: preis! }, fehler };
 }
 
 /** K10: Posten lassen sich nur ändern, solange sie auf keiner Rechnung stehen und nicht erlassen sind. */
@@ -306,12 +329,15 @@ export function initPostenTabelle(): Promise<void> {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       )`);
     await pool.query(`ALTER TABLE abrechnungsposten ADD COLUMN IF NOT EXISTS auftrag_id UUID`);
+    // Leistungszeitraum (Handtest 21.10.2026): leer = ein Tag.
+    await pool.query(`ALTER TABLE abrechnungsposten ADD COLUMN IF NOT EXISTS datum_bis DATE`);
   })().catch((err) => { tabelleBereit = null; throw err; });
   return tabelleBereit;
 }
 
 const POSTEN_SPALTEN = `p.id, p.klient_id, COALESCE(c.name, '') AS klient_name, p.herkunft, p.datum::text AS datum,
-  p.leistung_key, p.text, p.menge, p.einheit, p.einzelpreis, p.zustand, p.invoice_id, p.notiz, p.auftrag_id`;
+  p.leistung_key, p.text, p.menge, p.einheit, p.einzelpreis, p.zustand, p.invoice_id, p.notiz, p.auftrag_id,
+  p.datum_bis::text AS datum_bis`;
 
 function zeileZuPosten(r: Record<string, unknown>): Posten {
   return {
@@ -320,7 +346,7 @@ function zeileZuPosten(r: Record<string, unknown>): Posten {
     text: r.text as string, menge: Number(r.menge), einheit: (r.einheit as string) ?? '',
     einzelpreis: r.einzelpreis === null || r.einzelpreis === undefined ? null : Number(r.einzelpreis),
     zustand: r.zustand as PostenZustand, invoiceId: (r.invoice_id as string | null) ?? null, notiz: (r.notiz as string | null) ?? null,
-    auftragId: (r.auftrag_id as string | null) ?? null,
+    auftragId: (r.auftrag_id as string | null) ?? null, datumBis: (r.datum_bis as string | null) ?? null,
   };
 }
 
@@ -552,9 +578,9 @@ export async function klientDesAuftrags(brand: string, auftragId: string): Promi
 export async function legePositionAn(brand: string, klientId: string, auftragId: string, w: PositionWerte): Promise<string> {
   await initPostenTabelle();
   const { rows } = await pool.query(
-    `INSERT INTO abrechnungsposten (brand, klient_id, herkunft, auftrag_id, datum, text, menge, einheit, einzelpreis, zustand)
-     VALUES ($1,$2,'auftrag',$3,$4,$5,$6,$7,$8,'offen') RETURNING id`,
-    [brand, klientId, auftragId, w.datum, w.text, w.menge, w.einheit, w.einzelpreis]);
+    `INSERT INTO abrechnungsposten (brand, klient_id, herkunft, auftrag_id, datum, text, menge, einheit, einzelpreis, zustand, datum_bis)
+     VALUES ($1,$2,'auftrag',$3,$4,$5,$6,$7,$8,'offen',$9) RETURNING id`,
+    [brand, klientId, auftragId, w.datum, w.text, w.menge, w.einheit, w.einzelpreis, w.datumBis]);
   return rows[0].id as string;
 }
 
@@ -565,10 +591,10 @@ export async function legePositionAn(brand: string, klientId: string, auftragId:
 export async function aenderePosition(brand: string, postenId: string, w: PositionWerte): Promise<boolean> {
   await initPostenTabelle();
   const { rowCount } = await pool.query(
-    `UPDATE abrechnungsposten SET datum=$3, text=$4, menge=$5, einheit=$6, einzelpreis=$7,
+    `UPDATE abrechnungsposten SET datum=$3, text=$4, menge=$5, einheit=$6, einzelpreis=$7, datum_bis=$8,
        notiz = CASE WHEN notiz = 'Preis fehlt – bitte eintragen' THEN NULL ELSE notiz END, updated_at=now()
       WHERE brand=$1 AND id=$2 AND zustand IN ('offen','nicht_abrechnen') AND NOT ${ABGESAGT_SQL}`,
-    [brand, postenId, w.datum, w.text, w.menge, w.einheit, w.einzelpreis]);
+    [brand, postenId, w.datum, w.text, w.menge, w.einheit, w.einzelpreis, w.datumBis]);
   return (rowCount ?? 0) > 0;
 }
 

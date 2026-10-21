@@ -9,7 +9,7 @@ import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klient
 import { leistungsOptionen, listeLeistungen, listeKategorien, preisAnzeige, holeLeistung } from '../../../lib/billing-leistungen';
 import { gebuchteTermine } from '../../../lib/billing-ausfall';
 import { ladeEinheiten } from '../../../lib/billing-einheiten';
-import { postenDesKlienten, postenBetrag, verbucheQuellen, auftraegeDesKlienten, postenAenderbar, terminAbgesagt, postenLoeschbar, auftragLoeschbar, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
+import { postenDesKlienten, postenBetrag, verbucheQuellen, auftraegeDesKlienten, postenAenderbar, terminAbgesagt, postenLoeschbar, auftragLoeschbar, leistungszeitraum, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -102,7 +102,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
         <table class="w-full text-sm mb-4"><tbody>{posten.map((p) => (
           <>
           <tr class={`border-t border-dark-lighter ${p.zustand === 'offen' ? '' : 'opacity-60'}`}>
-            <td class="py-1 pr-3 whitespace-nowrap">{datum(p.datum)}</td>
+            <td class="py-1 pr-3 whitespace-nowrap">{leistungszeitraum(p.datum, p.datumBis)}</td>
             <td class="py-1 pr-3">{p.text}<br /><span class="text-xs text-muted">{HERKUNFT_TEXT[p.herkunft]}{p.notiz ? ` · ${p.notiz}` : ''}</span></td>
             <td class="py-1 pr-3 text-right whitespace-nowrap text-muted">
               {p.einzelpreis === null && (p.zustand === 'offen' || p.zustand === 'nicht_abrechnen') ? (
@@ -154,8 +154,10 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                   <input type="hidden" name="aktion" value="position_aendern" />
                   <input type="hidden" name="bereich" value="abrechnung" />
                   <input type="hidden" name="postenId" value={p.id} />
-                  <label class="text-muted">Datum
+                  <label class="text-muted">Datum (von)
                     <input type="date" name="datum" value={p.datum} class="feld" /></label>
+                  <label class="text-muted">bis (nur bei Zeitraum)
+                    <input type="date" name="datumBis" value={p.datumBis ?? ''} class="feld" /></label>
                   <label class="text-muted breit">Text auf der Rechnung
                     <input name="text" value={p.text} class="feld" /></label>
                   <label class="text-muted">Menge
@@ -267,7 +269,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                 <tbody>{pos.map((p) => (
                   <>
                   <tr class="border-t border-dark-lighter">
-                    <td class="py-1 pr-2 whitespace-nowrap">{datum(p.datum)}</td>
+                    <td class="py-1 pr-2 whitespace-nowrap">{leistungszeitraum(p.datum, p.datumBis)}</td>
                     <td class="py-1 pr-2">{p.text}</td>
                     <td class="py-1 pr-2 text-right whitespace-nowrap">{p.menge.toLocaleString('de-DE')}</td>
                     <td class="py-1 pr-2 whitespace-nowrap">{p.einheit || '–'}</td>
@@ -290,8 +292,10 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                         <form method="POST" action="/api/admin/posten" autocomplete="off" class="position-raster mt-1 merk-ungespeichert">
                           <input type="hidden" name="aktion" value="position_aendern" />
                           <input type="hidden" name="postenId" value={p.id} />
-                          <label class="text-muted">Leistungsdatum
+                          <label class="text-muted">Leistungsdatum (von)
                             <input type="date" name="datum" value={p.datum} class="feld" /></label>
+                          <label class="text-muted">bis (nur bei Zeitraum)
+                            <input type="date" name="datumBis" value={p.datumBis ?? ''} class="feld" /></label>
                           <label class="text-muted breit">Bezeichnung auf der Rechnung
                             <input name="text" value={p.text} class="feld" /></label>
                           <label class="text-muted">Menge
@@ -319,8 +323,11 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
               <input type="hidden" name="aktion" value="position" />
               <input type="hidden" name="auftragId" value={a.id} />
               <div class="grid gap-2 items-end" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr));">
-                <label class="text-xs text-muted">Leistungsdatum
+                <label class="text-xs text-muted">Leistungsdatum (von)
                   <input type="date" name="datum" required value={heute} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+                </label>
+                <label class="text-xs text-muted">bis (nur bei Zeitraum)
+                  <input type="date" name="datumBis" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
                 </label>
                 <label class="text-xs text-muted" style="grid-column:span 2;">Bezeichnung auf der Rechnung
                   <input name="text" required placeholder="z. B. Moderation Strategietag (ganztägig)" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
@@ -430,6 +437,13 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
   // Datum: Klick ins Feld öffnet den Kalender, nicht nur das kleine Symbol.
   document.querySelectorAll<HTMLInputElement>('input[type="date"]').forEach((d) => {
     d.addEventListener('click', () => { try { d.showPicker(); } catch { /* ältere Browser: Symbol bleibt */ } });
+  });
+  // Zeitraum: „bis“ bietet keine Tage vor „von“ an (geprüft wird zusätzlich auf dem Server).
+  document.querySelectorAll<HTMLInputElement>('input[name="datumBis"]').forEach((bis) => {
+    const von = bis.form?.querySelector<HTMLInputElement>('input[name="datum"]');
+    const setze = () => { if (von) bis.min = von.value; };
+    setze();
+    von?.addEventListener('change', setze);
   });
 
   // Sitzung erfassen: Preis und Rechnungstext der gewählten Leistung vorbelegen (änderbar).

@@ -116,7 +116,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   }
 
   if (aktion === 'position' || aktion === 'position_aendern') {
-    const eingabe = { datum: text('datum'), text: text('text'), menge: text('menge'), einheit: text('einheit'), preis: text('preis') };
+    const eingabe = { datum: text('datum'), datumBis: text('datumBis'), text: text('text'), menge: text('menge'), einheit: text('einheit'), preis: text('preis') };
     const { werte, fehler } = pruefePosition(eingabe);
     // Änderung aus der Abrechnungsliste (Handtest L2) oder aus einem Auftrag.
     const inAbrechnung = text('bereich') === 'abrechnung';

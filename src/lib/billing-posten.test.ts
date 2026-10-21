@@ -1,6 +1,6 @@
 // Rechnungswesen Stufe 3, T5: Abrechnungsposten (K2, K11, K14, K16).
 import { describe, expect, it } from 'vitest';
-import { pruefeSitzung, summenJeKlient, postenBetrag, termineZuPosten, pruefePreis, zeitenZuPosten, pruefeAuftragTitel, pruefePosition, postenAenderbar, terminAbgesagt, postenLoeschbar, auftragLoeschbar, ZUSTAND_TEXT, type Posten, type TerminZeile, type ZeitZeile } from './billing-posten';
+import { pruefeSitzung, summenJeKlient, postenBetrag, termineZuPosten, pruefePreis, zeitenZuPosten, pruefeAuftragTitel, pruefePosition, leistungszeitraum, postenAenderbar, terminAbgesagt, postenLoeschbar, auftragLoeschbar, ZUSTAND_TEXT, type Posten, type TerminZeile, type ZeitZeile } from './billing-posten';
 import type { Leistung } from './billing-leistungen';
 
 const leistung = (teil: Partial<Leistung> = {}): Leistung => ({
@@ -177,9 +177,26 @@ describe('Individuelle Aufträge (T8, K8–K10)', () => {
 
   it('eigene Position mit Text, Menge, Einheit, Preis und Leistungsdatum (K8)', () => {
     expect(pruefePosition({ ...pos, preis: '1200' })).toEqual({
-      werte: { datum: '2026-11-05', text: 'Moderation ganztägig', menge: 1, einheit: 'Tag', einzelpreis: 1200 },
+      werte: { datum: '2026-11-05', datumBis: null, text: 'Moderation ganztägig', menge: 1, einheit: 'Tag', einzelpreis: 1200 },
       fehler: [],
     });
+  });
+
+  it('Leistungszeitraum: „bis“ freiwillig, gleicher Tag = ein Tag, nicht vor dem Beginn, höchstens ein Jahr', () => {
+    expect(pruefePosition({ ...pos, preis: '1200', datumBis: '2026-11-07' }).werte?.datumBis).toBe('2026-11-07');
+    expect(pruefePosition({ ...pos, preis: '1200', datumBis: '2026-11-05' }).werte?.datumBis).toBeNull();
+    expect(pruefePosition({ ...pos, preis: '1200', datumBis: '' }).werte?.datumBis).toBeNull();
+    expect(pruefePosition({ ...pos, preis: '1200', datumBis: '2026-11-04' }).fehler.map((f) => f.key)).toEqual(['datumBis']);
+    expect(pruefePosition({ ...pos, preis: '1200', datumBis: '2026-11-31' }).fehler.map((f) => f.key)).toEqual(['datumBis']);
+    expect(pruefePosition({ ...pos, preis: '1200', datumBis: '2027-12-01' }).fehler.map((f) => f.key)).toEqual(['datumBis']);
+  });
+
+  it('Leistungszeitraum kompakt anzeigen', () => {
+    expect(leistungszeitraum('2026-11-05')).toBe('05.11.2026');
+    expect(leistungszeitraum('2026-11-05', '2026-11-05')).toBe('05.11.2026');
+    expect(leistungszeitraum('2026-11-05', '2026-11-07')).toBe('05.–07.11.2026');
+    expect(leistungszeitraum('2026-10-28', '2026-11-02')).toBe('28.10.–02.11.2026');
+    expect(leistungszeitraum('2026-12-30', '2027-01-02')).toBe('30.12.2026–02.01.2027');
   });
 
   it('Tausenderpunkt ist kein gültiger Preis (eindeutig bleiben)', () => {
