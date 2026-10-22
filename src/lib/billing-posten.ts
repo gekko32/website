@@ -8,7 +8,8 @@ import { verbucheAusfaelle } from './billing-ausfall';
 import type { PoolClient } from 'pg';
 
 export type Herkunft = 'hand' | 'termin' | 'zeit' | 'ausfall' | 'auftrag';
-export type PostenZustand = 'offen' | 'nicht_abrechnen' | 'erlassen' | 'auf_entwurf' | 'abgerechnet';
+/** 'geplant': Position eines Auftrags mit Angebot vor der Annahme (Stufe 4, K44) – noch kein offener Posten. */
+export type PostenZustand = 'offen' | 'nicht_abrechnen' | 'erlassen' | 'auf_entwurf' | 'abgerechnet' | 'geplant';
 
 export interface Posten {
   id: string;
@@ -39,7 +40,7 @@ export const HERKUNFT_TEXT: Record<Herkunft, string> = {
 };
 export const ZUSTAND_TEXT: Record<PostenZustand, string> = {
   offen: 'offen', nicht_abrechnen: 'ausgenommen', erlassen: 'erlassen',
-  auf_entwurf: 'auf Rechnungsentwurf', abgerechnet: 'abgerechnet',
+  auf_entwurf: 'auf Rechnungsentwurf', abgerechnet: 'abgerechnet', geplant: 'geplant (Angebot)',
 };
 
 /** Betrag in Euro, kaufmännisch auf Cent gerundet (in ganzen Cent gerechnet, ohne Gleitkomma-Fehler). */
@@ -207,7 +208,19 @@ export function zeitenZuPosten(zeiten: ZeitZeile[], findeLeistung: (key: string)
 
 // ── T8: Individuelle Aufträge (K8–K10) ─────────────────────────────────────
 
-export interface Auftrag { id: string; klientId: string; titel: string; createdAt: string }
+export type AuftragModus = 'ohne_angebot' | 'mit_angebot';
+/** Stand eines Auftrags mit Angebot (Stufe 4): geplant → angeboten → beauftragt oder abgelehnt. */
+export type AuftragStand = 'geplant' | 'angeboten' | 'beauftragt' | 'abgelehnt';
+export interface Auftrag { id: string; klientId: string; titel: string; createdAt: string; modus: AuftragModus; stand: AuftragStand | null }
+
+export const AUFTRAG_STAND_TEXT: Record<AuftragStand, string> = {
+  geplant: 'Angebot in Vorbereitung', angeboten: 'Angebot verschickt', beauftragt: 'beauftragt', abgelehnt: 'abgelehnt',
+};
+
+/** K44, K45: Neue Positionen sind bei „mit Angebot“ bis zur Beauftragung geplant, sonst sofort offen. */
+export function positionsZustand(a: Pick<Auftrag, 'modus' | 'stand'>): 'geplant' | 'offen' {
+  return a.modus === 'mit_angebot' && a.stand !== 'beauftragt' ? 'geplant' : 'offen';
+}
 
 export function pruefeAuftragTitel(roh: string | null | undefined): { titel: string | null; fehler: string | null } {
   const titel = (roh ?? '').trim();
@@ -247,7 +260,7 @@ export function pruefePosition(e: PositionEingabe): { werte: PositionWerte | nul
 
 /** K10: Posten lassen sich nur ändern, solange sie auf keiner Rechnung stehen und nicht erlassen sind. */
 export function postenAenderbar(zustand: PostenZustand): boolean {
-  return zustand === 'offen' || zustand === 'nicht_abrechnen';
+  return zustand === 'offen' || zustand === 'nicht_abrechnen' || zustand === 'geplant';
 }
 
 /**
@@ -300,7 +313,7 @@ export function initPostenTabelle(): Promise<void> {
         einheit       TEXT NOT NULL DEFAULT '',
         einzelpreis   NUMERIC(12,2) CHECK (einzelpreis IS NULL OR einzelpreis >= 0),
         zustand       TEXT NOT NULL DEFAULT 'offen'
-                      CHECK (zustand IN ('offen','nicht_abrechnen','erlassen','auf_entwurf','abgerechnet')),
+                      CHECK (zustand IN ('offen','nicht_abrechnen','erlassen','auf_entwurf','abgerechnet','geplant')),
         invoice_id    TEXT,
         notiz         TEXT,
         is_test_data  BOOLEAN NOT NULL DEFAULT false,
@@ -322,6 +335,18 @@ export function initPostenTabelle(): Promise<void> {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       )`);
     await pool.query(`ALTER TABLE abrechnungsposten ADD COLUMN IF NOT EXISTS auftrag_id UUID`);
+    // Stufe 4 T15: Zustand „geplant“ und Modus/Stand der Aufträge (K44).
+    await pool.query(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'abrechnungsposten_zustand_check'
+                     AND pg_get_constraintdef(oid) NOT LIKE '%geplant%') THEN
+          ALTER TABLE abrechnungsposten DROP CONSTRAINT abrechnungsposten_zustand_check;
+          ALTER TABLE abrechnungsposten ADD CONSTRAINT abrechnungsposten_zustand_check
+            CHECK (zustand IN ('offen','nicht_abrechnen','erlassen','auf_entwurf','abgerechnet','geplant'));
+        END IF;
+      END $$`);
+    await pool.query(`ALTER TABLE auftraege ADD COLUMN IF NOT EXISTS modus TEXT NOT NULL DEFAULT 'ohne_angebot'`);
+    await pool.query(`ALTER TABLE auftraege ADD COLUMN IF NOT EXISTS stand TEXT`);
     // Leistungszeitraum (Handtest 21.10.2026): leer = ein Tag.
     await pool.query(`ALTER TABLE abrechnungsposten ADD COLUMN IF NOT EXISTS datum_bis DATE`);
     // T10b: nach Verwerfen/Storno kein automatischer Entwurf „je Sitzung“ mehr.
@@ -553,26 +578,40 @@ export async function setzePostenPreis(brand: string, postenId: string, preis: n
     `UPDATE abrechnungsposten SET einzelpreis = $3,
        notiz = CASE WHEN notiz = 'Preis fehlt – bitte eintragen' THEN NULL ELSE notiz END,
        updated_at = now()
-      WHERE brand = $1 AND id = $2 AND zustand IN ('offen','nicht_abrechnen')`,
+      WHERE brand = $1 AND id = $2 AND zustand IN ('offen','nicht_abrechnen','geplant')`,
     [brand, postenId, preis]);
   return (rowCount ?? 0) > 0;
 }
 
-export async function legeAuftragAn(brand: string, klientId: string, titel: string): Promise<string> {
+export async function legeAuftragAn(brand: string, klientId: string, titel: string, modus: AuftragModus = 'ohne_angebot'): Promise<string> {
   await initPostenTabelle();
   const { rows } = await pool.query(
-    'INSERT INTO auftraege (brand, klient_id, titel) VALUES ($1,$2,$3) RETURNING id', [brand, klientId, titel]);
+    'INSERT INTO auftraege (brand, klient_id, titel, modus, stand) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+    [brand, klientId, titel, modus, modus === 'mit_angebot' ? 'geplant' : null]);
   return rows[0].id as string;
 }
 
 export async function auftraegeDesKlienten(brand: string, klientId: string): Promise<Auftrag[]> {
   await initPostenTabelle();
   const { rows } = await pool.query(
-    `SELECT id, klient_id, titel, created_at::text AS created_at FROM auftraege
+    `SELECT id, klient_id, titel, created_at::text AS created_at, modus, stand FROM auftraege
       WHERE brand = $1 AND klient_id = $2 ORDER BY created_at DESC`, [brand, klientId]);
-  return rows.map((r: Record<string, unknown>) => ({
+  return rows.map(zeileZuAuftrag);
+}
+
+function zeileZuAuftrag(r: Record<string, unknown>): Auftrag {
+  return {
     id: r.id as string, klientId: r.klient_id as string, titel: r.titel as string, createdAt: r.created_at as string,
-  }));
+    modus: r.modus === 'mit_angebot' ? 'mit_angebot' : 'ohne_angebot', stand: (r.stand as AuftragStand | null) ?? null,
+  };
+}
+
+export async function holeAuftrag(brand: string, auftragId: string): Promise<Auftrag | null> {
+  await initPostenTabelle();
+  const { rows } = await pool.query(
+    'SELECT id, klient_id, titel, created_at::text AS created_at, modus, stand FROM auftraege WHERE brand = $1 AND id = $2',
+    [brand, auftragId]);
+  return rows[0] ? zeileZuAuftrag(rows[0]) : null;
 }
 
 export async function klientDesAuftrags(brand: string, auftragId: string): Promise<string | null> {
@@ -583,10 +622,13 @@ export async function klientDesAuftrags(brand: string, auftragId: string): Promi
 
 export async function legePositionAn(brand: string, klientId: string, auftragId: string, w: PositionWerte): Promise<string> {
   await initPostenTabelle();
+  // Stufe 4 T15 (K44): bei „mit Angebot“ bis zur Beauftragung geplant.
+  const auftrag = await holeAuftrag(brand, auftragId);
+  const zustand = auftrag ? positionsZustand(auftrag) : 'offen';
   const { rows } = await pool.query(
     `INSERT INTO abrechnungsposten (brand, klient_id, herkunft, auftrag_id, datum, text, menge, einheit, einzelpreis, zustand, datum_bis)
-     VALUES ($1,$2,'auftrag',$3,$4,$5,$6,$7,$8,'offen',$9) RETURNING id`,
-    [brand, klientId, auftragId, w.datum, w.text, w.menge, w.einheit, w.einzelpreis, w.datumBis]);
+     VALUES ($1,$2,'auftrag',$3,$4,$5,$6,$7,$8,$10,$9) RETURNING id`,
+    [brand, klientId, auftragId, w.datum, w.text, w.menge, w.einheit, w.einzelpreis, w.datumBis, zustand]);
   return rows[0].id as string;
 }
 
@@ -599,7 +641,7 @@ export async function aenderePosition(brand: string, postenId: string, w: Positi
   const { rowCount } = await pool.query(
     `UPDATE abrechnungsposten SET datum=$3, text=$4, menge=$5, einheit=$6, einzelpreis=$7, datum_bis=$8,
        notiz = CASE WHEN notiz = 'Preis fehlt – bitte eintragen' THEN NULL ELSE notiz END, updated_at=now()
-      WHERE brand=$1 AND id=$2 AND zustand IN ('offen','nicht_abrechnen') AND NOT ${ABGESAGT_SQL}`,
+      WHERE brand=$1 AND id=$2 AND zustand IN ('offen','nicht_abrechnen','geplant') AND NOT ${ABGESAGT_SQL}`,
     [brand, postenId, w.datum, w.text, w.menge, w.einheit, w.einzelpreis, w.datumBis]);
   return (rowCount ?? 0) > 0;
 }
@@ -639,7 +681,7 @@ export async function loeschePosten(brand: string, postenId: string): Promise<bo
   await initPostenTabelle();
   const { rowCount } = await pool.query(
     `DELETE FROM abrechnungsposten
-      WHERE brand=$1 AND id=$2 AND herkunft IN ('hand','auftrag') AND zustand IN ('offen','nicht_abrechnen')`,
+      WHERE brand=$1 AND id=$2 AND herkunft IN ('hand','auftrag') AND zustand IN ('offen','nicht_abrechnen','geplant')`,
     [brand, postenId]);
   return (rowCount ?? 0) > 0;
 }

@@ -96,7 +96,8 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!klient) return new Response('Klient nicht gefunden', { status: 404 });
     const { titel, fehler } = pruefeAuftragTitel(text('titel'));
     if (!titel) return redirect(`/admin/klienten/${klient.id}?auftragFehler=${encodeURIComponent(fehler!)}#auftraege`, 303);
-    await legeAuftragAn(brand, klient.id, titel);
+    // Stufe 4 T15 (K44): „mit Angebot“ – Positionen erst nach Annahme abrechenbar.
+    await legeAuftragAn(brand, klient.id, titel, form.get('mitAngebot') === 'on' ? 'mit_angebot' : 'ohne_angebot');
     return redirect(`/admin/klienten/${klient.id}?gespeichert=1#auftraege`, 303);
   }
 

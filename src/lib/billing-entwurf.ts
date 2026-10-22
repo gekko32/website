@@ -24,6 +24,7 @@ export function pruefeAuswahl(posten: Posten[], ausgewaehlt: string[]): { posten
     if (p.zustand === 'auf_entwurf' || p.zustand === 'abgerechnet') {
       return { posten: [], fehler: `„${p.text}“ steht schon auf einer Rechnung und kann nicht ein zweites Mal abgerechnet werden.` };
     }
+    if (p.zustand === 'geplant') return { posten: [], fehler: `„${p.text}“ ist noch geplant: Das Angebot ist nicht angenommen, die Position ist nicht offen.` };
     if (p.zustand !== 'offen') return { posten: [], fehler: `„${p.text}“ ist nicht offen (ausgenommen oder erlassen).` };
     if (p.einzelpreis === null) return { posten: [], fehler: `Bei „${p.text}“ fehlt noch der Preis. Bitte zuerst eintragen.` };
     gewaehlt.push(p);
