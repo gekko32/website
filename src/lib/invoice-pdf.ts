@@ -473,7 +473,9 @@ export async function generateInvoicePdf(p: {
        .text('ZAHLUNG', px, fy, { characterSpacing: 0.5, width: fcw });
     doc.font('Helvetica').fontSize(8).fillColor(C.inkSoft);
     doc.text(`Fällig am ${fd(inv.dueDate)}`, px, fy + 12, { width: fcw });
-    doc.text('14 Tage netto · SEPA', px, doc.y + 1, { width: fcw });
+    // Prüfung L3 (B1, K38): Zahlungsziel aus der Rechnung selbst, nicht fest 14 Tage.
+    const zielTage = Math.max(0, Math.round((Date.parse(inv.dueDate) - Date.parse(inv.issueDate)) / 86_400_000));
+    doc.text(`${Number.isFinite(zielTage) ? zielTage : 14} Tage netto · SEPA`, px, doc.y + 1, { width: fcw });
 
     // Contact
     const kx = L + (fcw + 16) * 2;

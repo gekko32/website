@@ -35,3 +35,8 @@ describe('Daten beim Festschreiben (K34, Grenzfall Dezember/Januar)', () => {
 it('Zahlungsreferenz folgt der Nummer', () => {
   expect(zahlungsreferenz('RE-2027-0001')).toBe('RG2027-0001');
 });
+
+it('Prüfung L3 (B3, K38): Zahlungsziel aus der heutigen Einstellung geht vor dem des Entwurfs', () => {
+  expect(datenBeimFestschreiben('2026-11-01', '2026-11-15', new Date('2026-11-10T10:00:00Z'), 30))
+    .toMatchObject({ issueDate: '2026-11-10', dueDate: '2026-12-10' });
+});

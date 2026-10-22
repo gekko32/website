@@ -4,7 +4,8 @@ import { createCreditNote, generateCreditNotePdf } from '../../../../../lib/invo
 
 export const POST: APIRoute = async ({ request, params }) => {
   const session = await getSession(request.headers.get('cookie'));
-  if (!session || !isAdmin(session)) return new Response('Forbidden', { status: 403 });
+  if (!session) return new Response('Nicht angemeldet', { status: 401 });
+  if (!isAdmin(session)) return new Response('Forbidden', { status: 403 });
 
   const body = await request.json().catch(() => ({})) as { reason?: string };
   const reason = body.reason?.trim();

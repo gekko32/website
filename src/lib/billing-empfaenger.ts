@@ -78,7 +78,9 @@ export function alsKunde<T extends KundeTeil>(c: T, e: Empfaenger): T {
  * Heutiger Empfänger eines Rechnungskunden: aus der verknüpften Akte, sonst aus dem Rechnungskunden.
  * `ohneAkte`: nur der Rechnungskunde (ältere festgeschriebene Rechnungen ohne Kopie, wie bisher).
  */
-export async function aktuellerEmpfaenger(brand: string, billingCustomerId: string, opts: { ohneAkte?: boolean } = {}): Promise<Empfaenger | null> {
+export async function aktuellerEmpfaenger(
+  brand: string, billingCustomerId: string, opts: { ohneAkte?: boolean; klientId?: string | null } = {},
+): Promise<Empfaenger | null> {
   const { rows } = await pool.query(
     `SELECT name, email, company, address_line1, postal_code, city, land_iso, vat_number, customers_id::text AS customers_id
        FROM billing_customers WHERE id = $1 AND brand = $2`, [billingCustomerId, brand]);
@@ -88,7 +90,9 @@ export async function aktuellerEmpfaenger(brand: string, billingCustomerId: stri
     name: r.name, email: r.email, company: r.company ?? undefined, addressLine1: r.address_line1 ?? undefined,
     postalCode: r.postal_code ?? undefined, city: r.city ?? undefined, landIso: r.land_iso ?? 'DE', vatNumber: r.vat_number ?? undefined,
   };
-  const klient: Klient | null = r.customers_id && !opts.ohneAkte ? await getKlient(r.customers_id).catch(() => null) : null;
+  // Prüfung L3 (B2): die Akte der Rechnung geht vor der Verknüpfung des Rechnungskunden.
+  const akteId = opts.klientId ?? r.customers_id;
+  const klient: Klient | null = akteId && !opts.ohneAkte ? await getKlient(akteId).catch(() => null) : null;
   return empfaengerMitAkte(kunde, klient);
 }
 
@@ -98,10 +102,10 @@ export async function aktuellerEmpfaenger(brand: string, billingCustomerId: stri
  * der Rechnungskunde.
  */
 export async function empfaengerDerRechnung(invoiceId: string): Promise<Empfaenger | null> {
-  const { rows } = await pool.query('SELECT brand, customer_id, empfaenger, locked FROM billing_invoices WHERE id = $1', [invoiceId]);
+  const { rows } = await pool.query('SELECT brand, customer_id, empfaenger, locked, klient_id::text AS klient_id FROM billing_invoices WHERE id = $1', [invoiceId]);
   const r = rows[0];
   if (!r) return null;
-  return leseEmpfaenger(r.empfaenger) ?? aktuellerEmpfaenger(r.brand, r.customer_id, { ohneAkte: r.locked === true });
+  return leseEmpfaenger(r.empfaenger) ?? aktuellerEmpfaenger(r.brand, r.customer_id, { ohneAkte: r.locked === true, klientId: r.klient_id });
 }
 
 export class AnschriftFehlt extends Error {

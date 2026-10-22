@@ -10,6 +10,8 @@ export const POST: APIRoute = async ({ request , locals }) => {
   const session     = await getSession(request.headers.get('cookie'));
   const isCron      = !!cronSecret && !!process.env.CRON_SECRET && cronSecret === process.env.CRON_SECRET;
   const isAdminUser = !!session && isAdmin(session);
+  // K43 (Prüfung L3, B5): ohne Anmeldung „nicht angemeldet“, angemeldet ohne Adminrecht 403.
+  if (!isCron && !session) return new Response('Nicht angemeldet', { status: 401 });
   if (!isCron && !isAdminUser) return new Response(null, { status: 403 });
 
   const url    = new URL(request.url);

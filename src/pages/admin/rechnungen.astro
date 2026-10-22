@@ -4,6 +4,7 @@ import AdminPageHeader from '../../components/admin/ui/AdminPageHeader.svelte';
 import AdminTabs from '../../components/admin/ui/AdminTabs.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
 import { getAllBillingInvoices, getDraftInvoices } from '../../lib/stripe-billing';
+import { verbucheUndEntwerfe } from '../../lib/billing-abrechnungslauf';
 import { listPendingDunnings, type PendingDunning } from '../../lib/invoice-dunning';
 import type { AdminBillingInvoice } from '../../lib/stripe-billing';
 import CreateInvoiceModal from '../../components/admin/CreateInvoiceModal.svelte';
@@ -43,6 +44,8 @@ if (statusFilter === 'mahnwesen') {
 
 let draftInvoices: Awaited<ReturnType<typeof getDraftInvoices>> = [];
 try {
+  // Prüfung L3 (B4): Entwürfe „je Sitzung“ auch beim Öffnen der Rechnungen anlegen (K27).
+  await verbucheUndEntwerfe(process.env.BRAND || 'mentolder').catch(() => {});
   draftInvoices = await getDraftInvoices();
 } catch (err) {
   logger.error({ err }, '[admin/rechnungen] getDraftInvoices');

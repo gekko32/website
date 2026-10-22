@@ -238,7 +238,8 @@ export async function akteVerlauf(klient: Pick<Klient, 'id' | 'email'>, brand: s
               COALESCE(bc.company, bc.name) AS empfaenger
          FROM billing_invoices i JOIN billing_customers bc ON bc.id = i.customer_id
         WHERE i.brand = $3 AND i.is_test_data = false
-          AND (bc.customers_id = $1 OR lower(bc.email) = lower($2))
+          -- Prüfung L3 (B2): Rechnungen aus Posten tragen ihre Akte; ältere über Verknüpfung oder E-Mail.
+          AND (i.klient_id = $1 OR (i.klient_id IS NULL AND (bc.customers_id = $1 OR lower(bc.email) = lower($2))))
         ORDER BY i.issue_date DESC, i.number DESC LIMIT 200`,
       [klient.id, klient.email, brand],
     ).catch(() => ({ rows: [] })),

@@ -41,11 +41,11 @@ afterEach(() => {
 });
 
 describe('POST /api/admin/billing/create-monthly-invoices', () => {
-  it('K43: ohne Anmeldung und ohne richtigen Schlüssel abgewiesen', async () => {
-    expect((await aufruf(req())).status).toBe(403);
-    expect((await aufruf(req({ secret: 'falsch' }))).status).toBe(403);
+  it("K43: ohne Anmeldung und ohne richtigen Schlüssel abgewiesen (401 nicht angemeldet)", async () => {
+    expect((await aufruf(req())).status).toBe(401);
+    expect((await aufruf(req({ secret: 'falsch' }))).status).toBe(401);
     delete process.env.CRON_SECRET;
-    expect((await aufruf(req({ secret: 'test-secret' }))).status).toBe(403);
+    expect((await aufruf(req({ secret: 'test-secret' }))).status).toBe(401);
     expect(monatslauf).not.toHaveBeenCalled();
   });
 
@@ -95,4 +95,9 @@ describe('POST /api/admin/billing/create-monthly-invoices', () => {
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: 'monthly_invoices_failed' });
   });
+});
+
+it('K43: angemeldet ohne Adminrecht → 403', async () => {
+  getSession.mockResolvedValue({ admin: false });
+  expect((await aufruf(req())).status).toBe(403);
 });

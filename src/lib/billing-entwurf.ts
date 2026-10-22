@@ -117,6 +117,7 @@ export async function erstelleEntwurfAusPosten(
       isTestData: opts.isTestData,
     }, client);
 
+    await client.query('UPDATE billing_invoices SET klient_id = $2 WHERE id = $1', [inv.id, klient.id]);
     const upd = await client.query(
       `UPDATE abrechnungsposten SET zustand = 'auf_entwurf', invoice_id = $3, updated_at = now()
         WHERE brand = $1 AND id = ANY($2::uuid[]) AND zustand = 'offen'`,

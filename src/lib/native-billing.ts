@@ -6,6 +6,7 @@ import { logBillingEvent, type BillingActor } from './billing-audit';
 import { validateLeitwegId, formatLeitwegId } from './leitweg';
 import { ladeAbsender } from './billing-absender';
 import { initPostenTabelle, postenAbgerechnet } from './billing-posten';
+import { ladeZahlungsziel } from './billing-regeln';
 import { aktuellerEmpfaenger, AnschriftFehlt, fehlendeAngaben, kaeuferName, leseEmpfaenger, type Empfaenger } from './billing-empfaenger';
 import type { PoolClient } from 'pg';
 
@@ -211,10 +212,13 @@ export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Prom
 
   // Stufe 3 T11: Empfänger festhalten (K31, K32); ohne vollständige Anschrift kein Festschreiben.
   let empfaenger: Empfaenger | null = opts.empfaenger ?? null;
-  if (!empfaenger) {
-    const kopf = await pool.query(`SELECT brand, customer_id FROM billing_invoices WHERE id=$1 AND status='draft'`, [id]);
-    if (kopf.rows[0]) empfaenger = await aktuellerEmpfaenger(kopf.rows[0].brand, kopf.rows[0].customer_id);
+  const kopfVorab = (await pool.query(`SELECT brand, customer_id, klient_id::text AS klient_id FROM billing_invoices WHERE id=$1 AND status='draft'`, [id])).rows[0];
+  if (!empfaenger && kopfVorab) {
+    empfaenger = await aktuellerEmpfaenger(kopfVorab.brand, kopfVorab.customer_id, { klientId: kopfVorab.klient_id });
   }
+  // Prüfung L3 (B3, K38): Zahlungsziel aus der heutigen Einstellung – erst jetzt wird es eine Rechnung.
+  // Vor der Transaktion gelesen, damit dort nur Rechnung und Zähler berührt werden.
+  const zielTage = kopfVorab ? await ladeZahlungsziel(kopfVorab.brand) : undefined;
   if (empfaenger) {
     const fehlt = fehlendeAngaben(empfaenger);
     if (fehlt.length > 0) throw new AnschriftFehlt(fehlt);
@@ -235,7 +239,7 @@ export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Prom
     let kopf: { number: string; issueDate: string | null; dueDate: string | null; paymentReference: string | null } =
       { number: vorher.rows[0].number, issueDate: null, dueDate: null, paymentReference: null };
     if (istEntwurfsKennung(vorher.rows[0].number)) {
-      const d = datenBeimFestschreiben(vorher.rows[0].issue_date, vorher.rows[0].due_date, opts.jetzt ?? new Date());
+      const d = datenBeimFestschreiben(vorher.rows[0].issue_date, vorher.rows[0].due_date, opts.jetzt ?? new Date(), zielTage);
       const number = await naechsteNummer(client, vorher.rows[0].brand, d.jahr);
       kopf = { number, issueDate: d.issueDate, dueDate: d.dueDate, paymentReference: zahlungsreferenz(number) };
     }

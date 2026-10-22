@@ -22,11 +22,13 @@ export const zahlungsreferenz = (nummer: string): string => nummer.replace('RE-'
 const tagBerlin = (d: Date): string => d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
 
 /**
- * Rechnungsdatum ist der Tag des Festschreibens (deutsche Zeit); das Zahlungsziel behält
- * so viele Tage wie im Entwurf. Die Nummer kommt aus dem Jahr des Rechnungsdatums.
+ * Rechnungsdatum ist der Tag des Festschreibens (deutsche Zeit). Zahlungsziel: `zielTage` aus
+ * der heutigen Einstellung (K38), sonst so viele Tage wie im Entwurf. Nummer aus dem Jahr des Rechnungsdatums.
  */
-export function datenBeimFestschreiben(entwurfDatum: string, entwurfFaellig: string, jetzt: Date): { issueDate: string; dueDate: string; jahr: number } {
-  const tage = Math.max(0, Math.round((Date.parse(entwurfFaellig) - Date.parse(entwurfDatum)) / 86_400_000));
+export function datenBeimFestschreiben(
+  entwurfDatum: string, entwurfFaellig: string, jetzt: Date, zielTage?: number,
+): { issueDate: string; dueDate: string; jahr: number } {
+  const tage = zielTage ?? Math.max(0, Math.round((Date.parse(entwurfFaellig) - Date.parse(entwurfDatum)) / 86_400_000));
   const issueDate = tagBerlin(jetzt);
   const faellig = new Date(`${issueDate}T00:00:00Z`);
   faellig.setUTCDate(faellig.getUTCDate() + tage);

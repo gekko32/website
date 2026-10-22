@@ -30,7 +30,7 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
   const [absender, rechnungskunde, empfaenger] = await Promise.all([
     ladeAbsender(brand),
     getCustomerById(brand, draftCheck.rows[0].customer_id),
-    aktuellerEmpfaenger(brand, draftCheck.rows[0].customer_id),
+    aktuellerEmpfaenger(brand, draftCheck.rows[0].customer_id, { klientId: draftCheck.rows[0].klient_id ?? null }),
   ]);
   if (!rechnungskunde || !empfaenger) return new Response('Customer not found', { status: 404 });
   // Stufe 3 T11: heutiger Stand aus der Akte (K32), wird beim Festschreiben kopiert (K31).
