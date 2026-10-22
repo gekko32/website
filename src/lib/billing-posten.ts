@@ -650,6 +650,14 @@ export async function klientDesPostens(brand: string, postenId: string): Promise
   return (rows[0]?.klient_id as string | undefined) ?? null;
 }
 
+/** Akte, Zustand und Rechnung eines Postens (für „Entwurf verwerfen“ aus der Akte). */
+export async function rechnungDesPostens(brand: string, postenId: string): Promise<{ klientId: string; zustand: PostenZustand; invoiceId: string | null } | null> {
+  await initPostenTabelle();
+  const { rows } = await pool.query('SELECT klient_id, zustand, invoice_id FROM abrechnungsposten WHERE brand = $1 AND id = $2', [brand, postenId]);
+  const r = rows[0];
+  return r ? { klientId: r.klient_id as string, zustand: r.zustand as PostenZustand, invoiceId: (r.invoice_id as string | null) ?? null } : null;
+}
+
 // ── T10a: Posten und Rechnung (K23–K25) ─────────────────────────────────────
 // Aufgerufen innerhalb der Transaktion von Festschreiben, Verwerfen und Storno.
 

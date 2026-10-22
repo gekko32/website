@@ -5,11 +5,11 @@ import { getSession, isAdmin } from '../../../lib/auth';
 import { getKlient } from '../../../lib/klientenakte';
 import { holeLeistung } from '../../../lib/billing-leistungen';
 import {
-  aenderePosition, loeschePosten, klientDesAuftrags, benenneAuftragUm, loescheAuftrag, klientDesPostens, legeAuftragAn, legePositionAn, legeSitzungAn,
+  aenderePosition, loeschePosten, rechnungDesPostens, klientDesAuftrags, benenneAuftragUm, loescheAuftrag, klientDesPostens, legeAuftragAn, legePositionAn, legeSitzungAn,
   pruefeAuftragTitel, pruefePosition, pruefePreis, pruefeSitzung, setzeAbrechnen, setzePostenPreis,
 } from '../../../lib/billing-posten';
 import { erlasseAusfall, vermerkeAbsage } from '../../../lib/billing-ausfall';
-import { erstelleEntwurfAusPosten } from '../../../lib/billing-entwurf';
+import { erstelleEntwurfAusPosten, verwirfEntwurf } from '../../../lib/billing-entwurf';
 import { isE2ETestRequest } from '../../../lib/e2e-marker';
 
 export const POST: APIRoute = async ({ request, redirect }) => {
@@ -54,6 +54,17 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const r = await erstelleEntwurfAusPosten(brand, klient, ids, { isTestData: isE2ETestRequest(request) });
     const hinweis = r.ok ? `entwurf=${encodeURIComponent(r.number)}` : `fehler=${encodeURIComponent(r.fehler)}`;
     return redirect(`/admin/klienten/${klient.id}?${hinweis}#abrechnung`, 303);
+  }
+
+  // Handtest 22.10.2026: gesperrten Posten wieder änderbar machen – Entwurf, auf dem er steht, verwerfen.
+  if (aktion === 'entwurf_verwerfen') {
+    const postenId = text('postenId');
+    if (!/^[0-9a-f-]{36}$/i.test(postenId)) return new Response('Posten nicht gefunden', { status: 404 });
+    const r = await rechnungDesPostens(brand, postenId);
+    if (!r) return new Response('Posten nicht gefunden', { status: 404 });
+    const ok = r.zustand === 'auf_entwurf' && r.invoiceId !== null && await verwirfEntwurf(brand, r.invoiceId);
+    const hinweis = ok ? 'gespeichert=1' : `fehler=${encodeURIComponent('Nur Posten auf einem noch nicht festgeschriebenen Entwurf lassen sich so freigeben. Festgeschriebene Rechnungen bitte stornieren.')}`;
+    return redirect(`/admin/klienten/${r.klientId}?${hinweis}#abrechnung`, 303);
   }
 
   // T9: Absage eines gebuchten Termins vermerken (AE8) und Ausfallhonorar erlassen (K20)

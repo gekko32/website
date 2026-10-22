@@ -81,7 +81,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
     <p class="text-xs text-muted mb-2"><a class="hover:underline" href="/admin/klienten">← Alle Klienten</a></p>
     <div class="flex flex-wrap items-start justify-between gap-3 mb-6">
       <AdminPageHeader title={klient.name}
-        description={`${klient.customer_number ?? 'ohne Nummer'} · ${klient.email}${klient.phone ? ' · ' + klient.phone : ''}`} />
+        description={`Kundennummer ${klient.customer_number ?? '–'}`} />
       <div class="flex flex-wrap gap-2 items-center">
         <CreateInvoiceModal {serviceOptions} klientId={klient.id}
           prefillEmail={empfaenger.email} prefillName={empfaenger.company ?? empfaenger.name} client:load />
@@ -93,15 +93,23 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
     </div>
     <p id="konto-meldung" class="text-sm mb-4"></p>
 
-    <section class="mb-8">
-      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">Rechnung geht an</h2>
-      <p class="text-sm">
-        {empfaenger.company ? <strong>{empfaenger.company}</strong> : <strong>{empfaenger.name}</strong>}
-        {empfaenger.company && <span class="text-muted"> (z. Hd. {empfaenger.name})</span>}
-        <br /><span class="text-muted">{[empfaenger.addressLine1, [empfaenger.postalCode, empfaenger.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Anschrift fehlt noch'} · {empfaenger.email}</span>
-        <br /><span class="text-muted">Abrechnung: {abrechnungsart === 'monatlich' ? 'monatlich (Sammelrechnung am Monatsersten)' : 'je Sitzung (jeder Posten sofort ein Entwurf)'}{!klient.abrechnungsart && ' – Voreinstellung'}</span>
-      </p>
-    </section>
+    {/* Handtest 22.10.2026: Stammdaten oben und zugeklappt – erst stimmen sie, dann wird erfasst.
+        Fehlt die Anschrift, ist der Bereich offen. */}
+    <details class="border border-dark-lighter rounded-xl p-4 mb-8" open={!empfaenger.addressLine1 || !empfaenger.city}>
+      <summary class="cursor-pointer text-sm font-semibold text-gold">Stammdaten und Rechnungsanschrift
+        {(!empfaenger.addressLine1 || !empfaenger.city) && <span class="ml-2 text-xs font-normal text-red-400">Anschrift unvollständig</span>}</summary>
+      <div class="mt-3">
+        <p class="text-sm text-muted mb-2">{klient.email}{klient.phone ? ' · ' + klient.phone : ''}</p>
+        <h3 class="text-xs text-muted uppercase tracking-wide mb-1">Rechnung geht an</h3>
+        <p class="text-sm">
+          {empfaenger.company ? <strong>{empfaenger.company}</strong> : <strong>{empfaenger.name}</strong>}
+          {empfaenger.company && <span class="text-muted"> (z. Hd. {empfaenger.name})</span>}
+          <br /><span class="text-muted">{[empfaenger.addressLine1, [empfaenger.postalCode, empfaenger.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Anschrift fehlt noch'} · {empfaenger.email}</span>
+          <br /><span class="text-muted">Abrechnung: {abrechnungsart === 'monatlich' ? 'monatlich (Sammelrechnung am Monatsersten)' : 'je Sitzung (jeder Posten sofort ein Entwurf)'}{!klient.abrechnungsart && ' – Voreinstellung'}</span>
+        </p>
+        <div class="mt-4"><KlientFormular klientId={klient.id} start={klient} {voreinstellung} client:load /></div>
+      </div>
+    </details>
 
     <section id="abrechnung" class="mb-8">
       <h2 class="text-xs text-muted uppercase tracking-wide mb-2">
@@ -112,6 +120,58 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
         prüfen und versenden unter <a class="underline" href="/admin/rechnungen">Rechnungen → Entwürfe</a>.</p>}
       {postenFehler && <p role="alert" class="text-sm text-red-400 mb-2">{postenFehler}</p>}
 
+      {/* Handtest 22.10.2026: über der Liste, als Knopf wie „Auftrag anlegen“. */}
+      <details class="mb-3" open={sitzungFehler.length > 0}>
+        <summary class="cursor-pointer inline-block px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Sitzung erfassen</summary>
+        <div class="border border-dark-lighter rounded-xl p-4 mt-2">
+        <form method="POST" action="/api/admin/posten" autocomplete="off" class="mt-4 grid gap-3 merk-ungespeichert" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">
+          <input type="hidden" name="aktion" value="sitzung" />
+          <input type="hidden" name="klientId" value={klient.id} />
+          {sitzungFehler.length > 0 && <p role="alert" class="text-sm text-red-400" style="grid-column:1/-1;">Nicht gespeichert. Bitte die markierten Felder korrigieren.</p>}
+          <label class="text-xs text-muted">Datum
+            <input type="date" name="datum" required value={String(se.datum ?? heute)} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+            {sfFuer('datum') && <span class="block text-red-400">{sfFuer('datum')}</span>}
+          </label>
+          <label class="text-xs text-muted" style="grid-column:span 2;">Leistung
+            <select id="sitzung-leistung" name="leistungKey" required class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light">
+              <option value="">– wählen –</option>
+              {/* Nach Bereichen gegliedert; Preis und Text werden beim Auswählen vorbelegt (Handtest L2). */}
+              {kategorien.map((k) => {
+                const inKat = aktiveLeistungen.filter((l) => l.kategorieId === k.id);
+                return inKat.length > 0 && (
+                  <optgroup label={`${k.icon} ${k.titel}`}>
+                    {inKat.map((l) => (
+                      <option value={l.key} selected={se.leistungKey === l.key}
+                        data-preis={l.preis === null ? '' : String(l.preis).replace('.', ',')} data-text={l.name}>
+                        {l.name} – {l.preis === null ? 'Preis eintragen' : `${preisAnzeige({ preis: l.preis, nachVereinbarung: false })}${l.einheit ? ' je ' + l.einheit : ''}`}
+                      </option>))}
+                  </optgroup>
+                );
+              })}
+            </select>
+            {sfFuer('leistungKey') && <span class="block text-red-400">{sfFuer('leistungKey')}</span>}
+          </label>
+          <label class="text-xs text-muted">Menge
+            <input name="menge" inputmode="decimal" required value={String(se.menge ?? '1')} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+            {sfFuer('menge') && <span class="block text-red-400">{sfFuer('menge')}</span>}
+          </label>
+          <label class="text-xs text-muted">Preis je Einheit in €
+            <input id="sitzung-preis" name="preis" inputmode="decimal" value={String(se.preis ?? '')} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+            {sfFuer('preis') && <span class="block text-red-400">{sfFuer('preis')}</span>}
+          </label>
+          <label class="text-xs text-muted" style="grid-column:1/-1;">Text auf der Rechnung
+            <input id="sitzung-text" name="text" maxlength="300" value={String(se.text ?? '')} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+            {sfFuer('text') && <span class="block text-red-400">{sfFuer('text')}</span>}
+          </label>
+          <label class="text-sm text-light" style="grid-column:1/-1;">
+            <input type="checkbox" name="nichtAbrechnen" checked={se.nichtAbrechnen === true} /> Von der Abrechnung ausnehmen (z. B. kostenloses Erstgespräch, Kulanz)
+          </label>
+          <div style="grid-column:1/-1;">
+            <button type="submit" class="px-4 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">Sitzung anlegen</button>
+          </div>
+        </form>
+        </div>
+      </details>
       {abrechnungsart === 'je_sitzung' && <p class="text-xs text-muted mb-2">Abrechnung je Sitzung: Jeder Posten mit Preis kommt von selbst
         auf einen eigenen Entwurf (Rechnungen → Entwürfe). Wird ein Entwurf verworfen, bleiben seine Posten offen, bis du sie hier selbst abrechnest.</p>}
       {/* T10a: links anlegen (Regel Gerald 22.10.2026): Häkchen bei den offenen Posten, dann Rechnung erstellen. */}
@@ -208,6 +268,14 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                   </button>
                 </form>
               )}
+              {p.zustand === 'auf_entwurf' && p.invoiceId && (
+                <form method="POST" action="/api/admin/posten" class="posten-loeschen inline"
+                  data-frage={`Entwurf ${rechnungNummer.get(p.invoiceId) ?? ''} verwerfen? Seine ${posten.filter((x) => x.invoiceId === p.invoiceId).length} Posten sind danach wieder offen und lassen sich ändern.`}>
+                  <input type="hidden" name="aktion" value="entwurf_verwerfen" />
+                  <input type="hidden" name="postenId" value={p.id} />
+                  <button type="submit" class="px-2 py-1 rounded border border-dark-lighter text-xs" title="Zum Ändern: Entwurf verwerfen, der Posten ist dann wieder offen.">Entwurf verwerfen</button>
+                </form>
+              )}
               {postenLoeschbar(p.herkunft, p.zustand) && (
                 <form method="POST" action="/api/admin/posten" style="display:inline;" class="posten-loeschen">
                   <input type="hidden" name="postenId" value={p.id} />
@@ -220,55 +288,6 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
           </tr>
           ); })}</tbody></table>}
 
-      <details class="border border-dark-lighter rounded-xl p-4" open={sitzungFehler.length > 0}>
-        <summary class="cursor-pointer text-sm font-semibold text-gold">Sitzung erfassen</summary>
-        <form method="POST" action="/api/admin/posten" autocomplete="off" class="mt-4 grid gap-3 merk-ungespeichert" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">
-          <input type="hidden" name="aktion" value="sitzung" />
-          <input type="hidden" name="klientId" value={klient.id} />
-          {sitzungFehler.length > 0 && <p role="alert" class="text-sm text-red-400" style="grid-column:1/-1;">Nicht gespeichert. Bitte die markierten Felder korrigieren.</p>}
-          <label class="text-xs text-muted">Datum
-            <input type="date" name="datum" required value={String(se.datum ?? heute)} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
-            {sfFuer('datum') && <span class="block text-red-400">{sfFuer('datum')}</span>}
-          </label>
-          <label class="text-xs text-muted" style="grid-column:span 2;">Leistung
-            <select id="sitzung-leistung" name="leistungKey" required class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light">
-              <option value="">– wählen –</option>
-              {/* Nach Bereichen gegliedert; Preis und Text werden beim Auswählen vorbelegt (Handtest L2). */}
-              {kategorien.map((k) => {
-                const inKat = aktiveLeistungen.filter((l) => l.kategorieId === k.id);
-                return inKat.length > 0 && (
-                  <optgroup label={`${k.icon} ${k.titel}`}>
-                    {inKat.map((l) => (
-                      <option value={l.key} selected={se.leistungKey === l.key}
-                        data-preis={l.preis === null ? '' : String(l.preis).replace('.', ',')} data-text={l.name}>
-                        {l.name} – {l.preis === null ? 'Preis eintragen' : `${preisAnzeige({ preis: l.preis, nachVereinbarung: false })}${l.einheit ? ' je ' + l.einheit : ''}`}
-                      </option>))}
-                  </optgroup>
-                );
-              })}
-            </select>
-            {sfFuer('leistungKey') && <span class="block text-red-400">{sfFuer('leistungKey')}</span>}
-          </label>
-          <label class="text-xs text-muted">Menge
-            <input name="menge" inputmode="decimal" required value={String(se.menge ?? '1')} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
-            {sfFuer('menge') && <span class="block text-red-400">{sfFuer('menge')}</span>}
-          </label>
-          <label class="text-xs text-muted">Preis je Einheit in €
-            <input id="sitzung-preis" name="preis" inputmode="decimal" value={String(se.preis ?? '')} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
-            {sfFuer('preis') && <span class="block text-red-400">{sfFuer('preis')}</span>}
-          </label>
-          <label class="text-xs text-muted" style="grid-column:1/-1;">Text auf der Rechnung
-            <input id="sitzung-text" name="text" maxlength="300" value={String(se.text ?? '')} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
-            {sfFuer('text') && <span class="block text-red-400">{sfFuer('text')}</span>}
-          </label>
-          <label class="text-sm text-light" style="grid-column:1/-1;">
-            <input type="checkbox" name="nichtAbrechnen" checked={se.nichtAbrechnen === true} /> Von der Abrechnung ausnehmen (z. B. kostenloses Erstgespräch, Kulanz)
-          </label>
-          <div style="grid-column:1/-1;">
-            <button type="submit" class="px-4 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">Sitzung anlegen</button>
-          </div>
-        </form>
-      </details>
     </section>
 
     <section id="auftraege" class="mb-8">
@@ -284,7 +303,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
           <input type="hidden" name="klientId" value={klient.id} />
           <input name="titel" required minlength="2" maxlength="120" placeholder="Neuer Auftrag, z. B. Moderation Strategietag" aria-label="Titel des Auftrags"
             class="w-full px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
-          <button type="submit" class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">Auftrag anlegen</button>
+          <button type="submit" class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Auftrag anlegen</button>
         </form>
       </div>
 
@@ -320,6 +339,39 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                 </span>
               </span>
             </div>
+            <details class="mb-3">
+              <summary class="cursor-pointer inline-block px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Neue Position mit Preis</summary>
+            <form method="POST" action="/api/admin/posten" autocomplete="off" class="mt-2 p-3 rounded-lg border border-gold/60 bg-dark merk-ungespeichert">
+              <p class="text-xs text-muted mb-2"><a href="/admin/einstellungen/regeln" class="hover:underline">Einheiten-Liste pflegen</a></p>
+              <input type="hidden" name="aktion" value="position" />
+              <input type="hidden" name="auftragId" value={a.id} />
+              <div class="grid gap-2 items-end" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr));">
+                <label class="text-xs text-muted">Leistungsdatum (von)
+                  <input type="date" name="datum" required value={heute} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+                </label>
+                <label class="text-xs text-muted">bis (nur bei Zeitraum)
+                  <input type="date" name="datumBis" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+                </label>
+                <label class="text-xs text-muted" style="grid-column:span 2;">Bezeichnung auf der Rechnung
+                  <input name="text" required placeholder="z. B. Moderation Strategietag (ganztägig)" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+                </label>
+                <label class="text-xs text-muted">Menge
+                  <input name="menge" required value="1" inputmode="decimal" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+                </label>
+                <label class="text-xs text-muted">Einheit
+                  <select name="einheit" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light">
+                    <option value="">–</option>
+                    {einheiten.map((e) => <option value={e}>{e}</option>)}
+                  </select>
+                </label>
+                <label class="text-xs text-muted">Preis je Einheit in €
+                  <input name="preis" required inputmode="decimal" placeholder="z. B. 1200" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+                </label>
+              </div>
+              {/* Neu-Anlegen-Knöpfe stehen links, Knöpfe für bestehende Zeilen rechts (Gerald, 22.10.2026). */}
+              <button type="submit" class="mt-2 px-4 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Position anlegen</button>
+            </form>
+            </details>
             {pos.length === 0 ? <p class="text-xs text-muted mb-2">Noch keine Positionen – über „+ Neue Position mit Preis“ hinzufügen.</p> : (
               <table class="w-full text-xs mb-3">
                 <thead><tr class="text-left text-muted">
@@ -380,7 +432,16 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                           </form>
                           <button type="button" class="zeile-abbrechen px-2 py-0.5 rounded border border-dark-lighter" data-form={f}>Abbrechen</button>
                         </span>
-                      </>) : <span class="text-muted">{ZUSTAND_TEXT[p.zustand]}</span>}
+                      </>) : <><span class="text-muted">{ZUSTAND_TEXT[p.zustand]}</span>
+                        {p.zustand === 'auf_entwurf' && p.invoiceId && (
+                          <form method="POST" action="/api/admin/posten" class="posten-loeschen inline"
+                            data-frage={`Entwurf ${rechnungNummer.get(p.invoiceId) ?? ''} verwerfen? Seine ${posten.filter((x) => x.invoiceId === p.invoiceId).length} Posten sind danach wieder offen und lassen sich ändern.`}>
+                            <input type="hidden" name="aktion" value="entwurf_verwerfen" />
+                            <input type="hidden" name="postenId" value={p.id} />
+                            <button type="submit" class="px-2 py-1 rounded border border-dark-lighter text-xs" title="Zum Ändern: Entwurf verwerfen, der Posten ist dann wieder offen.">Entwurf verwerfen</button>
+                          </form>
+                        )}
+                      </>}
                     </td>
                   </tr>
                   ); })}</tbody>
@@ -388,39 +449,6 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
             )}
             {/* Handtest L2 (21.10.2026): Positionsformular deutlich beschriftet, sonst als Textfeld missverstanden.
                 Handtest 22.10.2026: zugeklappt, öffnet sich erst per Klick (sonst wird die Seite unnötig lang). */}
-            <details class="mt-3">
-              <summary class="cursor-pointer text-sm font-semibold text-gold">+ Neue Position mit Preis</summary>
-            <form method="POST" action="/api/admin/posten" autocomplete="off" class="mt-2 p-3 rounded-lg border border-gold/60 bg-dark merk-ungespeichert">
-              <p class="text-xs text-muted mb-2"><a href="/admin/einstellungen/regeln" class="hover:underline">Einheiten-Liste pflegen</a></p>
-              <input type="hidden" name="aktion" value="position" />
-              <input type="hidden" name="auftragId" value={a.id} />
-              <div class="grid gap-2 items-end" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr));">
-                <label class="text-xs text-muted">Leistungsdatum (von)
-                  <input type="date" name="datum" required value={heute} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
-                </label>
-                <label class="text-xs text-muted">bis (nur bei Zeitraum)
-                  <input type="date" name="datumBis" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
-                </label>
-                <label class="text-xs text-muted" style="grid-column:span 2;">Bezeichnung auf der Rechnung
-                  <input name="text" required placeholder="z. B. Moderation Strategietag (ganztägig)" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
-                </label>
-                <label class="text-xs text-muted">Menge
-                  <input name="menge" required value="1" inputmode="decimal" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
-                </label>
-                <label class="text-xs text-muted">Einheit
-                  <select name="einheit" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light">
-                    <option value="">–</option>
-                    {einheiten.map((e) => <option value={e}>{e}</option>)}
-                  </select>
-                </label>
-                <label class="text-xs text-muted">Preis je Einheit in €
-                  <input name="preis" required inputmode="decimal" placeholder="z. B. 1200" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
-                </label>
-              </div>
-              {/* Neu-Anlegen-Knöpfe stehen links, Knöpfe für bestehende Zeilen rechts (Gerald, 22.10.2026). */}
-              <button type="submit" class="mt-2 px-4 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Position anlegen</button>
-            </form>
-            </details>
           </div>
         );
       })}
@@ -483,10 +511,6 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
           </tr>))}</tbody></table>}
     </section>
 
-    <details class="border border-dark-lighter rounded-xl p-4" open={!klient.address && !klient.rechnung_firma}>
-      <summary class="cursor-pointer text-sm font-semibold text-gold">Stammdaten bearbeiten</summary>
-      <div class="mt-4"><KlientFormular klientId={klient.id} start={klient} {voreinstellung} client:load /></div>
-    </details>
   </div>
 </AdminLayout>
 
