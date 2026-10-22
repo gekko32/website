@@ -1,4 +1,5 @@
 import { pool, initBillingTables } from './website-db';
+import { hatEchteEmail } from './billing-versand';
 import { datenBeimFestschreiben, entwurfsKennung, istEntwurfsKennung, naechsteNummer, zahlungsreferenz } from './billing-nummer';
 import { checkAndApplyTaxModeSwitch, resolveEffectiveTaxMode } from './tax-monitor';
 import { canonicalInvoiceForHash, sha256Hex, type HashableLine } from './invoice-hash';
@@ -564,7 +565,7 @@ export async function getInvoiceForEInvoice(id: string): Promise<EInvoiceInput |
     // Stufe 3 T11: festgeschriebener Empfänger (K31); ältere Rechnungen ohne Kopie wie bisher.
     customer: kopie ? {
       name: kaeuferName(kopie),
-      email: kopie.email,
+      email: hatEchteEmail(kopie.email) ? kopie.email : '',
       addressLine1: kopie.addressLine1 ?? undefined,
       postalCode: kopie.postalCode ?? undefined,
       city: kopie.city ?? undefined,
@@ -572,7 +573,7 @@ export async function getInvoiceForEInvoice(id: string): Promise<EInvoiceInput |
       leitwegId: row.leitweg_id ?? row.c_leitweg ?? undefined,
     } : {
       name: row.c_name,
-      email: row.c_email,
+      email: hatEchteEmail(row.c_email) ? row.c_email : '',
       addressLine1: row.c_addr ?? undefined,
       postalCode: row.c_zip ?? undefined,
       city: row.c_city ?? undefined,

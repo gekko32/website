@@ -20,7 +20,8 @@
 
   const s = (v: string | null | undefined) => v ?? '';
   let w = $state<Werte>({
-    name: s(start.name), email: s(start.email), phone: s(start.phone),
+    // Stufe 4 T13: interner Platzhalter (…@….invalid) erscheint als leeres Feld (K61).
+    name: s(start.name), email: (start.email ?? '').endsWith('.invalid') ? '' : s(start.email), phone: s(start.phone),
     address: s(start.address), postal_code: s(start.postal_code), city: s(start.city),
     rechnung_an: start.rechnung_an === 'firma' ? 'firma' : 'person',
     rechnung_firma: s(start.rechnung_firma), rechnung_firma_adresse: s(start.rechnung_firma_adresse),
@@ -74,7 +75,7 @@
 <form onsubmit={speichern} class="space-y-4">
   <div class="grid gap-3 sm:grid-cols-2">
     <div><label class={lbl} for="k-name">Name *</label><input id="k-name" class={feld} bind:value={w.name} required /></div>
-    <div><label class={lbl} for="k-email">E-Mail *</label><input id="k-email" type="email" class={feld} bind:value={w.email} required /></div>
+    <div><label class={lbl} for="k-email">E-Mail (freiwillig)</label><input id="k-email" type="email" class={feld} bind:value={w.email} placeholder="leer lassen, wenn keine" /></div>
     <div><label class={lbl} for="k-phone">Telefon</label><input id="k-phone" class={feld} bind:value={w.phone} /></div>
     <div><label class={lbl} for="k-adr">Straße und Nr.</label><input id="k-adr" class={feld} bind:value={w.address} /></div>
     <div><label class={lbl} for="k-plz">PLZ</label><input id="k-plz" class={feld} bind:value={w.postal_code} /></div>

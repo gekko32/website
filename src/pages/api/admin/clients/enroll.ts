@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
 import { getCustomerFullById, upsertCustomer } from '../../../../lib/website-db';
 import { createUser, sendPasswordResetEmail, listUsers } from '../../../../lib/identity';
+import { hatEchteEmail } from '../../../../lib/billing-versand';
 
 export const POST: APIRoute = async ({ request }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -22,6 +23,13 @@ export const POST: APIRoute = async ({ request }) => {
   if (!customer) {
     return new Response(JSON.stringify({ error: 'Kunde nicht gefunden' }), {
       status: 404, headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Stufe 4 T13 (K63): ohne echte E-Mail-Adresse kein Konto (Platzhalter …@….invalid).
+  if (!hatEchteEmail(customer.email)) {
+    return new Response(JSON.stringify({ error: 'Ein Konto braucht eine E-Mail-Adresse. Bitte zuerst in den Stammdaten eintragen.' }), {
+      status: 400, headers: { 'Content-Type': 'application/json' },
     });
   }
 

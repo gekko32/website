@@ -17,7 +17,8 @@ const SellerConfigSchema = z.object({
 
 const BuyerConfigSchema = z.object({
   name: z.string().min(1),
-  email: z.email(),
+  // Stufe 4 T13: Klienten ohne E-Mail (K63) – dann keine Käufer-E-Mail in der E-Rechnung.
+  email: z.email().optional(),
   address: z.string().optional(),
   postalCode: z.string().optional(),
   city: z.string().optional(),

@@ -18,7 +18,8 @@ export function generateCII(input: InvoiceInput, opts: Options = {}): string {
   const profile = opts.profileId ?? PROFILE_EN16931;
   const isKlein = p.taxMode === 'kleinunternehmer';
   const cur = p.currency;
-  const buyerRef = opts.leitwegId ?? p.buyer.leitwegId ?? p.buyer.email;
+  // Ohne Leitweg-ID und ohne Käufer-E-Mail (Stufe 4, K63): die Rechnungsnummer als Käuferreferenz.
+  const buyerRef = opts.leitwegId ?? p.buyer.leitwegId ?? p.buyer.email ?? p.number;
 
   const hasReverseCharge = p.lines.some(l => l.taxCategory === 'AE');
   const notes: string[] = [];

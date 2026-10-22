@@ -13,6 +13,9 @@ export function generateXRechnungUbl(p: EInvoiceInput): string {
   if (!p.customer.leitwegId) {
     throw new Error('XRechnung verlangt eine Leitweg-ID (BT-10) auf dem Käufer.');
   }
+  if (!p.customer.email) {
+    throw new Error('XRechnung (UBL) verlangt eine E-Mail-Adresse des Empfängers (BT-49). Bitte in der Klientenakte eintragen.');
+  }
   if (!p.seller.email) {
     throw new Error('XRechnung verlangt eine Verkäufer-E-Mail (BT-34) zum Senden über PEPPOL.');
   }

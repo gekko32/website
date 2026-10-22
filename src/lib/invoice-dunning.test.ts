@@ -83,7 +83,7 @@ describe('invoice-dunning.sendDunning', () => {
       .mockResolvedValueOnce({ rows: [{ id: 'd-1', level: 1, invoice_id: 'inv-1', fee_amount: '5', interest_amount: '1.20', outstanding_at_generation: '100', number: 'R-1', payment_reference: 'R-1', email: 'a@b.com', name: 'Alice' }] })
       .mockResolvedValueOnce({ rows: [] });  // UPDATE
     sendEmail.mockResolvedValueOnce(true);
-    expect(await sendDunning('d-1', 'admin@example.com')).toBe(true);
+    expect(await sendDunning('d-1', 'admin@example.com')).toEqual({ weg: 'email', pdfPath: null });
     const [sendArg] = sendEmail.mock.calls[0];
     expect(sendArg.to).toBe('a@b.com');
     expect(sendArg.subject).toBe('Mahnung 1 zu Rechnung R-1');
@@ -92,6 +92,15 @@ describe('invoice-dunning.sendDunning', () => {
     expect(updateSql).toMatch(/UPDATE billing_invoice_dunnings/);
     expect(updateSql).toMatch(/sent_at=now\(\)/);
     expect(logBillingEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('Stufe 4 T14 (K60): ohne E-Mail-Adresse keine Mail, sondern „per Post“ vermerkt', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [{ id: 'd-2', level: 1, invoice_id: 'inv-2', fee_amount: '0', interest_amount: '0', outstanding_at_generation: '50', number: 'R-2', payment_reference: 'R-2', email: 'ohne-email-abc@mentolder.invalid', name: 'Otto', pdf_path: '/ablage/m.pdf' }] })
+      .mockResolvedValueOnce({ rows: [] });
+    expect(await sendDunning('d-2', 'admin@example.com')).toEqual({ weg: 'post', pdfPath: '/ablage/m.pdf' });
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(query.mock.calls[1][1]).toEqual(['d-2', 'admin@example.com (Post)']);
   });
 
   it('returns false and does not stamp when sendEmail fails', async () => {

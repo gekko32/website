@@ -328,9 +328,14 @@ const STATUS_TABS = [
       </button>
       <a id="editor-ansehen" href="#" target="_blank" rel="noopener"
         class="px-4 py-2 text-sm border border-border rounded-lg hover:border-gold transition-colors">Ansehen ↗</a>
+      <!-- Stufe 4 T14 (K58, K59): ohne E-Mail-Adresse nur „ohne E-Mail“. -->
+      <button id="editor-post-btn"
+        class="px-4 py-2 text-sm border border-gold text-gold rounded-lg transition-colors disabled:opacity-40">
+        Festschreiben ohne E-Mail (Post/persönlich)
+      </button>
       <button id="editor-send-btn"
         class="px-4 py-2 text-sm bg-gold hover:bg-gold-light text-dark font-semibold rounded-lg transition-colors disabled:opacity-40">
-        Festschreiben und versenden
+        Festschreiben und per E-Mail senden
       </button>
     </div>
   </dialog>
@@ -373,6 +378,9 @@ const STATUS_TABS = [
       try {
         const res = await fetch(`/api/admin/billing/dunning/${id}/send`, { method: 'POST' });
         if (res.ok) {
+          // Stufe 4 T14 (K60): ohne E-Mail-Adresse als Post vermerkt – PDF aus der Ablage drucken.
+          const data = await res.json().catch(() => ({})) as { versand?: string; pdfPath?: string | null };
+          if (data.versand === 'post') alert(`Keine E-Mail-Adresse: Mahnung als „per Post“ vermerkt. Bitte drucken und verschicken – PDF in der Ablage: ${data.pdfPath ?? 'Rechnungsablage in Nextcloud'}`);
           window.location.reload();
         } else {
           alert('Fehler beim Versenden der Mahnung.');
@@ -468,8 +476,10 @@ const STATUS_TABS = [
       number: string; customerName: string; customerEmail: string; items: DraftItem[];
       empfaenger: { name: string; company: string | null; email: string; addressLine1: string | null; postalCode: string | null; city: string | null } | null;
       anschriftFehlt: string[];
-      zahlungszielTage: number | null; zahlungszielStandard: number;
+      zahlungszielTage: number | null; zahlungszielStandard: number; versandwege: ('email' | 'post')[];
     };
+    const ohneEmail = !data.versandwege.includes('email');
+    (document.getElementById('editor-send-btn') as HTMLButtonElement).hidden = ohneEmail;
     zielFeld.value = String(data.zahlungszielTage ?? data.zahlungszielStandard);
     zielHinweis.textContent = `Standard aus den Einstellungen: ${data.zahlungszielStandard} Tage`;
     // Stufe 3 T11: An wen die Rechnung beim Festschreiben geht (heutiger Stand der Akte).
@@ -479,6 +489,9 @@ const STATUS_TABS = [
       : `${data.number} · ${data.customerName} · ${data.customerEmail}`;
     const sendKnopf = document.getElementById('editor-send-btn') as HTMLButtonElement;
     sendKnopf.disabled = data.anschriftFehlt.length > 0;
+    (document.getElementById('editor-post-btn') as HTMLButtonElement).disabled = data.anschriftFehlt.length > 0;
+    if (ohneEmail && data.anschriftFehlt.length === 0) meldung.textContent = '';
+    zielHinweis.textContent += ohneEmail ? ' · keine E-Mail-Adresse: nur Versand per Post/persönlich' : '';
     if (data.anschriftFehlt.length > 0) {
       meldung.textContent = `Festschreiben erst möglich, wenn die Rechnungsanschrift vollständig ist. Es fehlt: ${data.anschriftFehlt.join(', ')}. Bitte in der Klientenakte ergänzen.`;
     }
@@ -516,22 +529,36 @@ const STATUS_TABS = [
     if (btn.classList.contains('discard-draft-btn')) await discardDraft(id);
   });
 
-  document.getElementById('editor-send-btn')!.addEventListener('click', async () => {
+  async function festschreiben(weg: 'email' | 'post'): Promise<void> {
     if (!currentInvoiceId) return;
-    if (!confirm('Rechnung jetzt festschreiben und an den Kunden versenden? Danach lässt sie sich nur noch stornieren.')) return;
-    const knopf = document.getElementById('editor-send-btn') as HTMLButtonElement;
+    const frage = weg === 'email'
+      ? 'Rechnung jetzt festschreiben und per E-Mail an den Kunden senden? Danach lässt sie sich nur noch stornieren.'
+      : 'Rechnung jetzt festschreiben, ohne E-Mail? Das PDF öffnet sich zum Drucken; vermerkt wird „verschickt per Post“. Danach lässt sie sich nur noch stornieren.';
+    if (!confirm(frage)) return;
+    const knopf = document.getElementById(weg === 'email' ? 'editor-send-btn' : 'editor-post-btn') as HTMLButtonElement;
     knopf.disabled = true;
     const res = await fetch(`/api/admin/billing/${currentInvoiceId}/send`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ zahlungszielTage: zielFeld.value }),
+      body: JSON.stringify({ zahlungszielTage: zielFeld.value, versand: weg }),
     });
     knopf.disabled = !res.ok && res.status === 422;
     if (!res.ok) {
-      meldung.textContent = `Nicht versendet: ${(await res.text().catch(() => '')) || 'Fehler'} (${res.status})`;
+      meldung.textContent = `Nicht festgeschrieben: ${(await res.text().catch(() => '')) || 'Fehler'} (${res.status})`;
+      return;
+    }
+    const data = await res.json().catch(() => ({})) as { pdfUrl?: string; number?: string };
+    if (data.pdfUrl) {
+      // Ohne E-Mail: PDF zum Drucken herunterladen (ein neues Fenster nach dem Warten blockieren Browser oft).
+      const link = document.createElement('a');
+      link.href = data.pdfUrl; link.download = `${data.number ?? 'Rechnung'}.pdf`;
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => window.location.reload(), 1500);
       return;
     }
     window.location.reload();
-  });
+  }
+  document.getElementById('editor-send-btn')!.addEventListener('click', () => void festschreiben('email'));
+  document.getElementById('editor-post-btn')!.addEventListener('click', () => void festschreiben('post'));
 
   document.getElementById('editor-discard-btn')!.addEventListener('click', async () => {
     if (!currentInvoiceId) return;

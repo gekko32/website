@@ -132,3 +132,16 @@ describe('generateCII — Leistungszeitraum je Position (Stufe 3 T10a)', () => {
     expect(xml).toContain(`<ram:BilledQuantity unitCode="${code}">`);
   });
 });
+
+describe('generateCII — Käufer ohne E-Mail (Stufe 4 T13)', () => {
+  it('BuyerReference fällt auf die Rechnungsnummer zurück', () => {
+    const xml = generateCII({
+      number: 'RE-2026-0200', issueDate: '2026-12-01', dueDate: '2026-12-15', currency: 'EUR', taxMode: 'kleinunternehmer',
+      lines: [{ description: 'C', quantity: 1, unit: 'C62', unitPrice: 10, netAmount: 10, taxRate: 0, taxCategory: 'E' }],
+      netTotal: 10, taxTotal: 0, grossTotal: 10, seller: baseSeller,
+      buyer: { name: 'Otto Ohne', country: 'DE' },
+    } as InvoiceInput);
+    expect(xml).toContain('<ram:BuyerReference>RE-2026-0200</ram:BuyerReference>');
+    expect(xml).not.toContain('invalid');
+  });
+});

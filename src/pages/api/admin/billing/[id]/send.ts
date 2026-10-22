@@ -8,6 +8,8 @@ import { pool, getSiteSetting, initBillingTables } from '../../../../../lib/webs
 import { ladeAbsender } from '../../../../../lib/billing-absender';
 import { errorResponse } from '../../../_errors';
 import { pruefeZahlungsziel } from '../../../../../lib/billing-regeln';
+import { hatEchteEmail, pruefeVersandweg } from '../../../../../lib/billing-versand';
+import { logBillingEvent } from '../../../../../lib/billing-audit';
 import { aktuellerEmpfaenger, AnschriftFehlt, alsKunde, fehlendeAngaben, kaeuferName } from '../../../../../lib/billing-empfaenger';
 
 function interpolate(t: string, vars: Record<string, string>) {
@@ -23,7 +25,7 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
 
   // Load invoice (must be draft)
   // N2: Zahlungsziel im Einzelfall aus der Prüfansicht; ohne Angabe gilt die Einstellung.
-  const anfrage = await request.json().catch(() => ({})) as { zahlungszielTage?: unknown };
+  const anfrage = await request.json().catch(() => ({})) as { zahlungszielTage?: unknown; versand?: unknown };
   let zahlungszielTage: number | undefined;
   if (anfrage.zahlungszielTage !== undefined && anfrage.zahlungszielTage !== null && anfrage.zahlungszielTage !== '') {
     const z = pruefeZahlungsziel(String(anfrage.zahlungszielTage));
@@ -48,6 +50,9 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
   const fehlt = fehlendeAngaben(empfaenger);
   if (fehlt.length > 0) return new Response(new AnschriftFehlt(fehlt).message, { status: 422 });
   const customer = alsKunde(rechnungskunde, empfaenger);
+  // Stufe 4 T14 (K58, K59): per E-Mail oder ohne E-Mail (Post/persönlich); ohne E-Mail-Adresse nur Post.
+  const versand = pruefeVersandweg(anfrage.versand, empfaenger.email);
+  if (versand.fehler) return new Response(versand.fehler, { status: 422 });
 
   if (!absender.city) {
     locals.requestLogger.warn({ brand }, '[billing/send] invoice_sender_city not configured');
@@ -145,7 +150,7 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
       },
       buyer: {
         name: kaeuferName(empfaenger) || 'Unbekannt',
-        email: customer.email,
+        email: hatEchteEmail(customer.email) ? customer.email : undefined,
         address: customer.addressLine1 || undefined,
         postalCode: customer.postalCode || undefined,
         city: customer.city || undefined,
@@ -200,6 +205,14 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
     [id, Buffer.from(xml, 'utf8')]
   );
 
+  // Stufe 4 T14: ohne E-Mail – festgeschrieben ist sie; vermerken, PDF zum Drucken öffnen (K58).
+  if (versand.weg === 'post') {
+    await vermerkeVersand(id, 'post', session.email);
+    return new Response(JSON.stringify({ ok: true, number: finalized.number, versand: 'post', pdfUrl: `/api/billing/invoice/${id}/pdf` }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   // Interpolate and send email
   const vars = {
     number: finalized.number,
@@ -245,7 +258,14 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
     return errorResponse('EMAIL_DELIVERY_FAILED', locals.requestId, 502);
   }
 
-  return new Response(JSON.stringify({ ok: true, number: finalized.number }), {
+  await vermerkeVersand(id, 'email', session.email);
+  return new Response(JSON.stringify({ ok: true, number: finalized.number, versand: 'email' }), {
     headers: { 'Content-Type': 'application/json' }
   });
 };
+
+/** Versandweg und -zeitpunkt an der Rechnung (nicht Teil der Prüfsumme) und im Protokoll. */
+async function vermerkeVersand(id: string, weg: 'email' | 'post', wer: string | undefined): Promise<void> {
+  await pool.query('UPDATE billing_invoices SET versandweg=$2, versendet_am=now() WHERE id=$1', [id, weg]);
+  await logBillingEvent({ invoiceId: id, action: 'versand', actor: { email: wer }, metadata: { weg } }).catch(() => {});
+}

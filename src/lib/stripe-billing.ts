@@ -9,6 +9,7 @@ import { holeLeistung } from './billing-leistungen';
 import { ladeZahlungsziel } from './billing-regeln';
 import { leistungsdatumZeile } from './leistungszeitraum';
 import { empfaengerDerRechnung, fehlendeAngaben, type Empfaenger } from './billing-empfaenger';
+import { anzeigeEmail, versandwege, type Versandweg } from './billing-versand';
 
 // Die feste Preisliste (SERVICES) ist seit Rechnungswesen Stufe 3 (20.10.2026)
 // entfernt. Leistungen und Preise pflegt Gerald unter Admin → Leistungen
@@ -60,6 +61,8 @@ interface DraftInvoiceDetail extends AdminBillingInvoice {
   /** N2: eigenes Zahlungsziel des Entwurfs (null = Einstellung) und die Einstellung selbst. */
   zahlungszielTage: number | null;
   zahlungszielStandard: number;
+  /** Stufe 4 T14: mögliche Versandwege (ohne E-Mail-Adresse nur „post“). */
+  versandwege: Versandweg[];
   items: DraftInvoiceItem[];
   currency: string;
   subtotalExclTax: number;
@@ -113,7 +116,7 @@ function mapAdminRow(row: Record<string, unknown>): AdminBillingInvoice {
   return {
     ...mapRow(row),
     customerName:  (row.customer_name as string)  ?? '',
-    customerEmail: (row.customer_email as string) ?? '',
+    customerEmail: anzeigeEmail(row.customer_email as string),
   };
 }
 
@@ -207,6 +210,7 @@ export async function getDraftInvoiceDetail(invoiceId: string): Promise<DraftInv
     anschriftFehlt: empfaenger ? fehlendeAngaben(empfaenger) : [],
     zahlungszielTage: row.zahlungsziel_tage != null ? Number(row.zahlungsziel_tage) : null,
     zahlungszielStandard: await ladeZahlungsziel(brand),
+    versandwege: versandwege(empfaenger?.email),
     items,
     currency: 'EUR',
     subtotalExclTax: Number(row.net_amount ?? 0),

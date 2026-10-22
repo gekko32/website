@@ -111,3 +111,21 @@ describe('pruefeKlient — Abrechnungsart (Stufe 3 T10b)', () => {
     expect(insert[1]).toContain('monatlich');
   });
 });
+
+// Rechnungswesen Stufe 4, T13: Klient ohne E-Mail (K61, K62, K64).
+describe('Klient ohne E-Mail (Stufe 4 T13)', () => {
+  it('K61: nur der Name ist Pflicht', () => {
+    expect(pruefeKlient({ name: 'Otto', email: '' }).email).toBeNull();
+    expect(() => pruefeKlient({ name: '', email: '' })).toThrow(/Namen/);
+    expect(() => pruefeKlient({ name: 'X', email: 'kaputt' })).toThrow(/E-Mail/);
+  });
+  it('K61/K62: Anlegen ohne E-Mail speichert einen Platzhalter und prüft nicht auf Doppel', async () => {
+    query.mockImplementation(async (sql: string) =>
+      /INSERT INTO customers/.test(sql) ? { rows: [{ id: 'k9' }] } : { rows: [{ id: 'irgendwer' }] });
+    const r = await createKlient({ name: 'Otto', email: '' });
+    expect(r.ok).toBe(true);
+    const insert = query.mock.calls.find((c) => /INSERT INTO customers/.test(c[0] as string))!;
+    expect(String((insert[1] as unknown[])[1])).toMatch(/@mentolder\.invalid$/);
+    expect(query.mock.calls.some((c) => /lower\(email\) = \$1/.test(c[0] as string))).toBe(false);
+  });
+});

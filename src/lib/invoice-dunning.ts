@@ -1,6 +1,7 @@
 import { pool, getSiteSetting, initBillingTables } from './website-db';
 import { getInvoice, getCustomerById, type Invoice, type Customer } from './native-billing';
 import { alsKunde, leseEmpfaenger } from './billing-empfaenger';
+import { hatEchteEmail } from './billing-versand';
 import { generateDunningPdf, type InvoicePdfCustomer, type InvoicePdfSeller } from './invoice-pdf';
 import { archiveBillingPdf } from './billing-archive';
 import { ladeAbsender } from './billing-absender';
@@ -207,10 +208,15 @@ export async function listPendingDunnings(brand: string): Promise<PendingDunning
   }));
 }
 
-export async function sendDunning(id: string, actorEmail: string): Promise<boolean> {
+/**
+ * Mahnung versenden. Stufe 4 T14 (K60): Hat der Empfänger keine E-Mail-Adresse, wird nichts
+ * gemailt, sondern „per Post“ vermerkt; das PDF liegt in der Ablage (pdf_path).
+ * Ergebnis: false (nicht gefunden/schon verschickt/Mail gescheitert), 'email' oder 'post'.
+ */
+export async function sendDunning(id: string, actorEmail: string): Promise<false | { weg: 'email' | 'post'; pdfPath: string | null }> {
   const r = await pool.query(
     `SELECT d.id, d.level, d.invoice_id, d.fee_amount, d.interest_amount, d.outstanding_at_generation,
-            i.number, i.payment_reference,
+            i.number, i.payment_reference, d.pdf_path,
             COALESCE(i.empfaenger->>'email', c.email) AS email, COALESCE(i.empfaenger->>'name', c.name) AS name
        FROM billing_invoice_dunnings d
        JOIN billing_invoices i ON i.id = d.invoice_id
@@ -221,6 +227,14 @@ export async function sendDunning(id: string, actorEmail: string): Promise<boole
   const row = r.rows[0];
   if (!row) return false;
   const total = Number(row.outstanding_at_generation) + Number(row.fee_amount) + Number(row.interest_amount);
+  if (!hatEchteEmail(row.email)) {
+    await pool.query(`UPDATE billing_invoice_dunnings SET sent_at=now(), sent_by=$2 WHERE id=$1`, [id, `${actorEmail} (Post)`]);
+    await logBillingEvent({
+      invoiceId: row.invoice_id as string, action: 'dunning_sent', reason: `Mahnung ${row.level} per Post`,
+      metadata: { dunningId: id, sentBy: actorEmail, weg: 'post' },
+    });
+    return { weg: 'post', pdfPath: (row.pdf_path as string | null) ?? null };
+  }
   const ok = await sendEmail({
     to: row.email,
     subject: `Mahnung ${row.level} zu Rechnung ${row.number}`,
@@ -241,6 +255,6 @@ export async function sendDunning(id: string, actorEmail: string): Promise<boole
     reason: `Mahnung ${row.level}`,
     metadata: { dunningId: id, sentBy: actorEmail },
   });
-  return true;
+  return { weg: 'email', pdfPath: (row.pdf_path as string | null) ?? null };
 }
 

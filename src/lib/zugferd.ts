@@ -53,7 +53,7 @@ export function generateZugferdXmlFromNative(input: ZugferdNativeInput): string 
     },
     buyer: {
       name: input.customer.name,
-      email: input.customer.email,
+      email: input.customer.email || undefined,
       country: 'DE',
     },
   };

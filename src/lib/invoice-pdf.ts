@@ -7,6 +7,7 @@ import { embedFacturXIntoPdfA3, type FacturXLevel } from './pdf-a3-embed';
 import { generateEInvoiceXml, type EInvoiceProfile } from './einvoice-profile';
 import type { EInvoiceInput } from './einvoice-types';
 import { leistungsdatumZeile } from './leistungszeitraum';
+import { hatEchteEmail } from './billing-versand';
 
 // Resolve logo from several candidate paths: cwd-relative (production container),
 // then source-relative (dev / test). Falls back to null → logo block is silently skipped.
@@ -327,7 +328,8 @@ export async function generateInvoicePdf(p: {
          .text(`USt-IdNr.: ${customer.vatNumber}`, CX, cy, { width: 230 });
       cy = doc.y + 2;
     }
-    doc.font('Helvetica').fontSize(8).fillColor(C.inkMute).text(customer.email, CX, cy, { width: 230 });
+    // Stufe 4 T13: Klienten ohne E-Mail – der interne Platzhalter erscheint nie auf der Rechnung.
+    if (hatEchteEmail(customer.email)) doc.font('Helvetica').fontSize(8).fillColor(C.inkMute).text(customer.email, CX, cy, { width: 230 });
     cy = doc.y;
 
     // ── Separator + intro ─────────────────────────────────────────────────────

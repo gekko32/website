@@ -7,12 +7,12 @@ export const POST: APIRoute = async ({ request, params }) => {
   if (!session || !isAdmin(session)) return new Response('Forbidden', { status: 403 });
   const id = params.id ?? '';
   if (!id) return new Response('Invalid id', { status: 400 });
-  const ok = await sendDunning(id, session.email ?? session.sub ?? 'admin');
-  if (!ok) return new Response(JSON.stringify({ error: 'send failed or already sent' }), {
+  const r = await sendDunning(id, session.email ?? session.sub ?? 'admin');
+  if (!r) return new Response(JSON.stringify({ error: 'send failed or already sent' }), {
     status: 409,
     headers: { 'Content-Type': 'application/json' },
   });
-  return new Response(JSON.stringify({ ok: true }), {
+  return new Response(JSON.stringify({ ok: true, versand: r.weg, pdfPath: r.pdfPath }), {
     headers: { 'Content-Type': 'application/json' },
   });
 };

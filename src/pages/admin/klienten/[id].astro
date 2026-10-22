@@ -10,6 +10,7 @@ import { gebuchteTermine } from '../../../lib/billing-ausfall';
 import { ladeEinheiten } from '../../../lib/billing-einheiten';
 import { verbucheUndEntwerfe, wirksameAbrechnungsart } from '../../../lib/billing-abrechnungslauf';
 import { ladeRegeln } from '../../../lib/billing-regeln';
+import { anzeigeEmail, hatEchteEmail } from '../../../lib/billing-versand';
 import { postenDesKlienten, postenBetrag, auftraegeDesKlienten, postenAenderbar, terminAbgesagt, postenLoeschbar, auftragLoeschbar, leistungszeitraum, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
@@ -85,8 +86,11 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
         <a href="#abrechnung" id="rechnung-erstellen-sprung" class="px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">Rechnung erstellen</a>
         {klient.hat_konto
           ? <a class="px-3 py-2 rounded-lg border border-dark-lighter text-sm" href={`/admin/${klient.keycloak_user_id}`}>Konto öffnen</a>
-          : <button id="konto-einrichten" data-id={klient.id}
-              class="px-3 py-2 rounded-lg border border-dark-lighter text-sm">Konto einrichten</button>}
+          : hatEchteEmail(klient.email)
+            ? <button id="konto-einrichten" data-id={klient.id}
+                class="px-3 py-2 rounded-lg border border-dark-lighter text-sm">Konto einrichten</button>
+            : <button type="button" disabled title="Ein Konto braucht eine E-Mail-Adresse (Stammdaten)."
+                class="px-3 py-2 rounded-lg border border-dark-lighter text-sm opacity-40 cursor-not-allowed">Konto einrichten</button>}
       </div>
     </div>
     <p id="konto-meldung" class="text-sm mb-4"></p>
@@ -97,12 +101,12 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       <summary class="cursor-pointer text-sm font-semibold text-gold">Stammdaten und Rechnungsanschrift
         {(!empfaenger.addressLine1 || !empfaenger.city) && <span class="ml-2 text-xs font-normal text-red-400">Anschrift unvollständig</span>}</summary>
       <div class="mt-3">
-        <p class="text-sm text-muted mb-2">{klient.email}{klient.phone ? ' · ' + klient.phone : ''}</p>
+        <p class="text-sm text-muted mb-2">{anzeigeEmail(klient.email)}{klient.phone ? ' · ' + klient.phone : ''}</p>
         <h3 class="text-xs text-muted uppercase tracking-wide mb-1">Rechnung geht an</h3>
         <p class="text-sm">
           {empfaenger.company ? <strong>{empfaenger.company}</strong> : <strong>{empfaenger.name}</strong>}
           {empfaenger.company && <span class="text-muted"> (z. Hd. {empfaenger.name})</span>}
-          <br /><span class="text-muted">{[empfaenger.addressLine1, [empfaenger.postalCode, empfaenger.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Anschrift fehlt noch'} · {empfaenger.email}</span>
+          <br /><span class="text-muted">{[empfaenger.addressLine1, [empfaenger.postalCode, empfaenger.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Anschrift fehlt noch'} · {anzeigeEmail(empfaenger.email)}</span>
           <br /><span class="text-muted">Abrechnung: {abrechnungsart === 'monatlich' ? 'monatlich (Sammelrechnung am Monatsersten)' : 'je Sitzung (jeder Posten sofort ein Entwurf)'}{!klient.abrechnungsart && ' – Voreinstellung'}</span>
         </p>
         <div class="mt-4"><KlientFormular klientId={klient.id} start={klient} {voreinstellung} client:load /></div>
