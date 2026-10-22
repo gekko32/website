@@ -227,7 +227,7 @@ export async function getFullInvoice(invoiceId: string): Promise<FullInvoice | n
  * Creates a draft invoice in the native billing system for a single service line.
  *
  * This is the compatibility shim that callers from the booking-confirmation flow
- * (admin/inbox/[id]/action.ts → approve_booking) and the admin CreateInvoiceModal
+ * (admin/inbox/[id]/action.ts → approve_booking) and the admin-Maske (bis Stufe 4)
  * use. The legacy name comes from the pre-2026 Stripe integration; today it
  * delegates to native-billing's `createInvoice`.
  *

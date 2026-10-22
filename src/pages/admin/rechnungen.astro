@@ -5,18 +5,20 @@ import AdminTabs from '../../components/admin/ui/AdminTabs.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
 import { getAllBillingInvoices, getDraftInvoices } from '../../lib/stripe-billing';
 import { verbucheUndEntwerfe } from '../../lib/billing-abrechnungslauf';
+import { offeneAngebote, ANGEBOT_STAND_TEXT } from '../../lib/billing-angebot';
 import { listPendingDunnings, type PendingDunning } from '../../lib/invoice-dunning';
 import type { AdminBillingInvoice } from '../../lib/stripe-billing';
-import CreateInvoiceModal from '../../components/admin/CreateInvoiceModal.svelte';
 import TaxMonitorWidget from '../../components/admin/TaxMonitorWidget.svelte';
 import DatevExportWidget from '../../components/admin/DatevExportWidget.svelte';
-import { leistungsOptionen } from '../../lib/billing-leistungen';
+import { listKlienten } from '../../lib/klientenakte';
+import { anzeigeEmail } from '../../lib/billing-versand';
 import { logger } from '../../lib/logger';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
 // Stufe 3 T4: Auswahl aus der gepflegten Leistungstabelle.
-const serviceOptions = await leistungsOptionen(process.env.BRAND || 'mentolder').catch(() => []);
+// Stufe 4 T19 (K66): Neue Rechnung = Klient wählen → dessen offene Posten in der Akte.
+const klientenWahl = await listKlienten().catch(() => []);
 if (!isAdmin(session)) return Astro.redirect('/admin');
 
 const statusFilter = Astro.url.searchParams.get('status') ?? '';
@@ -43,10 +45,13 @@ if (statusFilter === 'mahnwesen') {
 }
 
 let draftInvoices: Awaited<ReturnType<typeof getDraftInvoices>> = [];
+let offeneAngebotListe: Awaited<ReturnType<typeof offeneAngebote>> = [];
 try {
   // Prüfung L3 (B4): Entwürfe „je Sitzung“ auch beim Öffnen der Rechnungen anlegen (K27).
   await verbucheUndEntwerfe(process.env.BRAND || 'mentolder').catch(() => {});
   draftInvoices = await getDraftInvoices();
+  // Stufe 4 T18 (K57): verschickte, unbeantwortete Angebote.
+  offeneAngebotListe = await offeneAngebote(process.env.BRAND || 'mentolder').catch(() => []);
 } catch (err) {
   logger.error({ err }, '[admin/rechnungen] getDraftInvoices');
 }
@@ -105,7 +110,22 @@ const STATUS_TABS = [
           title="Fakturierung"
           description={`${invoices.length} Rechnungen über alle Clients`}
         />
-        <CreateInvoiceModal {serviceOptions} client:load />
+        {/* Stufe 4 T19 (K66, K67): keine Rechnungen ohne Akte; altes Feld „Angebot“ entfällt. */}
+        <details class="relative">
+          <summary class="cursor-pointer list-none px-4 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">+ Neue Rechnung</summary>
+          <div class="absolute right-0 z-20 mt-2 w-80 bg-surface border border-border rounded-xl p-3 shadow-xl">
+            <p class="text-xs text-muted mb-2">Für wen? Danach wählst du in der Akte die offenen Posten.</p>
+            <input id="klient-wahl-suche" type="search" placeholder="Name, Nummer, E-Mail …" class="w-full mb-2 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+            <ul class="max-h-64 overflow-y-auto text-sm">
+              {klientenWahl.map((k) => (
+                <li class="klient-wahl" data-suche={`${k.name} ${k.customer_number ?? ''} ${anzeigeEmail(k.email)} ${k.rechnung_firma ?? ''}`.toLowerCase()}>
+                  <a class="block px-2 py-1 rounded hover:bg-dark-lighter" href={`/admin/klienten/${k.id}?rechnung=1#abrechnung`}>{k.name}
+                    <span class="text-xs text-muted">{k.customer_number ?? ''}{k.rechnung_firma ? ` · ${k.rechnung_firma}` : ''}</span></a>
+                </li>))}
+            </ul>
+            <a href="/admin/klienten" class="block mt-2 text-xs text-gold hover:underline">+ Neuer Klient (Akte anlegen)</a>
+          </div>
+        </details>
       </div>
 
       <!-- KPI Cards -->
@@ -125,6 +145,23 @@ const STATUS_TABS = [
 
       {apiError && (
         <div class="mb-6 p-4 bg-red-900/30 border border-red-800 rounded-xl text-red-300 text-sm">{apiError}</div>
+      )}
+
+      <!-- Stufe 4 T18 (K57): offene Angebote, abgelaufene hervorgehoben -->
+      {offeneAngebotListe.length > 0 && (
+        <section class="mb-8">
+          <h2 class="text-lg font-semibold text-light mb-4">Angebote mit offener Antwort
+            <span class="ml-2 text-sm font-normal text-muted">({offeneAngebotListe.length})</span></h2>
+          <div class="space-y-2">
+            {offeneAngebotListe.map((x) => (
+              <a href={`/admin/angebote/${x.id}`} class={`flex flex-wrap items-center justify-between gap-2 bg-surface border rounded-xl p-3 hover:border-gold ${x.stand === 'abgelaufen' ? 'border-gold' : 'border-border'}`}>
+                <span><span class="font-mono text-sm">{x.number}</span> <span class="text-light">{x.klientName}</span> <span class="text-muted text-sm">· {x.auftragTitel}</span></span>
+                <span class={`text-sm ${x.stand === 'abgelaufen' ? 'text-gold font-semibold' : 'text-muted'}`}>
+                  {x.brutto.toFixed(2).replace('.', ',')} € · gültig bis {x.gueltigBis.split('-').reverse().join('.')} · {ANGEBOT_STAND_TEXT[x.stand]}</span>
+              </a>
+            ))}
+          </div>
+        </section>
       )}
 
       <!-- Draft Invoice Section -->
@@ -342,6 +379,12 @@ const STATUS_TABS = [
 
 <script>
   document.addEventListener('invoice-created', () => window.location.reload());
+  // Stufe 4 T19: Klientenwahl für „+ Neue Rechnung“ filtern.
+  const wahlSuche = document.getElementById('klient-wahl-suche') as HTMLInputElement | null;
+  wahlSuche?.addEventListener('input', () => {
+    const t = wahlSuche.value.trim().toLowerCase();
+    document.querySelectorAll<HTMLElement>('li.klient-wahl').forEach((li) => { li.hidden = t !== '' && !(li.dataset.suche ?? '').includes(t); });
+  });
 </script>
 
 <script>

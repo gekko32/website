@@ -1,8 +1,7 @@
 ---
 import { getCustomerInvoices } from '../../lib/stripe-billing';
-import { leistungsOptionen } from '../../lib/billing-leistungen';
 import type { BillingInvoice } from '../../lib/stripe-billing';
-import CreateInvoiceModal from '../admin/CreateInvoiceModal.svelte';
+import { getCustomerByEmail } from '../../lib/website-db';
 import InlineInvoicePayment from '../portal/InlineInvoicePayment.svelte';
 const publishableKey = import.meta.env.STRIPE_PUBLISHABLE_KEY ?? '';
 
@@ -11,8 +10,8 @@ interface Props {
 }
 const { clientEmail } = Astro.props;
 
-// Stufe 3 T4: Auswahl aus der gepflegten Leistungstabelle.
-const serviceOptions = await leistungsOptionen(process.env.BRAND || 'mentolder').catch(() => []);
+// Stufe 4 T19 (K66): Rechnungen entstehen in der Klientenakte aus offenen Posten.
+const akte = clientEmail ? await getCustomerByEmail(clientEmail).catch(() => null) : null;
 
 let invoices: BillingInvoice[] = [];
 try {
@@ -44,13 +43,7 @@ function statusColor(status: string): string {
 <div data-testid="invoices-tab">
   <div class="flex items-center justify-between mb-4">
     <h3 class="text-lg font-semibold text-light">Ihre Rechnungen</h3>
-    <CreateInvoiceModal
-      {serviceOptions}
-      prefillEmail={clientEmail}
-      buttonLabel="+ Rechnung stellen"
-      buttonVariant="ghost"
-      client:load
-    />
+    {akte && <a href={`/admin/klienten/${akte.id}?rechnung=1#abrechnung`} class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">Rechnung in der Akte erstellen</a>}
   </div>
 
   {invoices.length === 0 ? (
