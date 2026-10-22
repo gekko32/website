@@ -7,6 +7,8 @@ export interface HashableInvoice {
   taxMode: string; netAmount: number; taxRate: number;
   taxAmount: number; grossAmount: number;
   servicePeriodStart?: string; servicePeriodEnd?: string;
+  /** Stufe 3 T11: festgeschriebener Empfänger; nur wenn vorhanden Teil der Prüfsumme. */
+  empfaenger?: Record<string, unknown> | null;
 }
 
 export interface HashableLine {
@@ -44,6 +46,9 @@ export function canonicalInvoiceForHash(inv: HashableInvoice, lines: HashableLin
     taxAmount: Number(inv.taxAmount),
     taxMode: inv.taxMode,
     taxRate: Number(inv.taxRate),
+    // Ältere Rechnungen ohne Kopie: Feld fehlt, Prüfsumme bleibt gleich. Schlüssel sortiert,
+    // weil JSONB die Reihenfolge der Felder beim Lesen nicht beibehält.
+    ...(inv.empfaenger ? { empfaenger: Object.fromEntries(Object.entries(inv.empfaenger).sort(([a], [b]) => a.localeCompare(b))) } : {}),
   };
   return JSON.stringify(payload);
 }
@@ -87,6 +92,7 @@ export async function verifyInvoiceIntegrity(invoiceId: string): Promise<Integri
     taxRate: Number(row.tax_rate),
     taxAmount: Number(row.tax_amount),
     grossAmount: Number(row.gross_amount),
+    empfaenger: (row.empfaenger as Record<string, unknown> | null) ?? null,
   };
   const lines: HashableLine[] = linesR.rows.map((l: Record<string, unknown>) => ({
     id: Number(l.id),

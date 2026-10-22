@@ -4,6 +4,7 @@ import { getFullInvoice } from '../../../../lib/stripe-billing';
 import { getSiteSetting } from '../../../../lib/website-db';
 import { absenderAus, steuerangabeFuerRechnung } from '../../../../lib/billing-absender';
 import { getCustomerByEmail } from '../../../../lib/native-billing';
+import { empfaengerDerRechnung } from '../../../../lib/billing-empfaenger';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -60,8 +61,15 @@ function fmtEur(n: number): string {
 
 const dbCustomer = inv.customerEmail ? await getCustomerByEmail(brand, inv.customerEmail).catch(() => null) : null;
 const customerNumber = dbCustomer?.customerNumber ?? null;
-const addr = dbCustomer ? { line1: dbCustomer.addressLine1, postalCode: dbCustomer.postalCode, city: dbCustomer.city } : null;
-const buyerVatId = dbCustomer?.vatNumber ?? null;
+// Stufe 3 T11: festgeschriebener Empfänger (K31); Entwurf: heutiger Stand aus der Akte (K32).
+const empfaenger = await empfaengerDerRechnung(invoiceId).catch(() => null);
+const addr = empfaenger
+  ? { line1: empfaenger.addressLine1, postalCode: empfaenger.postalCode, city: empfaenger.city }
+  : dbCustomer ? { line1: dbCustomer.addressLine1, postalCode: dbCustomer.postalCode, city: dbCustomer.city } : null;
+const buyerVatId = empfaenger ? empfaenger.vatNumber : dbCustomer?.vatNumber ?? null;
+const anName = empfaenger ? (empfaenger.company ?? empfaenger.name) : inv.customerName;
+const anZuHanden = empfaenger?.company ? empfaenger.name : null;
+const anEmail = empfaenger?.email ?? inv.customerEmail;
 ---
 
 <!DOCTYPE html>
@@ -394,15 +402,16 @@ const buyerVatId = dbCustomer?.vatNumber ?? null;
         </div>
         <div class="col">
           <div class="lab">An</div>
-          <div class="name">{inv.customerName}</div>
+          <div class="name">{anName}</div>
           <div class="addr">
+            {anZuHanden && <>z. Hd. {anZuHanden}<br /></>}
             {addr ? (
               <>
                 {addr.line1 && <>{addr.line1}<br /></>}
                 {(addr.postalCode || addr.city) && <>{addr.postalCode} {addr.city}<br /></>}
               </>
             ) : null}
-            {inv.customerEmail}
+            {anEmail}
           </div>
         </div>
       </div>

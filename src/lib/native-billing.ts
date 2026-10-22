@@ -5,6 +5,7 @@ import { logBillingEvent, type BillingActor } from './billing-audit';
 import { validateLeitwegId, formatLeitwegId } from './leitweg';
 import { ladeAbsender } from './billing-absender';
 import { initPostenTabelle, postenAbgerechnet } from './billing-posten';
+import { aktuellerEmpfaenger, AnschriftFehlt, fehlendeAngaben, kaeuferName, leseEmpfaenger, type Empfaenger } from './billing-empfaenger';
 import type { PoolClient } from 'pg';
 
 export { initBillingTables };
@@ -189,11 +190,24 @@ export interface FinalizeOpts {
   pdfBlob?: Buffer;
   pdfMime?: string;
   invoiceInput?: InvoiceInput;
+  /** Stufe 3 T11: Empfänger, der festgeschrieben wird (sonst heutiger Stand aus der Akte). */
+  empfaenger?: Empfaenger;
 }
 
 export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Promise<Invoice | null> {
   await initBillingTables();
   await initPostenTabelle();
+
+  // Stufe 3 T11: Empfänger festhalten (K31, K32); ohne vollständige Anschrift kein Festschreiben.
+  let empfaenger: Empfaenger | null = opts.empfaenger ?? null;
+  if (!empfaenger) {
+    const kopf = await pool.query(`SELECT brand, customer_id FROM billing_invoices WHERE id=$1 AND status='draft'`, [id]);
+    if (kopf.rows[0]) empfaenger = await aktuellerEmpfaenger(kopf.rows[0].brand, kopf.rows[0].customer_id);
+  }
+  if (empfaenger) {
+    const fehlt = fehlendeAngaben(empfaenger);
+    if (fehlt.length > 0) throw new AnschriftFehlt(fehlt);
+  }
 
   const client = await pool.connect();
   let inv: Invoice;
@@ -202,9 +216,9 @@ export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Prom
     await client.query('BEGIN');
     const upd = await client.query(
       `UPDATE billing_invoices
-         SET status='open', locked=true, finalized_at=now(), updated_at=now()
+         SET status='open', locked=true, finalized_at=now(), updated_at=now(), empfaenger=$2::jsonb
        WHERE id=$1 AND status='draft' RETURNING *`,
-      [id]
+      [id, empfaenger ? JSON.stringify(empfaenger) : null]
     );
     if (!upd.rows[0]) { await client.query('ROLLBACK'); return null; }
     const row = upd.rows[0];
@@ -283,6 +297,7 @@ export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Prom
       servicePeriodStart: inv.servicePeriodStart, servicePeriodEnd: inv.servicePeriodEnd,
       taxMode: inv.taxMode, netAmount: inv.netAmount,
       taxRate: inv.taxRate, taxAmount: inv.taxAmount, grossAmount: inv.grossAmount,
+      empfaenger: (row.empfaenger as Record<string, unknown> | null) ?? null,
     }, lines));
     await client.query(
       `UPDATE billing_invoices
@@ -461,6 +476,7 @@ export async function getInvoiceForEInvoice(id: string): Promise<EInvoiceInput |
   ).rows;
 
   const absender = await ladeAbsender(row.brand);
+  const kopie = leseEmpfaenger(row.empfaenger);
 
   const toIsoDate = (v: unknown): string => {
     if (v instanceof Date) return v.toISOString().slice(0, 10);
@@ -489,7 +505,16 @@ export async function getInvoiceForEInvoice(id: string): Promise<EInvoiceInput |
       periodStart: l.leistung_von_text ?? undefined,
       periodEnd: l.leistung_bis_text ?? undefined,
     })),
-    customer: {
+    // Stufe 3 T11: festgeschriebener Empfänger (K31); ältere Rechnungen ohne Kopie wie bisher.
+    customer: kopie ? {
+      name: kaeuferName(kopie),
+      email: kopie.email,
+      addressLine1: kopie.addressLine1 ?? undefined,
+      postalCode: kopie.postalCode ?? undefined,
+      city: kopie.city ?? undefined,
+      country: kopie.country,
+      leitwegId: row.leitweg_id ?? row.c_leitweg ?? undefined,
+    } : {
       name: row.c_name,
       email: row.c_email,
       addressLine1: row.c_addr ?? undefined,

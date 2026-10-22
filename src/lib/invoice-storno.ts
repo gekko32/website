@@ -6,6 +6,7 @@ import { archiveBillingPdf } from './billing-archive';
 import { ladeAbsender } from './billing-absender';
 import { logBillingEvent, type BillingActor } from './billing-audit';
 import { gibPostenFrei, initPostenTabelle } from './billing-posten';
+import { alsKunde, leseEmpfaenger } from './billing-empfaenger';
 
 function iso(d: Date): string {
   return d.toISOString().split('T')[0];
@@ -44,9 +45,9 @@ export async function createCreditNote(invoiceId: string, reason: string, actor?
          (brand, number, status, customer_id, issue_date, due_date, tax_mode,
           net_amount, tax_rate, tax_amount, gross_amount, notes, payment_reference,
           locked, cancels_invoice_id, kind, parent_invoice_id,
-          currency, currency_rate, net_amount_eur, gross_amount_eur, supply_type)
+          currency, currency_rate, net_amount_eur, gross_amount_eur, supply_type, empfaenger)
        VALUES
-         ($1,$2,'open',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,false,$13,'gutschrift',$14,$15,$16,$17,$18,$19)
+         ($1,$2,'open',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,false,$13,'gutschrift',$14,$15,$16,$17,$18,$19,$20::jsonb)
        RETURNING *`,
       [
         orig.brand,
@@ -68,6 +69,8 @@ export async function createCreditNote(invoiceId: string, reason: string, actor?
         orig.net_amount_eur != null ? -Number(orig.net_amount_eur) : -Number(orig.net_amount),
         orig.gross_amount_eur != null ? -Number(orig.gross_amount_eur) : -Number(orig.gross_amount),
         orig.supply_type ?? null,
+        // Stufe 3 T11: die Gutschrift geht an denselben Empfänger wie die Rechnung.
+        orig.empfaenger ? JSON.stringify(orig.empfaenger) : null,
       ]
     );
     const credit = ins.rows[0];
@@ -160,8 +163,11 @@ export async function generateCreditNotePdf(invoiceId: string): Promise<Buffer |
   const invR = await pool.query(`SELECT * FROM v_billing_invoices_with_state WHERE id=$1`, [invoiceId]);
   const inv = invR.rows[0];
   if (!inv) return null;
-  const customer = await getCustomerById(inv.brand, inv.customer_id);
-  if (!customer) return null;
+  const rechnungskunde = await getCustomerById(inv.brand, inv.customer_id);
+  if (!rechnungskunde) return null;
+  // Stufe 3 T11: Empfänger der Gutschrift aus ihrer Kopie (View enthält die Spalte nicht).
+  const kopie = leseEmpfaenger((await pool.query('SELECT empfaenger FROM billing_invoices WHERE id=$1', [invoiceId])).rows[0]?.empfaenger);
+  const customer = kopie ? alsKunde(rechnungskunde, kopie) : rechnungskunde;
   const linesR = await pool.query(`SELECT * FROM billing_invoice_line_items WHERE invoice_id=$1 ORDER BY id`, [invoiceId]);
   // Prüfung Runde 1 (K36, K36a): Absender aus derselben Quelle wie alle Rechnungen.
   const absender = await ladeAbsender(inv.brand);

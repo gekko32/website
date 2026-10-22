@@ -52,3 +52,16 @@ describe('canonicalInvoiceForHash — Leistungsdatum je Position (Stufe 3 T10a)'
     expect(bis('2026-11-07')).not.toBe(bis('2026-11-08'));
   });
 });
+
+// Rechnungswesen Stufe 3, T11: festgeschriebener Empfänger gehört zur Prüfsumme (K31).
+describe('canonicalInvoiceForHash — Empfänger (Stufe 3 T11)', () => {
+  const e = { name: 'X', company: null, email: 'x@y.de', addressLine1: 'Weg 1', postalCode: '1', city: 'Ort', country: 'DE', vatNumber: null };
+  it('ohne Kopie (ältere Rechnung): Prüfsumme unverändert', () => {
+    expect(canonicalInvoiceForHash(inv, lines)).not.toContain('empfaenger');
+  });
+  it('eine spätere Änderung der Anschrift fällt auf', () => {
+    const a = sha256Hex(canonicalInvoiceForHash({ ...inv, empfaenger: e }, lines));
+    const b = sha256Hex(canonicalInvoiceForHash({ ...inv, empfaenger: { ...e, city: 'Anders' } }, lines));
+    expect(a).not.toBe(b);
+  });
+});

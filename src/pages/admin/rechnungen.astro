@@ -320,7 +320,7 @@ const STATUS_TABS = [
       <a id="editor-ansehen" href="#" target="_blank" rel="noopener"
         class="px-4 py-2 text-sm border border-border rounded-lg hover:border-gold transition-colors">Ansehen ↗</a>
       <button id="editor-send-btn"
-        class="px-4 py-2 text-sm bg-gold hover:bg-gold-light text-dark font-semibold rounded-lg transition-colors">
+        class="px-4 py-2 text-sm bg-gold hover:bg-gold-light text-dark font-semibold rounded-lg transition-colors disabled:opacity-40">
         Festschreiben und versenden
       </button>
     </div>
@@ -453,8 +453,21 @@ const STATUS_TABS = [
       meldung.textContent = 'Entwurf konnte nicht geladen werden.';
       return;
     }
-    const data = await res.json() as { number: string; customerName: string; customerEmail: string; items: DraftItem[] };
-    customerEl.textContent = `${data.number} · ${data.customerName} · ${data.customerEmail}`;
+    const data = await res.json() as {
+      number: string; customerName: string; customerEmail: string; items: DraftItem[];
+      empfaenger: { name: string; company: string | null; email: string; addressLine1: string | null; postalCode: string | null; city: string | null } | null;
+      anschriftFehlt: string[];
+    };
+    // Stufe 3 T11: An wen die Rechnung beim Festschreiben geht (heutiger Stand der Akte).
+    const e = data.empfaenger;
+    customerEl.textContent = e
+      ? `${data.number} · An: ${e.company ? `${e.company}, z. Hd. ${e.name}` : e.name} · ${[e.addressLine1, [e.postalCode, e.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'ohne Anschrift'} · ${e.email}`
+      : `${data.number} · ${data.customerName} · ${data.customerEmail}`;
+    const sendKnopf = document.getElementById('editor-send-btn') as HTMLButtonElement;
+    sendKnopf.disabled = data.anschriftFehlt.length > 0;
+    if (data.anschriftFehlt.length > 0) {
+      meldung.textContent = `Festschreiben erst möglich, wenn die Rechnungsanschrift vollständig ist. Es fehlt: ${data.anschriftFehlt.join(', ')}. Bitte in der Klientenakte ergänzen.`;
+    }
     itemsBody.replaceChildren(...data.items.map(renderItem));
     totalCell.textContent = euro(data.items.reduce((s, i) => s + i.amount, 0));
   }
@@ -495,7 +508,7 @@ const STATUS_TABS = [
     const knopf = document.getElementById('editor-send-btn') as HTMLButtonElement;
     knopf.disabled = true;
     const res = await fetch(`/api/admin/billing/${currentInvoiceId}/send`, { method: 'POST' });
-    knopf.disabled = false;
+    knopf.disabled = !res.ok && res.status === 422;
     if (!res.ok) {
       meldung.textContent = `Nicht versendet: ${(await res.text().catch(() => '')) || 'Fehler'} (${res.status})`;
       return;

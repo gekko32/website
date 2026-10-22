@@ -7,6 +7,7 @@ import { sendEmail } from '../../../../../lib/email';
 import { pool, getSiteSetting, initBillingTables } from '../../../../../lib/website-db';
 import { ladeAbsender } from '../../../../../lib/billing-absender';
 import { errorResponse } from '../../../_errors';
+import { aktuellerEmpfaenger, AnschriftFehlt, alsKunde, fehlendeAngaben, kaeuferName } from '../../../../../lib/billing-empfaenger';
 
 function interpolate(t: string, vars: Record<string, string>) {
   return t.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '');
@@ -26,11 +27,17 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
   if (!draftCheck.rows[0]) return new Response('Not found or not draft', { status: 404 });
 
   // Absender aus einer Quelle (Stufe 3 T1b, billing-absender).
-  const [absender, customer] = await Promise.all([
+  const [absender, rechnungskunde, empfaenger] = await Promise.all([
     ladeAbsender(brand),
     getCustomerById(brand, draftCheck.rows[0].customer_id),
+    aktuellerEmpfaenger(brand, draftCheck.rows[0].customer_id),
   ]);
-  if (!customer) return new Response('Customer not found', { status: 404 });
+  if (!rechnungskunde || !empfaenger) return new Response('Customer not found', { status: 404 });
+  // Stufe 3 T11: heutiger Stand aus der Akte (K32), wird beim Festschreiben kopiert (K31).
+  // Ohne vollständige Anschrift kein Festschreiben (Grenzfall), mit Hinweis, was fehlt.
+  const fehlt = fehlendeAngaben(empfaenger);
+  if (fehlt.length > 0) return new Response(new AnschriftFehlt(fehlt).message, { status: 422 });
+  const customer = alsKunde(rechnungskunde, empfaenger);
 
   if (!absender.city) {
     locals.requestLogger.warn({ brand }, '[billing/send] invoice_sender_city not configured');
@@ -123,7 +130,7 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
       bic: seller.bic || undefined,
     },
     buyer: {
-      name: customer.name || customer.company || 'Unbekannt',
+      name: kaeuferName(empfaenger) || 'Unbekannt',
       email: customer.email,
       address: customer.addressLine1 || undefined,
       postalCode: customer.postalCode || undefined,
@@ -168,7 +175,12 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
     pdfBlob: pdf,
     pdfMime: 'application/pdf',
     invoiceInput,
+    empfaenger,
+  }).catch((err: unknown) => {
+    if (err instanceof AnschriftFehlt) return err;
+    throw err;
   });
+  if (finalized instanceof AnschriftFehlt) return new Response(finalized.message, { status: 422 });
   if (!finalized) return new Response('Failed to finalize invoice', { status: 409 });
 
   await pool.query(

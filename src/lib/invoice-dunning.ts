@@ -1,5 +1,6 @@
 import { pool, getSiteSetting, initBillingTables } from './website-db';
 import { getInvoice, getCustomerById, type Invoice, type Customer } from './native-billing';
+import { alsKunde, leseEmpfaenger } from './billing-empfaenger';
 import { generateDunningPdf, type InvoicePdfCustomer, type InvoicePdfSeller } from './invoice-pdf';
 import { archiveBillingPdf } from './billing-archive';
 import { ladeAbsender } from './billing-absender';
@@ -88,13 +89,15 @@ export async function runDunningDetection(brand: string): Promise<{ generated: n
     gross_amount: number;
     paid_amount: number | null;
     customer_id: string;
+    empfaenger: unknown;
   }>(
     // T000375 (View-Migration): paid_amount/dunning_level/last_dunning_at sind
     // keine Spalten von billing_invoices mehr, sondern werden von
     // v_billing_invoices_with_state aus billing_invoice_payments bzw.
     // billing_invoice_dunnings berechnet.
-    `SELECT id, number, status, dunning_level, due_date, last_dunning_at, gross_amount, paid_amount, customer_id
-       FROM v_billing_invoices_with_state
+    `SELECT id, number, status, dunning_level, due_date, last_dunning_at, gross_amount, paid_amount, customer_id,
+            (SELECT b.empfaenger FROM billing_invoices b WHERE b.id = v.id) AS empfaenger
+       FROM v_billing_invoices_with_state v
       WHERE brand=$1
         AND status IN ('open','partially_paid','overdue','dunning_1','dunning_2')
         AND locked=true`,
@@ -117,8 +120,11 @@ export async function runDunningDetection(brand: string): Promise<{ generated: n
 
     const invoice = await getInvoice(row.id);
     if (!invoice) { skipped++; continue; }
-    const customer = await getCustomerById(brand, row.customer_id);
-    if (!customer) { skipped++; continue; }
+    const rechnungskunde = await getCustomerById(brand, row.customer_id);
+    if (!rechnungskunde) { skipped++; continue; }
+    // Stufe 3 T11: Mahnung an den Empfänger, der auf der Rechnung steht (K31).
+    const kopie = leseEmpfaenger(row.empfaenger);
+    const customer = kopie ? alsKunde(rechnungskunde, kopie) : rechnungskunde;
 
     const feeAmount = await numberSetting(brand, `invoice_dunning_fee_${nextLevel}`, nextLevel === 1 ? 0 : nextLevel === 2 ? 5 : 10);
     const interestAmount = round2(outstanding * daysOverdue * interestPa / 100 / 365);
@@ -176,7 +182,10 @@ export async function listPendingDunnings(brand: string): Promise<PendingDunning
   await initBillingTables();
   const r = await pool.query(
     `SELECT d.id, d.invoice_id, d.level, d.outstanding_at_generation, d.fee_amount, d.interest_amount, d.pdf_path,
-            i.number AS invoice_number, c.email AS customer_email, c.name AS customer_name
+            i.number AS invoice_number,
+            -- Stufe 3 T11: Empfänger der Rechnung (Kopie), ältere Rechnungen wie bisher
+            COALESCE(i.empfaenger->>'email', c.email) AS customer_email,
+            COALESCE(i.empfaenger->>'name', c.name) AS customer_name
        FROM billing_invoice_dunnings d
        JOIN billing_invoices i ON i.id = d.invoice_id
        JOIN billing_customers c ON c.id = i.customer_id
@@ -201,7 +210,8 @@ export async function listPendingDunnings(brand: string): Promise<PendingDunning
 export async function sendDunning(id: string, actorEmail: string): Promise<boolean> {
   const r = await pool.query(
     `SELECT d.id, d.level, d.invoice_id, d.fee_amount, d.interest_amount, d.outstanding_at_generation,
-            i.number, i.payment_reference, c.email, c.name
+            i.number, i.payment_reference,
+            COALESCE(i.empfaenger->>'email', c.email) AS email, COALESCE(i.empfaenger->>'name', c.name) AS name
        FROM billing_invoice_dunnings d
        JOIN billing_invoices i ON i.id = d.invoice_id
        JOIN billing_customers c ON c.id = i.customer_id

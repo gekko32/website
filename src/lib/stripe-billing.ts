@@ -8,6 +8,7 @@ import {
 import { holeLeistung } from './billing-leistungen';
 import { ladeZahlungsziel } from './billing-regeln';
 import { leistungsdatumZeile } from './leistungszeitraum';
+import { empfaengerDerRechnung, fehlendeAngaben, type Empfaenger } from './billing-empfaenger';
 
 // Die feste Preisliste (SERVICES) ist seit Rechnungswesen Stufe 3 (20.10.2026)
 // entfernt. Leistungen und Preise pflegt Gerald unter Admin → Leistungen
@@ -53,6 +54,9 @@ interface DraftInvoiceItem {
 }
 
 interface DraftInvoiceDetail extends AdminBillingInvoice {
+  /** Stufe 3 T11: Empfänger (Entwurf: heutiger Stand aus der Akte) und was für das Festschreiben fehlt. */
+  empfaenger: Empfaenger | null;
+  anschriftFehlt: string[];
   items: DraftInvoiceItem[];
   currency: string;
   subtotalExclTax: number;
@@ -193,8 +197,11 @@ export async function getDraftInvoiceDetail(invoiceId: string): Promise<DraftInv
     leistung: leistungsdatumZeile({ leistungVon: l.leistung_von_text as string | null, leistungBis: l.leistung_bis_text as string | null }),
   }));
   const base = mapAdminRow(row);
+  const empfaenger = await empfaengerDerRechnung(invoiceId).catch(() => null);
   return {
     ...base,
+    empfaenger,
+    anschriftFehlt: empfaenger ? fehlendeAngaben(empfaenger) : [],
     items,
     currency: 'EUR',
     subtotalExclTax: Number(row.net_amount ?? 0),

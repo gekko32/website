@@ -60,6 +60,8 @@ async function installInvoiceImmutabilityTriggersInner(): Promise<void> {
            NEW.due_date     IS DISTINCT FROM OLD.due_date     OR
            NEW.number       IS DISTINCT FROM OLD.number       OR
            NEW.brand        IS DISTINCT FROM OLD.brand        OR
+           -- Stufe 3 T11: festgeschriebener Empfänger (K31)
+           NEW.empfaenger   IS DISTINCT FROM OLD.empfaenger   OR
            (OLD.hash_sha256 IS NOT NULL AND NEW.hash_sha256 IS DISTINCT FROM OLD.hash_sha256)
         THEN
           RAISE EXCEPTION 'GoBD: locked invoice % cannot be modified', OLD.id;
@@ -226,6 +228,8 @@ export async function initBillingTables(): Promise<void> {
   `);
   await pool.query(`ALTER TABLE billing_invoices ADD COLUMN IF NOT EXISTS pdf_path TEXT`);
   await pool.query(`ALTER TABLE billing_invoices ADD COLUMN IF NOT EXISTS leitweg_id TEXT`);
+  // Rechnungswesen Stufe 3, T11: Kopie des Empfängers beim Festschreiben (K31, K32).
+  await pool.query(`ALTER TABLE billing_invoices ADD COLUMN IF NOT EXISTS empfaenger JSONB`);
   // T015362: Testdaten-Kennzeichnung — GoBD-Trigger exempten is_test_data-Zeilen.
   await pool.query(`ALTER TABLE billing_invoices ADD COLUMN IF NOT EXISTS is_test_data BOOLEAN NOT NULL DEFAULT false`);
   await pool.query(`ALTER TABLE billing_invoices ADD COLUMN IF NOT EXISTS einvoice_validated_at TIMESTAMPTZ`);
