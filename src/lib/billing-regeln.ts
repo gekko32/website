@@ -11,6 +11,8 @@ export interface Regeln {
   ausfallWert: number;
   abrechnungsartFirma: Abrechnungsart;
   abrechnungsartPrivat: Abrechnungsart;
+  /** Stufe 4 (K70): Angebote gelten so viele Tage ab Versand (Vorschlag, im Einzelfall änderbar). */
+  angebotGueltigTage: number;
 }
 
 /** Startwerte laut Entscheidung vom 20.10.2026 (24 h, voller Preis). */
@@ -20,6 +22,7 @@ export const REGEL_STANDARD: Regeln = {
   ausfallWert: 100,
   abrechnungsartFirma: 'monatlich',
   abrechnungsartPrivat: 'je_sitzung',
+  angebotGueltigTage: 30,
 };
 
 export interface RegelFeld {
@@ -54,6 +57,11 @@ export const REGEL_FELDER: readonly RegelFeld[] = [
     key: 'regel_abrechnungsart_privat', prop: 'abrechnungsartPrivat',
     label: 'Neue Privatklienten abrechnen',
     wirktIn: 'Voreinstellung für neu angelegte Privatklienten; in jeder Klientenakte änderbar.',
+  },
+  {
+    key: 'regel_angebot_gueltig_tage', prop: 'angebotGueltigTage',
+    label: 'Angebote gültig für … Tage',
+    wirktIn: 'Vorschlag für „gültig bis“ bei jedem neuen Angebot (im Angebot änderbar); danach gilt es als abgelaufen.',
   },
 ];
 
@@ -99,6 +107,12 @@ export function pruefeRegeln(form: Record<string, string | undefined>): { werte:
     fehler.push({ key: 'regel_abrechnungsart_privat', meldung: 'Bitte „monatlich“ oder „je Sitzung“ wählen.' });
   }
 
+  // Stufe 4 (K70); fehlt das Feld (ältere Aufrufe), gilt der Startwert.
+  const gueltig = form.regel_angebot_gueltig_tage === undefined ? REGEL_STANDARD.angebotGueltigTage : zahl(form.regel_angebot_gueltig_tage);
+  if (gueltig === null || !Number.isInteger(gueltig) || gueltig < 1 || gueltig > 365) {
+    fehler.push({ key: 'regel_angebot_gueltig_tage', meldung: 'Bitte eine ganze Zahl von 1 bis 365 Tagen eintragen.' });
+  }
+
   if (fehler.length > 0) return { werte: null, fehler };
   return {
     werte: {
@@ -107,6 +121,7 @@ export function pruefeRegeln(form: Record<string, string | undefined>): { werte:
       ausfallWert: wert!,
       abrechnungsartFirma: firma!,
       abrechnungsartPrivat: privat!,
+      angebotGueltigTage: gueltig!,
     },
     fehler,
   };

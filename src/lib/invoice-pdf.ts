@@ -199,6 +199,8 @@ export async function generateInvoicePdf(p: {
   customer: InvoicePdfCustomer; seller: InvoicePdfSeller;
   templateTexts?: InvoicePdfTemplateTexts;
   profile?: EInvoiceProfile;
+  /** Stufe 4 (K49): dasselbe Briefbild als Angebot – „Gültig bis“ statt Fälligkeit, kein Zahlungsblock. */
+  angebot?: { gueltigBis: string };
 }): Promise<Buffer> {
   const supplyTypeForMeta = p.invoice.supplyType;
   const supplyNoticeMap: Record<string, string> = {
@@ -244,7 +246,7 @@ export async function generateInvoicePdf(p: {
     doc.fillColor(C.brass).text('.', { lineBreak: false });
 
     doc.font('Helvetica').fontSize(8).fillColor(C.inkMute).text(seller.name, 102, 76);
-    const docTitle = templateTexts?.title ?? (inv.kind === 'gutschrift' ? 'GUTSCHRIFT' : 'RECHNUNG');
+    const docTitle = templateTexts?.title ?? (p.angebot ? 'ANGEBOT' : inv.kind === 'gutschrift' ? 'GUTSCHRIFT' : 'RECHNUNG');
     doc.font('Helvetica').fontSize(7.5).fillColor(C.brass).text(docTitle, 102, 89);
 
     // Right meta block (number prominent, then dates)
@@ -253,9 +255,12 @@ export async function generateInvoicePdf(p: {
 
     const metaDates: [string, string][] = [
       ['Datum',  fd(inv.issueDate)],
-      ['Fällig', fd(inv.dueDate)],
+      p.angebot ? ['Gültig bis', fd(p.angebot.gueltigBis)] : ['Fällig', fd(inv.dueDate)],
     ];
-    if (inv.servicePeriodStart) {
+    if (p.angebot) {
+      // Angebot: Leistungszeitraum, soweit geplant; keine Pflichtangabe wie bei Rechnungen.
+      if (inv.servicePeriodStart) metaDates.push(['Leistung', inv.servicePeriodEnd ? `${fd(inv.servicePeriodStart)}–${fd(inv.servicePeriodEnd)}` : fd(inv.servicePeriodStart)]);
+    } else if (inv.servicePeriodStart) {
       metaDates.push(['Leistung', inv.servicePeriodEnd
         ? `${fd(inv.servicePeriodStart)}–${fd(inv.servicePeriodEnd)}`
         : fd(inv.servicePeriodStart)]);
@@ -439,11 +444,13 @@ export async function generateInvoicePdf(p: {
       }
     }
 
-    doc.font('Helvetica').fontSize(8.5).fillColor(C.inkSoft)
-       .text(
-         `Bitte überweisen Sie unter Angabe des Verwendungszwecks „${inv.paymentReference ?? inv.number}".`,
-         L, y, { width: W });
-    y = doc.y + 6;
+    if (!p.angebot) {
+      doc.font('Helvetica').fontSize(8.5).fillColor(C.inkSoft)
+         .text(
+           `Bitte überweisen Sie unter Angabe des Verwendungszwecks „${inv.paymentReference ?? inv.number}".`,
+           L, y, { width: W });
+      y = doc.y + 6;
+    }
 
     // ── Outro / notes ─────────────────────────────────────────────────────────
     if (templateTexts?.outroText) {
@@ -471,13 +478,20 @@ export async function generateInvoicePdf(p: {
 
     // Payment
     const px = L + fcw + 16;
-    doc.font('Helvetica').fontSize(7).fillColor(C.brass)
-       .text('ZAHLUNG', px, fy, { characterSpacing: 0.5, width: fcw });
-    doc.font('Helvetica').fontSize(8).fillColor(C.inkSoft);
-    doc.text(`Fällig am ${fd(inv.dueDate)}`, px, fy + 12, { width: fcw });
-    // Prüfung L3 (B1, K38): Zahlungsziel aus der Rechnung selbst, nicht fest 14 Tage.
-    const zielTage = Math.max(0, Math.round((Date.parse(inv.dueDate) - Date.parse(inv.issueDate)) / 86_400_000));
-    doc.text(`${Number.isFinite(zielTage) ? zielTage : 14} Tage netto · SEPA`, px, doc.y + 1, { width: fcw });
+    if (p.angebot) {
+      doc.font('Helvetica').fontSize(7).fillColor(C.brass)
+         .text('GÜLTIGKEIT', px, fy, { characterSpacing: 0.5, width: fcw });
+      doc.font('Helvetica').fontSize(8).fillColor(C.inkSoft);
+      doc.text(`Gültig bis ${fd(p.angebot.gueltigBis)}`, px, fy + 12, { width: fcw });
+    } else {
+      doc.font('Helvetica').fontSize(7).fillColor(C.brass)
+         .text('ZAHLUNG', px, fy, { characterSpacing: 0.5, width: fcw });
+      doc.font('Helvetica').fontSize(8).fillColor(C.inkSoft);
+      doc.text(`Fällig am ${fd(inv.dueDate)}`, px, fy + 12, { width: fcw });
+      // Prüfung L3 (B1, K38): Zahlungsziel aus der Rechnung selbst, nicht fest 14 Tage.
+      const zielTage = Math.max(0, Math.round((Date.parse(inv.dueDate) - Date.parse(inv.issueDate)) / 86_400_000));
+      doc.text(`${Number.isFinite(zielTage) ? zielTage : 14} Tage netto · SEPA`, px, doc.y + 1, { width: fcw });
+    }
 
     // Contact
     const kx = L + (fcw + 16) * 2;
@@ -491,6 +505,9 @@ export async function generateInvoicePdf(p: {
 
     doc.end();
   });
+
+  // Stufe 4: Ein Angebot ist keine Rechnung – keine E-Rechnung einbetten.
+  if (p.angebot) return basePdf;
 
   // ── PDF/A-3 post-processing: embed e-invoice XML ────────────────────────
   const profile = p.profile ?? 'factur-x-minimum';

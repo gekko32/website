@@ -1,0 +1,325 @@
+// Rechnungswesen Stufe 4, T16/T17 (AE11, AE12): Angebote aus individuellen Aufträgen.
+// Ein Angebot entsteht als Entwurf aus den geplanten Positionen eines Auftrags „mit Angebot“
+// (K47). Erst beim Versand bekommt es seine Nummer AN-Jahr-laufend und speichert eine Kopie
+// der Positionen und des Empfängers (K49) – danach ist es unveränderlich. Änderungen laufen
+// über eine neue Fassung (K50). Gespeichert in billing_quotes.
+import type { PoolClient } from 'pg';
+import { pool } from './website-db';
+import { createCustomer } from './native-billing';
+import { resolveEffectiveTaxMode } from './tax-monitor';
+import { ladeRegeln } from './billing-regeln';
+import { initPostenTabelle, postenBetrag, holeAuftrag, type Posten, type PostenZustand } from './billing-posten';
+import { rechnungsempfaenger, verknuepfeRechnungskunde, type Klient } from './klientenakte';
+import { aktuellerEmpfaenger, fehlendeAngaben, leseEmpfaenger, AnschriftFehlt, type Empfaenger } from './billing-empfaenger';
+import { entwurfsKennung, istEntwurfsKennung, naechsteNummer } from './billing-nummer';
+import { rechnungszeilen, type RechnungsZeile } from './billing-entwurf';
+import type { Versandweg } from './billing-versand';
+
+export type AngebotStatus = 'entwurf' | 'verschickt' | 'angenommen' | 'abgelehnt' | 'ersetzt';
+export type AngebotStand = AngebotStatus | 'abgelaufen';
+
+export const ANGEBOT_STAND_TEXT: Record<AngebotStand, string> = {
+  entwurf: 'Entwurf', verschickt: 'verschickt, Antwort offen', angenommen: 'angenommen', abgelehnt: 'abgelehnt',
+  ersetzt: 'ersetzt durch neue Fassung', abgelaufen: 'abgelaufen',
+};
+
+/** K50: AN-2026-0001, AN-2026-0001-2, … */
+export function fassungsNummer(grundnummer: string, fassung: number): string {
+  return fassung <= 1 ? grundnummer : `${grundnummer}-${fassung}`;
+}
+
+/** K55: ein verschicktes Angebot nach „gültig bis“ ist abgelaufen (am letzten Tag noch gültig). */
+export function angebotStand(a: { status: AngebotStatus; gueltigBis: string }, heute: string): AngebotStand {
+  return a.status === 'verschickt' && a.gueltigBis < heute ? 'abgelaufen' : a.status;
+}
+
+const tagBerlin = (d: Date) => d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+
+export function gueltigBisVorschlag(jetzt: Date, tage: number): string {
+  const d = new Date(`${tagBerlin(jetzt)}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + tage);
+  return d.toISOString().slice(0, 10);
+}
+
+/** K48: „gültig bis“ im Einzelfall – ab heute, höchstens ein Jahr. */
+export function pruefeGueltigBis(roh: string | null | undefined, heute: string): { wert: string | null; fehler: string | null } {
+  const s = (roh ?? '').trim();
+  const d = new Date(`${s}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== s) {
+    return { wert: null, fehler: 'Bitte ein gültiges Datum für „gültig bis“ wählen.' };
+  }
+  if (s < heute) return { wert: null, fehler: '„Gültig bis“ darf nicht in der Vergangenheit liegen.' };
+  if (Date.parse(s) - Date.parse(heute) > 366 * 86_400_000) return { wert: null, fehler: '„Gültig bis“ höchstens ein Jahr ab heute.' };
+  return { wert: s, fehler: null };
+}
+
+export interface Angebot {
+  id: string; brand: string; number: string; status: AngebotStatus; stand: AngebotStand;
+  klientId: string | null; auftragId: string | null; auftragTitel: string | null;
+  customerId: string; fassung: number; grundnummer: string | null; vorgaengerId: string | null;
+  datum: string; gueltigBis: string; netto: number; brutto: number; taxMode: string;
+  positionen: RechnungsZeile[]; empfaenger: Empfaenger | null;
+  versandweg: Versandweg | null; versendetAm: string | null;
+  antwortAm: string | null; antwortGrund: string | null; abgelaufenAngenommen: boolean;
+  einleitung: string | null; schluss: string | null;
+}
+
+// ── Datenbank ───────────────────────────────────────────────────────────────
+
+let bereit: Promise<void> | null = null;
+export function initAngebotTabelle(): Promise<void> {
+  bereit ??= (async () => {
+    await initPostenTabelle();
+    // billing_quotes gibt es aus dem alten System (initBillingTables); hier die Spalten für Stufe 4.
+    await pool.query(`
+      ALTER TABLE billing_quotes
+        ADD COLUMN IF NOT EXISTS klient_id      UUID,
+        ADD COLUMN IF NOT EXISTS auftrag_id     UUID,
+        ADD COLUMN IF NOT EXISTS fassung        INTEGER NOT NULL DEFAULT 1,
+        ADD COLUMN IF NOT EXISTS grundnummer    TEXT,
+        ADD COLUMN IF NOT EXISTS vorgaenger_id  TEXT,
+        ADD COLUMN IF NOT EXISTS tax_mode       TEXT,
+        ADD COLUMN IF NOT EXISTS positionen     JSONB,
+        ADD COLUMN IF NOT EXISTS empfaenger     JSONB,
+        ADD COLUMN IF NOT EXISTS einleitung     TEXT,
+        ADD COLUMN IF NOT EXISTS schluss        TEXT,
+        ADD COLUMN IF NOT EXISTS versandweg     TEXT,
+        ADD COLUMN IF NOT EXISTS versendet_am   TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS antwort_am     DATE,
+        ADD COLUMN IF NOT EXISTS antwort_grund  TEXT,
+        ADD COLUMN IF NOT EXISTS abgelaufen_angenommen BOOLEAN NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS pdf            BYTEA`);
+    // Rechnung „gemäß Angebot“ (K53): Herkunft eines Postens aus einem angenommenen Angebot.
+    await pool.query(`ALTER TABLE abrechnungsposten ADD COLUMN IF NOT EXISTS angebot_id TEXT`);
+  })().catch((e) => { bereit = null; throw e; });
+  return bereit;
+}
+
+const SPALTEN = `q.id, q.brand, q.number, q.status, q.klient_id::text AS klient_id, q.auftrag_id::text AS auftrag_id,
+  a.titel AS auftrag_titel, q.customer_id, q.fassung, q.grundnummer, q.vorgaenger_id, q.issue_date::text AS datum,
+  q.valid_until::text AS gueltig_bis, q.net_amount, q.gross_amount, q.tax_mode, q.positionen, q.empfaenger,
+  q.versandweg, q.versendet_am::text AS versendet_am, q.antwort_am::text AS antwort_am, q.antwort_grund,
+  q.abgelaufen_angenommen, q.einleitung, q.schluss`;
+
+function zeile(r: Record<string, unknown>, heute: string): Angebot {
+  const status = r.status as AngebotStatus;
+  const gueltigBis = r.gueltig_bis as string;
+  return {
+    id: r.id as string, brand: r.brand as string, number: r.number as string, status,
+    stand: angebotStand({ status, gueltigBis }, heute),
+    klientId: (r.klient_id as string | null) ?? null, auftragId: (r.auftrag_id as string | null) ?? null,
+    auftragTitel: (r.auftrag_titel as string | null) ?? null, customerId: r.customer_id as string,
+    fassung: Number(r.fassung ?? 1), grundnummer: (r.grundnummer as string | null) ?? null,
+    vorgaengerId: (r.vorgaenger_id as string | null) ?? null, datum: r.datum as string, gueltigBis,
+    netto: Number(r.net_amount), brutto: Number(r.gross_amount), taxMode: (r.tax_mode as string) ?? 'kleinunternehmer',
+    positionen: (r.positionen as RechnungsZeile[] | null) ?? [], empfaenger: leseEmpfaenger(r.empfaenger),
+    versandweg: (r.versandweg as Versandweg | null) ?? null, versendetAm: (r.versendet_am as string | null) ?? null,
+    antwortAm: (r.antwort_am as string | null) ?? null, antwortGrund: (r.antwort_grund as string | null) ?? null,
+    abgelaufenAngenommen: r.abgelaufen_angenommen === true,
+    einleitung: (r.einleitung as string | null) ?? null, schluss: (r.schluss as string | null) ?? null,
+  };
+}
+
+export async function holeAngebot(brand: string, id: string, jetzt = new Date()): Promise<Angebot | null> {
+  await initAngebotTabelle();
+  const { rows } = await pool.query(
+    `SELECT ${SPALTEN} FROM billing_quotes q LEFT JOIN auftraege a ON a.id = q.auftrag_id WHERE q.brand = $1 AND q.id = $2`, [brand, id]);
+  return rows[0] ? zeile(rows[0], tagBerlin(jetzt)) : null;
+}
+
+export async function angeboteDesKlienten(brand: string, klientId: string, jetzt = new Date()): Promise<Angebot[]> {
+  await initAngebotTabelle();
+  const { rows } = await pool.query(
+    `SELECT ${SPALTEN} FROM billing_quotes q LEFT JOIN auftraege a ON a.id = q.auftrag_id
+      WHERE q.brand = $1 AND q.klient_id = $2 ORDER BY q.created_at DESC`, [brand, klientId]);
+  return rows.map((r: Record<string, unknown>) => zeile(r, tagBerlin(jetzt)));
+}
+
+/** K57: verschickte, noch nicht beantwortete Angebote aller Klienten (inkl. abgelaufener). */
+export async function offeneAngebote(brand: string, jetzt = new Date()): Promise<(Angebot & { klientName: string })[]> {
+  await initAngebotTabelle();
+  const { rows } = await pool.query(
+    `SELECT ${SPALTEN}, c.name AS klient_name FROM billing_quotes q
+       LEFT JOIN auftraege a ON a.id = q.auftrag_id LEFT JOIN customers c ON c.id = q.klient_id
+      WHERE q.brand = $1 AND q.status = 'verschickt' ORDER BY q.valid_until`, [brand]);
+  return rows.map((r: Record<string, unknown>) => ({ ...zeile(r, tagBerlin(jetzt)), klientName: (r.klient_name as string) ?? '' }));
+}
+
+/** Geplante Positionen eines Auftrags (Quelle für Entwurf und Versand). */
+async function geplantePositionen(db: Pick<PoolClient, 'query'>, brand: string, auftragId: string): Promise<Posten[]> {
+  const { rows } = await db.query(
+    `SELECT id, klient_id, herkunft, datum::text AS datum, datum_bis::text AS datum_bis, text, menge, einheit, einzelpreis, zustand
+       FROM abrechnungsposten WHERE brand = $1 AND auftrag_id = $2 AND zustand = 'geplant' ORDER BY datum, created_at`,
+    [brand, auftragId]);
+  return rows.map((r: Record<string, unknown>) => ({
+    id: r.id as string, klientId: r.klient_id as string, klientName: '', herkunft: 'auftrag', datum: r.datum as string,
+    datumBis: (r.datum_bis as string | null) ?? null, leistungKey: null, text: r.text as string, menge: Number(r.menge),
+    einheit: (r.einheit as string) ?? '', einzelpreis: r.einzelpreis === null ? null : Number(r.einzelpreis),
+    zustand: r.zustand as PostenZustand, invoiceId: null, notiz: null, auftragId,
+  }));
+}
+
+const summe = (p: Posten[]) => p.reduce((s, x) => Math.round((s + postenBetrag(x)) * 100) / 100, 0);
+
+/** Positionen fürs Angebot; bei „Firma zahlt“ mit Namen der Person (wie Rechnungen). */
+function angebotsZeilen(p: Posten[], klient: Klient): RechnungsZeile[] {
+  return rechnungszeilen(p, { person: rechnungsempfaenger(klient).company ? klient.name : null });
+}
+
+export type Ergebnis<T> = ({ ok: true } & T) | { ok: false; fehler: string };
+
+/** K47: Angebotsentwurf aus den geplanten Positionen eines Auftrags „mit Angebot“. */
+export async function erstelleAngebotsentwurf(brand: string, klient: Klient, auftragId: string, jetzt = new Date()): Promise<Ergebnis<{ id: string }>> {
+  await initAngebotTabelle();
+  const auftrag = await holeAuftrag(brand, auftragId);
+  if (!auftrag || auftrag.klientId !== klient.id) return { ok: false, fehler: 'Auftrag nicht gefunden.' };
+  if (auftrag.modus !== 'mit_angebot') return { ok: false, fehler: 'Dieser Auftrag läuft ohne Angebot.' };
+  if (auftrag.stand !== 'geplant') return { ok: false, fehler: 'Für diesen Auftrag gibt es schon ein Angebot. Für Änderungen eine neue Fassung anlegen.' };
+  const offenerEntwurf = await pool.query(`SELECT id FROM billing_quotes WHERE brand=$1 AND auftrag_id=$2 AND status='entwurf'`, [brand, auftragId]);
+  if (offenerEntwurf.rows[0]) return { ok: true, id: offenerEntwurf.rows[0].id as string };
+  const pos = await geplantePositionen(pool, brand, auftragId);
+  if (pos.length === 0) return { ok: false, fehler: 'Bitte zuerst mindestens eine Position mit Preis anlegen.' };
+  if (pos.some((p) => p.einzelpreis === null)) return { ok: false, fehler: 'Bei einer Position fehlt der Preis.' };
+
+  const e = rechnungsempfaenger(klient);
+  const kunde = await createCustomer({
+    brand, name: e.name, email: e.email, company: e.company ?? undefined, addressLine1: e.addressLine1 ?? undefined,
+    postalCode: e.postalCode ?? undefined, city: e.city ?? undefined, vatNumber: e.vatNumber ?? undefined,
+  });
+  await verknuepfeRechnungskunde(kunde.id, klient.id);
+  const regeln = await ladeRegeln(brand);
+  const taxMode = await resolveEffectiveTaxMode(brand);
+  const betrag = summe(pos);
+  const { rows } = await pool.query(
+    `INSERT INTO billing_quotes (brand, number, status, customer_id, issue_date, valid_until, net_amount, tax_rate, gross_amount,
+       klient_id, auftrag_id, fassung, tax_mode)
+     VALUES ($1,$2,'entwurf',$3,$4,$5,$6,0,$6,$7,$8,1,$9) RETURNING id`,
+    [brand, entwurfsKennung(), kunde.id, tagBerlin(jetzt), gueltigBisVorschlag(jetzt, regeln.angebotGueltigTage),
+     betrag, klient.id, auftragId, taxMode]);
+  return { ok: true, id: rows[0].id as string };
+}
+
+/** Für die Prüfansicht eines Entwurfs: Positionen und Empfänger, wie sie heute verschickt würden. */
+export async function angebotVorschau(brand: string, a: Angebot): Promise<{ positionen: RechnungsZeile[]; empfaenger: Empfaenger | null }> {
+  if (a.status !== 'entwurf' || !a.auftragId || !a.klientId) return { positionen: a.positionen, empfaenger: a.empfaenger };
+  const { getKlient } = await import('./klientenakte');
+  const klient = await getKlient(a.klientId);
+  const pos = await geplantePositionen(pool, brand, a.auftragId);
+  return {
+    positionen: klient ? angebotsZeilen(pos, klient) : [],
+    empfaenger: await aktuellerEmpfaenger(brand, a.customerId, { klientId: a.klientId }),
+  };
+}
+
+/** K51: Entwurf verwerfen – Positionen bleiben geplant; bei einer Fassung gilt die vorige wieder. */
+export async function verwirfAngebot(brand: string, id: string): Promise<boolean> {
+  await initAngebotTabelle();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `DELETE FROM billing_quotes WHERE brand=$1 AND id=$2 AND status='entwurf' RETURNING vorgaenger_id, auftrag_id`, [brand, id]);
+    if (!rows[0]) { await client.query('ROLLBACK'); return false; }
+    if (rows[0].vorgaenger_id) {
+      await client.query(`UPDATE billing_quotes SET status='verschickt' WHERE id=$1 AND status='ersetzt'`, [rows[0].vorgaenger_id]);
+      await client.query(`UPDATE auftraege SET stand='angeboten' WHERE id=$1`, [rows[0].auftrag_id]);
+    }
+    await client.query('COMMIT');
+    return true;
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * K49: Angebot verschicken. In einer Transaktion: Nummer vergeben (lückenlos), Positionen und
+ * Empfänger kopieren, Auftrag „angeboten“. `dokument` erzeugt das PDF mit der endgültigen
+ * Nummer; scheitert es, wird nichts gespeichert und keine Nummer verbraucht.
+ */
+export async function versendeAngebot(
+  brand: string, id: string,
+  opts: { weg: Versandweg; gueltigBis?: string; jetzt?: Date; dokument?: (a: Angebot) => Promise<Buffer> },
+): Promise<Ergebnis<{ angebot: Angebot; pdf: Buffer | null }>> {
+  await initAngebotTabelle();
+  const jetzt = opts.jetzt ?? new Date();
+  const vorher = await holeAngebot(brand, id, jetzt);
+  if (!vorher || vorher.status !== 'entwurf' || !vorher.klientId || !vorher.auftragId) return { ok: false, fehler: 'Nur Entwürfe lassen sich verschicken.' };
+  const { getKlient } = await import('./klientenakte');
+  const klient = await getKlient(vorher.klientId);
+  if (!klient) return { ok: false, fehler: 'Klientenakte nicht gefunden.' };
+  const empfaenger = await aktuellerEmpfaenger(brand, vorher.customerId, { klientId: vorher.klientId });
+  if (!empfaenger) return { ok: false, fehler: 'Empfänger nicht gefunden.' };
+  const fehlt = fehlendeAngaben(empfaenger);
+  if (fehlt.length > 0) return { ok: false, fehler: new AnschriftFehlt(fehlt).message.replace('Festschreiben', 'Versand') };
+  const [texte] = await Promise.all([import('./billing-rechnungstexte').then((m) => m.ladeRechnungstexte(brand))]);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const sperre = await client.query(`SELECT id FROM billing_quotes WHERE id=$1 AND status='entwurf' FOR UPDATE`, [id]);
+    if (!sperre.rows[0]) { await client.query('ROLLBACK'); return { ok: false, fehler: 'Das Angebot wurde inzwischen geändert.' }; }
+    const pos = await geplantePositionen(client, brand, vorher.auftragId);
+    if (pos.length === 0) { await client.query('ROLLBACK'); return { ok: false, fehler: 'Der Auftrag hat keine geplanten Positionen mehr.' }; }
+    if (pos.some((p) => p.einzelpreis === null)) { await client.query('ROLLBACK'); return { ok: false, fehler: 'Bei einer Position fehlt der Preis.' }; }
+    const heute = tagBerlin(jetzt);
+    const gueltigBis = opts.gueltigBis ?? vorher.gueltigBis;
+    let grundnummer = vorher.grundnummer;
+    if (!grundnummer || istEntwurfsKennung(grundnummer)) grundnummer = await naechsteNummer(client, brand, Number(heute.slice(0, 4)), 'angebot');
+    const nummer = fassungsNummer(grundnummer, vorher.fassung);
+    const zeilen = angebotsZeilen(pos, klient);
+    const betrag = summe(pos);
+    await client.query(
+      `UPDATE billing_quotes SET number=$2, grundnummer=$3, status='verschickt', issue_date=$4, valid_until=$5,
+         net_amount=$6, gross_amount=$6, positionen=$7::jsonb, empfaenger=$8::jsonb, einleitung=$9, schluss=$10,
+         versandweg=$11, versendet_am=now()
+       WHERE id=$1`,
+      [id, nummer, grundnummer, heute, gueltigBis, betrag, JSON.stringify(zeilen), JSON.stringify(empfaenger),
+       texte.angebot_intro_text || null, texte.angebot_outro_text || null, opts.weg]);
+    await client.query(`UPDATE auftraege SET stand='angeboten' WHERE id=$1`, [vorher.auftragId]);
+    const angebot: Angebot = {
+      ...vorher, number: nummer, grundnummer, status: 'verschickt', stand: 'verschickt', datum: heute, gueltigBis,
+      netto: betrag, brutto: betrag, positionen: zeilen, empfaenger, versandweg: opts.weg,
+      einleitung: texte.angebot_intro_text || null, schluss: texte.angebot_outro_text || null,
+    };
+    const pdf = opts.dokument ? await opts.dokument(angebot) : null;
+    if (pdf) await client.query('UPDATE billing_quotes SET pdf=$2 WHERE id=$1', [id, pdf]);
+    await client.query('COMMIT');
+    return { ok: true, angebot, pdf };
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/** K50: neue Fassung eines verschickten Angebots – die alte steht danach auf „ersetzt“. */
+export async function neueFassung(brand: string, id: string, jetzt = new Date()): Promise<Ergebnis<{ id: string }>> {
+  await initAngebotTabelle();
+  const alt = await holeAngebot(brand, id, jetzt);
+  if (!alt || alt.status !== 'verschickt') return { ok: false, fehler: 'Eine neue Fassung geht nur von einem verschickten, unbeantworteten Angebot.' };
+  const regeln = await ladeRegeln(brand);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const upd = await client.query(`UPDATE billing_quotes SET status='ersetzt' WHERE id=$1 AND status='verschickt'`, [id]);
+    if ((upd.rowCount ?? 0) === 0) { await client.query('ROLLBACK'); return { ok: false, fehler: 'Das Angebot wurde inzwischen geändert.' }; }
+    const { rows } = await client.query(
+      `INSERT INTO billing_quotes (brand, number, status, customer_id, issue_date, valid_until, net_amount, tax_rate, gross_amount,
+         klient_id, auftrag_id, fassung, grundnummer, vorgaenger_id, tax_mode)
+       VALUES ($1,$2,'entwurf',$3,$4,$5,$6,0,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+      [brand, entwurfsKennung(), alt.customerId, tagBerlin(jetzt), gueltigBisVorschlag(jetzt, regeln.angebotGueltigTage),
+       alt.netto, alt.klientId, alt.auftragId, alt.fassung + 1, alt.grundnummer, alt.id, alt.taxMode]);
+    await client.query(`UPDATE auftraege SET stand='geplant' WHERE id=$1`, [alt.auftragId]);
+    await client.query('COMMIT');
+    return { ok: true, id: rows[0].id as string };
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}

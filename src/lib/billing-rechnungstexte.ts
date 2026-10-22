@@ -4,13 +4,19 @@ import { getSiteSetting, setSiteSetting } from './website-db';
 
 export type RechnungstextKey =
   | 'invoice_intro_text' | 'invoice_kleinunternehmer_notice' | 'invoice_outro_text'
-  | 'invoice_email_subject' | 'invoice_email_body';
+  | 'invoice_email_subject' | 'invoice_email_body'
+  | 'angebot_intro_text' | 'angebot_outro_text' | 'angebot_email_subject' | 'angebot_email_body';
 
 export const RECHNUNGSTEXT_STANDARD: Record<RechnungstextKey, string> = {
   invoice_intro_text: 'für folgende Leistungen stelle ich Ihnen in Rechnung:',
   invoice_kleinunternehmer_notice: 'Kein Ausweis der Umsatzsteuer aufgrund der Anwendung der Kleinunternehmerregelung gemäß § 19 UStG.',
   invoice_outro_text: 'Vielen Dank für Ihr Vertrauen!',
   invoice_email_subject: 'Rechnung {{number}}',
+  // Stufe 4 (K70): Angebotstexte, Startwerte laut Spezifikation (Gerald 22.10.2026).
+  angebot_intro_text: 'Vielen Dank für Ihre Anfrage. Gerne biete ich Ihnen an:',
+  angebot_outro_text: 'Ich freue mich auf Ihre Rückmeldung.',
+  angebot_email_subject: 'Angebot {{number}}',
+  angebot_email_body: 'Sehr geehrte/r {{customer_name}},\n\nanbei erhalten Sie mein Angebot {{number}} über {{gross_amount}}, gültig bis {{valid_until}}.\n\nIch freue mich auf Ihre Rückmeldung.\n\nMit freundlichen Grüßen\n{{seller_name}}',
   invoice_email_body: 'Sehr geehrte/r {{customer_name}},\n\nanbei erhalten Sie Rechnung {{number}} über {{gross_amount}} €.\n\nBitte überweisen Sie den Betrag bis {{due_date}} unter Angabe des Verwendungszwecks „{{payment_reference}}“.\n\nMit freundlichen Grüßen\n{{seller_name}}',
 };
 
@@ -29,6 +35,14 @@ export const RECHNUNGSTEXT_FELDER: readonly RechnungstextFeld[] = [
     wirktIn: 'Betreff der E-Mail, mit der eine Rechnung verschickt wird. {{number}} = Rechnungsnummer.' },
   { key: 'invoice_email_body', label: 'Text der Rechnungs-E-Mail', mehrzeilig: true, max: 4000, pflicht: false,
     wirktIn: 'Text der E-Mail beim Rechnungsversand. Platzhalter: {{customer_name}}, {{number}}, {{gross_amount}}, {{due_date}}, {{payment_reference}}, {{seller_name}}.' },
+  { key: 'angebot_intro_text', label: 'Angebot: Einleitung', mehrzeilig: false, max: 500, pflicht: false,
+    wirktIn: 'Steht auf jedem neuen Angebot über den Positionen (PDF und Versand).' },
+  { key: 'angebot_outro_text', label: 'Angebot: Schlusstext', mehrzeilig: false, max: 500, pflicht: false,
+    wirktIn: 'Steht auf jedem neuen Angebot unter den Positionen (PDF und Versand).' },
+  { key: 'angebot_email_subject', label: 'Betreff der Angebots-E-Mail', mehrzeilig: false, max: 200, pflicht: false,
+    wirktIn: 'Betreff der E-Mail, mit der ein Angebot verschickt wird. {{number}} = Angebotsnummer.' },
+  { key: 'angebot_email_body', label: 'Text der Angebots-E-Mail', mehrzeilig: true, max: 4000, pflicht: false,
+    wirktIn: 'Text der E-Mail beim Angebotsversand. Platzhalter: {{customer_name}}, {{number}}, {{gross_amount}}, {{valid_until}}, {{seller_name}}.' },
 ];
 
 export function pruefeRechnungstexte(form: Partial<Record<RechnungstextKey, string>>): {

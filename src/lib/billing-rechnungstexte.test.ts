@@ -5,10 +5,11 @@ import { RECHNUNGSTEXT_FELDER, RECHNUNGSTEXT_STANDARD, pruefeRechnungstexte } fr
 const gut = { ...RECHNUNGSTEXT_STANDARD };
 
 describe('Rechnungstexte', () => {
-  it('alle fünf Texte mit Standardwert und „wirkt in …“', () => {
+  it('alle Texte (fünf Rechnung, vier Angebot – Stufe 4) mit Standardwert und „wirkt in …“', () => {
     expect(RECHNUNGSTEXT_FELDER.map((f) => f.key)).toEqual([
       'invoice_intro_text', 'invoice_kleinunternehmer_notice', 'invoice_outro_text',
       'invoice_email_subject', 'invoice_email_body',
+      'angebot_intro_text', 'angebot_outro_text', 'angebot_email_subject', 'angebot_email_body',
     ]);
     for (const f of RECHNUNGSTEXT_FELDER) {
       expect(f.wirktIn.length, f.key).toBeGreaterThan(10);

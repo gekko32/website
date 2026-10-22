@@ -36,7 +36,7 @@ export function datenBeimFestschreiben(
 }
 
 /** Nächste Nummer im Zähler, innerhalb der laufenden Transaktion `db` (Zeile bleibt bis zum Ende gesperrt). */
-export async function naechsteNummer(db: Pick<PoolClient, 'query'>, brand: string, jahr: number, art: 'invoice' | 'gutschrift' = 'invoice'): Promise<string> {
+export async function naechsteNummer(db: Pick<PoolClient, 'query'>, brand: string, jahr: number, art: 'invoice' | 'gutschrift' | 'angebot' = 'invoice'): Promise<string> {
   await initInvoiceCountersTable();
   const r = await db.query(
     `INSERT INTO invoice_counters (brand, year, kind, counter)
@@ -46,5 +46,7 @@ export async function naechsteNummer(db: Pick<PoolClient, 'query'>, brand: strin
      RETURNING counter`,
     [brand, jahr, art]);
   const n = Number(r.rows[0].counter);
-  return `${art === 'gutschrift' ? 'GS' : 'RE'}-${jahr}-${String(n).padStart(4, '0')}`;
+  // Stufe 4 (K49): Angebote AN-Jahr-laufend, eigener Zähler.
+  const praefix = art === 'gutschrift' ? 'GS' : art === 'angebot' ? 'AN' : 'RE';
+  return `${praefix}-${jahr}-${String(n).padStart(4, '0')}`;
 }

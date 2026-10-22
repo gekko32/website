@@ -1,0 +1,133 @@
+---
+// Rechnungswesen Stufe 4, T16/T17: ein Angebot prüfen, verschicken, neue Fassung, Antwort (K47–K55).
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
+import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
+import { holeAngebot, angebotVorschau, ANGEBOT_STAND_TEXT } from '../../../lib/billing-angebot';
+import { fehlendeAngaben } from '../../../lib/billing-empfaenger';
+import { anzeigeEmail, versandwege } from '../../../lib/billing-versand';
+import { leistungsdatumZeile } from '../../../lib/leistungszeitraum';
+import { postenBetrag } from '../../../lib/billing-posten';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+
+const brand = process.env.BRAND || 'mentolder';
+const a = await holeAngebot(brand, Astro.params.id ?? '');
+if (!a) return Astro.redirect('/admin/rechnungen');
+const { positionen, empfaenger } = await angebotVorschau(brand, a);
+const fehlt = empfaenger ? fehlendeAngaben(empfaenger) : ['Empfänger'];
+const wege = versandwege(empfaenger?.email);
+const summe = positionen.reduce((s, z) => Math.round((s + postenBetrag({ menge: z.quantity, einzelpreis: z.unitPrice })) * 100) / 100, 0);
+const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
+const fd = (iso: string | null) => (iso ? iso.slice(0, 10).split('-').reverse().join('.') : '–');
+const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+const fehler = Astro.url.searchParams.get('fehler');
+const gespeichert = Astro.url.searchParams.get('gespeichert') === '1';
+const knopf = 'px-3 py-1.5 rounded-lg text-sm';
+---
+
+<AdminLayout title={`Angebot ${a.number}`}>
+  <div style="padding:2rem;max-width:960px;">
+    <p class="text-xs text-muted mb-2"><a class="hover:underline" href={`/admin/klienten/${a.klientId}#auftraege`}>← Zur Klientenakte</a></p>
+    <AdminPageHeader title={`Angebot ${a.number}`}
+      description={`${a.auftragTitel ?? ''} · ${ANGEBOT_STAND_TEXT[a.stand]}${a.fassung > 1 ? ` · Fassung ${a.fassung}` : ''}`} />
+
+    {gespeichert && <p class="text-sm text-green-400 mb-3">Gespeichert.</p>}
+    {fehler && <p role="alert" class="text-sm text-red-400 mb-3">{fehler}</p>}
+    {a.stand === 'abgelaufen' && <p class="text-sm text-gold mb-3">„Gültig bis“ ({fd(a.gueltigBis)}) ist vorbei. Du kannst die Annahme trotzdem vermerken oder eine neue Fassung anlegen.</p>}
+
+    <section class="mb-6">
+      <h2 class="text-xs text-muted uppercase tracking-wide mb-1">An</h2>
+      {empfaenger ? (
+        <p class="text-sm">
+          <strong>{empfaenger.company ?? empfaenger.name}</strong>{empfaenger.company && <span class="text-muted"> (z. Hd. {empfaenger.name})</span>}
+          <br /><span class="text-muted">{[empfaenger.addressLine1, [empfaenger.postalCode, empfaenger.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Anschrift fehlt'} · {anzeigeEmail(empfaenger.email)}</span>
+        </p>
+      ) : <p class="text-sm text-red-400">Empfänger nicht gefunden.</p>}
+      {a.status === 'entwurf' && fehlt.length > 0 && <p class="text-sm text-red-400 mt-1">Versand erst möglich, wenn die Anschrift vollständig ist. Es fehlt: {fehlt.join(', ')}. Bitte in der Klientenakte ergänzen.</p>}
+    </section>
+
+    <section class="mb-6">
+      <h2 class="text-xs text-muted uppercase tracking-wide mb-1">Positionen {a.status === 'entwurf' && <span class="normal-case">(aus dem Auftrag, Änderungen dort)</span>}</h2>
+      {positionen.length === 0 ? <p class="text-sm text-muted">Keine geplanten Positionen.</p> : (
+        <table class="w-full text-sm">
+          <thead><tr class="text-left text-xs text-muted"><th class="py-1 pr-3 font-normal">Leistung</th><th class="py-1 pr-3 font-normal text-right">Menge</th><th class="py-1 pr-3 font-normal text-right">Einzelpreis</th><th class="py-1 font-normal text-right">Betrag</th></tr></thead>
+          <tbody>{positionen.map((z) => (
+            <tr class="border-t border-dark-lighter">
+              <td class="py-1 pr-3">{z.description}{leistungsdatumZeile(z) && <span class="block text-xs text-muted">{leistungsdatumZeile(z)}{z.unit ? ` · ${z.unit}` : ''}</span>}</td>
+              <td class="py-1 pr-3 text-right">{z.quantity.toLocaleString('de-DE')}</td>
+              <td class="py-1 pr-3 text-right">{euro(z.unitPrice)}</td>
+              <td class="py-1 text-right">{euro(postenBetrag({ menge: z.quantity, einzelpreis: z.unitPrice }))}</td>
+            </tr>))}
+            <tr class="border-t-2 border-dark-lighter font-semibold"><td class="py-1" colspan="3">Gesamt</td><td class="py-1 text-right">{euro(summe)}</td></tr>
+          </tbody>
+        </table>
+      )}
+    </section>
+
+    <section class="mb-6 text-sm">
+      <p class="text-muted">Datum {fd(a.datum)}{a.versendetAm && <> · verschickt {a.versandweg === 'post' ? 'per Post/persönlich' : 'per E-Mail'} am {fd(a.versendetAm)}</>}
+        {a.antwortAm && <> · {a.status === 'angenommen' ? 'angenommen' : 'abgelehnt'} am {fd(a.antwortAm)}{a.antwortGrund ? ` (${a.antwortGrund})` : ''}</>}</p>
+    </section>
+
+    {a.status === 'entwurf' && (
+      <section class="border border-dark-lighter rounded-xl p-4 mb-6">
+        <label class="block text-xs text-muted mb-3">Gültig bis
+          <input id="gueltig-bis" type="date" value={a.gueltigBis} min={heute} class="ml-2 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light" style="color-scheme:dark;" />
+        </label>
+        <p id="meldung" role="alert" class="text-sm text-red-400 mb-3"></p>
+        <div class="flex flex-wrap gap-2 justify-end">
+          <form method="POST" action="/api/admin/angebote" class="angebot-verwerfen">
+            <input type="hidden" name="aktion" value="verwerfen" /><input type="hidden" name="id" value={a.id} />
+            <button type="submit" class={`${knopf} border border-red-400 text-red-300`}>Verwerfen</button>
+          </form>
+          <a href={`/api/admin/angebote/${a.id}/pdf`} target="_blank" rel="noopener" class={`${knopf} border border-dark-lighter`}>Vorschau ↗</a>
+          <button type="button" data-weg="post" disabled={fehlt.length > 0 || positionen.length === 0} class={`versenden ${knopf} border border-gold text-gold disabled:opacity-40`}>Verschicken ohne E-Mail (Post/persönlich)</button>
+          {wege.includes('email') && <button type="button" data-weg="email" disabled={fehlt.length > 0 || positionen.length === 0} class={`versenden ${knopf} bg-gold text-dark font-semibold disabled:opacity-40`}>Per E-Mail verschicken</button>}
+        </div>
+        {!wege.includes('email') && <p class="text-xs text-muted mt-2">Keine E-Mail-Adresse in der Akte: nur Versand per Post/persönlich.</p>}
+      </section>
+    )}
+
+    {a.status !== 'entwurf' && (
+      <div class="flex flex-wrap gap-2 justify-end mb-6">
+        <a href={`/api/admin/angebote/${a.id}/pdf`} target="_blank" rel="noopener" class={`${knopf} border border-dark-lighter`}>PDF ↗</a>
+        {a.status === 'verschickt' && (
+          <form method="POST" action="/api/admin/angebote">
+            <input type="hidden" name="aktion" value="neue_fassung" /><input type="hidden" name="id" value={a.id} />
+            <button type="submit" class={`${knopf} border border-gold text-gold`}>Neue Fassung</button>
+          </form>
+        )}
+      </div>
+    )}
+  </div>
+</AdminLayout>
+
+<script define:vars={{ id: a.id }}>
+  document.querySelectorAll('form.angebot-verwerfen').forEach((f) => f.addEventListener('submit', (e) => {
+    if (!confirm('Angebotsentwurf verwerfen? Die Positionen bleiben im Auftrag.')) e.preventDefault();
+  }));
+  const meldung = document.getElementById('meldung');
+  document.querySelectorAll('button.versenden').forEach((b) => b.addEventListener('click', async () => {
+    const weg = b.dataset.weg;
+    const frage = weg === 'email'
+      ? 'Angebot jetzt nummerieren und per E-Mail verschicken? Danach lässt es sich nur über eine neue Fassung ändern.'
+      : 'Angebot jetzt nummerieren, ohne E-Mail? Das PDF wird heruntergeladen; vermerkt wird „verschickt per Post“.';
+    if (!confirm(frage)) return;
+    b.disabled = true;
+    const res = await fetch('/api/admin/angebote', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aktion: 'versenden', id, versand: weg, gueltigBis: document.getElementById('gueltig-bis')?.value }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { b.disabled = false; if (meldung) meldung.textContent = data.error ?? 'Nicht verschickt.'; }
+    if (data.pdfUrl) {
+      const link = document.createElement('a');
+      link.href = data.pdfUrl; link.download = `${data.number ?? 'Angebot'}.pdf`;
+      document.body.appendChild(link); link.click(); link.remove();
+    }
+    if (res.ok) setTimeout(() => window.location.reload(), data.pdfUrl ? 1500 : 0);
+  }));
+</script>

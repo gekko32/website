@@ -93,6 +93,14 @@ const fehlerStyle = 'font-size:0.8rem;color:#fca5a5;margin-top:0.375rem;';
         </div>
       ))}
 
+      <p style={labelStyle}>Angebote</p>
+      <div style="margin-bottom:1.25rem;">
+        <label for="angebot-tage" style={labelStyle}>{feld('regel_angebot_gueltig_tage').label}</label>
+        <input id="angebot-tage" type="number" name="regel_angebot_gueltig_tage" value={v.regel_angebot_gueltig_tage} min="1" max="365" step="1" style={inputStyle} />
+        <p style={hinweisStyle}>{feld('regel_angebot_gueltig_tage').wirktIn}</p>
+        {fehlerFuer('regel_angebot_gueltig_tage') && <p style={fehlerStyle}>{fehlerFuer('regel_angebot_gueltig_tage')}</p>}
+      </div>
+
       <p style={labelStyle}>Einheiten</p>
       <div style="margin-bottom:1.25rem;">
         <label for="einheiten" style={labelStyle}>Auswahlliste der Einheiten (eine je Zeile)</label>

@@ -12,6 +12,7 @@ describe('billing-regeln: Standardwerte', () => {
       ausfallWert: 100,
       abrechnungsartFirma: 'monatlich',
       abrechnungsartPrivat: 'je_sitzung',
+      angebotGueltigTage: 30, // Stufe 4, Startwert 22.10.2026
     });
   });
 
@@ -41,6 +42,7 @@ describe('billing-regeln: Eingaben prüfen (K39)', () => {
       ausfallWert: 75.5,
       abrechnungsartFirma: 'je_sitzung',
       abrechnungsartPrivat: 'monatlich',
+      angebotGueltigTage: 30,
     });
   });
 

@@ -9,6 +9,7 @@ import { listeLeistungen, listeKategorien, preisAnzeige } from '../../../lib/bil
 import { gebuchteTermine } from '../../../lib/billing-ausfall';
 import { ladeEinheiten } from '../../../lib/billing-einheiten';
 import { verbucheUndEntwerfe, wirksameAbrechnungsart } from '../../../lib/billing-abrechnungslauf';
+import { angeboteDesKlienten, ANGEBOT_STAND_TEXT, type Angebot } from '../../../lib/billing-angebot';
 import { ladeRegeln } from '../../../lib/billing-regeln';
 import { anzeigeEmail, hatEchteEmail } from '../../../lib/billing-versand';
 import { postenDesKlienten, postenBetrag, AUFTRAG_STAND_TEXT, auftraegeDesKlienten, postenAenderbar, terminAbgesagt, postenLoeschbar, auftragLoeschbar, leistungszeitraum, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
@@ -59,6 +60,9 @@ const postenGespeichert = q.get('gespeichert') === '1';
 // T8: individuelle Aufträge mit eigenen Positionen (K8–K10).
 const auftraege = await auftraegeDesKlienten(brand, klient.id).catch((): Auftrag[] => []);
 const auftragFehler = q.get('auftragFehler');
+// Stufe 4 T16: Angebote der Akte (je Auftrag angezeigt; Liste „Angebote“ in T18).
+const angebote = await angeboteDesKlienten(brand, klient.id).catch((): Angebot[] => []);
+const angeboteVon = (auftragId: string) => angebote.filter((x) => x.auftragId === auftragId);
 const positionenVon = (auftragId: string) => posten.filter((p) => p.auftragId === auftragId);
 const zahlFeld = (n: number | null) => (n === null ? '' : String(n).replace('.', ','));
 // T9: gebuchte Termine mit Absage-Vermerk (AE8).
@@ -357,6 +361,27 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                 </span>
               </span>
             </div>
+            {a.modus === 'mit_angebot' && (
+              <div class="mb-3">
+                {/* Stufe 4 T16 (K47): links anlegen – Angebot aus den geplanten Positionen. */}
+                {a.stand === 'geplant' && (
+                  <form method="POST" action="/api/admin/angebote" class="inline">
+                    <input type="hidden" name="aktion" value="erstellen" />
+                    <input type="hidden" name="klientId" value={klient.id} />
+                    <input type="hidden" name="auftragId" value={a.id} />
+                    <button type="submit" disabled={!pos.some((p) => p.zustand === 'geplant')}
+                      title={pos.some((p) => p.zustand === 'geplant') ? 'Angebot aus den geplanten Positionen' : 'Zuerst mindestens eine Position anlegen'}
+                      class="px-3 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold disabled:opacity-40">{angeboteVon(a.id).some((x) => x.status === 'entwurf') ? 'Angebotsentwurf öffnen' : 'Angebot erstellen'}</button>
+                  </form>
+                )}
+                {angeboteVon(a.id).length > 0 && (
+                  <ul class="text-xs mt-2 space-y-0.5">{angeboteVon(a.id).map((x) => (
+                    <li><a class="hover:underline font-mono" href={`/admin/angebote/${x.id}`}>{x.number}</a>
+                      <span class={x.stand === 'abgelaufen' ? 'text-gold' : 'text-muted'}> · {ANGEBOT_STAND_TEXT[x.stand]} · {euro(x.brutto)}</span></li>))}
+                  </ul>
+                )}
+              </div>
+            )}
             <details class="mb-3">
               <summary class="cursor-pointer inline-block px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Neue Position mit Preis</summary>
             <form method="POST" action="/api/admin/posten" autocomplete="off" class="mt-2 p-3 rounded-lg border border-gold/60 bg-dark merk-ungespeichert">
