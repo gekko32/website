@@ -100,7 +100,7 @@ export async function insertDsgvoRequest(params: {
 // ── Invoice Counter ────────────────────────────────────────────────────────────
 
 let invoiceCountersReady = false;
-async function initInvoiceCountersTable(): Promise<void> {
+export async function initInvoiceCountersTable(): Promise<void> {
   if (invoiceCountersReady) return;
   await pool.query(`
     CREATE TABLE IF NOT EXISTS invoice_counters (

@@ -1,4 +1,5 @@
-import { pool, initBillingTables, getNextInvoiceNumber } from './website-db';
+import { pool, initBillingTables } from './website-db';
+import { datenBeimFestschreiben, entwurfsKennung, istEntwurfsKennung, naechsteNummer, zahlungsreferenz } from './billing-nummer';
 import { checkAndApplyTaxModeSwitch, resolveEffectiveTaxMode } from './tax-monitor';
 import { canonicalInvoiceForHash, sha256Hex, type HashableLine } from './invoice-hash';
 import { logBillingEvent, type BillingActor } from './billing-audit';
@@ -124,7 +125,8 @@ export async function createInvoice(params: {
     const rates = await fetchEcbRates();
     currencyRate = eurPer(currency, rates);
   }
-  const number = await getNextInvoiceNumber(p.brand);
+  // Stufe 3 T12: Entwürfe bekommen nur eine Kennung; die Nummer vergibt finalizeInvoice (K33–K35).
+  const number = entwurfsKennung();
   const issueDate = new Date(p.issueDate);
   const dueDate = new Date(issueDate);
   dueDate.setDate(dueDate.getDate() + p.dueDays);
@@ -135,7 +137,7 @@ export async function createInvoice(params: {
   const grossAmount = netAmount + taxAmount;
   const netAmountEur  = currencyRate !== null ? Math.round(netAmount * currencyRate * 100) / 100 : netAmount;
   const grossAmountEur = currencyRate !== null ? Math.round(grossAmount * currencyRate * 100) / 100 : grossAmount;
-  const paymentRef = number.replace('RE-', 'RG');
+  const paymentRef = null; // folgt der Nummer beim Festschreiben
   const kind = p.kind ?? 'regular';
 
   const client = db ?? await pool.connect();
@@ -192,6 +194,15 @@ export interface FinalizeOpts {
   invoiceInput?: InvoiceInput;
   /** Stufe 3 T11: Empfänger, der festgeschrieben wird (sonst heutiger Stand aus der Akte). */
   empfaenger?: Empfaenger;
+  /**
+   * Stufe 3 T12: PDF und E-Rechnung erst erzeugen, wenn Nummer und Rechnungsdatum feststehen
+   * (innerhalb der Transaktion; scheitert es, wird auch die Nummer nicht verbraucht).
+   * Ersetzt pdfBlob/invoiceInput.
+   */
+  dokumente?: (kopf: { number: string; issueDate: string; dueDate: string; paymentReference: string | null }) =>
+    Promise<{ pdfBlob?: Buffer; invoiceInput?: InvoiceInput }>;
+  /** Für Tests: „jetzt“ beim Festschreiben. */
+  jetzt?: Date;
 }
 
 export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Promise<Invoice | null> {
@@ -212,13 +223,29 @@ export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Prom
   const client = await pool.connect();
   let inv: Invoice;
   let hash: string;
+  let pdfBytes: number | null = null;
   try {
     await client.query('BEGIN');
+    // Stufe 3 T12: Nummer und Rechnungsdatum erst jetzt, im selben Zug wie das Festschreiben (K34, K35).
+    // Ältere Entwürfe, die noch eine echte Nummer tragen, behalten sie samt Datum.
+    const vorher = await client.query(
+      `SELECT brand, number, issue_date::text AS issue_date, due_date::text AS due_date
+         FROM billing_invoices WHERE id=$1 AND status='draft' FOR UPDATE`, [id]);
+    if (!vorher.rows[0]) { await client.query('ROLLBACK'); return null; }
+    let kopf: { number: string; issueDate: string | null; dueDate: string | null; paymentReference: string | null } =
+      { number: vorher.rows[0].number, issueDate: null, dueDate: null, paymentReference: null };
+    if (istEntwurfsKennung(vorher.rows[0].number)) {
+      const d = datenBeimFestschreiben(vorher.rows[0].issue_date, vorher.rows[0].due_date, opts.jetzt ?? new Date());
+      const number = await naechsteNummer(client, vorher.rows[0].brand, d.jahr);
+      kopf = { number, issueDate: d.issueDate, dueDate: d.dueDate, paymentReference: zahlungsreferenz(number) };
+    }
     const upd = await client.query(
       `UPDATE billing_invoices
-         SET status='open', locked=true, finalized_at=now(), updated_at=now(), empfaenger=$2::jsonb
+         SET status='open', locked=true, finalized_at=now(), updated_at=now(), empfaenger=$2::jsonb,
+             number=$3, issue_date=COALESCE($4::date, issue_date), due_date=COALESCE($5::date, due_date),
+             payment_reference=COALESCE($6, payment_reference)
        WHERE id=$1 AND status='draft' RETURNING *`,
-      [id, empfaenger ? JSON.stringify(empfaenger) : null]
+      [id, empfaenger ? JSON.stringify(empfaenger) : null, kopf.number, kopf.issueDate, kopf.dueDate, kopf.paymentReference]
     );
     if (!upd.rows[0]) { await client.query('ROLLBACK'); return null; }
     const row = upd.rows[0];
@@ -226,21 +253,33 @@ export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Prom
     // Stufe 3 T10a: Posten dieses Entwurfs sind jetzt abgerechnet (K23).
     await postenAbgerechnet(client, id);
 
-    if (opts.invoiceInput) {
+    let pdfBlob = opts.pdfBlob;
+    let invoiceInput = opts.invoiceInput;
+    if (opts.dokumente) {
+      const d = await opts.dokumente({
+        number: inv.number, issueDate: row.issue_date instanceof Date ? isoTag(row.issue_date) : String(row.issue_date).slice(0, 10),
+        dueDate: row.due_date instanceof Date ? isoTag(row.due_date) : String(row.due_date).slice(0, 10),
+        paymentReference: (row.payment_reference as string | null) ?? null,
+      });
+      pdfBlob = d.pdfBlob;
+      invoiceInput = d.invoiceInput;
+    }
+
+    if (invoiceInput) {
       const { generateFacturX } = await import('./einvoice/factur-x');
       const { generateXRechnung } = await import('./einvoice/xrechnung');
       const { embedFacturX } = await import('./pdf-a3-embed');
       const { createSidecarClient, sidecarBaseUrlFromEnv, SidecarUnavailableError } = await import('./einvoice/sidecar-client');
 
-      const facturXXml = generateFacturX(opts.invoiceInput);
-      const xrechnungXml = opts.invoiceInput.buyer.leitwegId ? generateXRechnung(opts.invoiceInput) : null;
+      const facturXXml = generateFacturX(invoiceInput);
+      const xrechnungXml = invoiceInput.buyer.leitwegId ? generateXRechnung(invoiceInput) : null;
 
-      let pdfA3: Buffer | undefined = opts.pdfBlob;
+      let pdfA3: Buffer | undefined = pdfBlob;
       let validation: Awaited<ReturnType<ReturnType<typeof createSidecarClient>['validate']>> | null = null;
 
-      if (opts.pdfBlob && process.env.EINVOICE_SIDECAR_ENABLED === 'true') {
+      if (pdfBlob && process.env.EINVOICE_SIDECAR_ENABLED === 'true') {
         try {
-          pdfA3 = await embedFacturX(opts.pdfBlob, facturXXml);
+          pdfA3 = await embedFacturX(pdfBlob, facturXXml);
           const client = createSidecarClient(sidecarBaseUrlFromEnv());
           validation = await client.validate({ pdf: pdfA3 });
           if (!validation.ok && validation.errors.length > 0) {
@@ -306,31 +345,32 @@ export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Prom
              pdf_size_bytes=$4
        WHERE id=$1`,
       [id, hash,
-       opts.pdfMime ?? (opts.pdfBlob ? 'application/pdf' : null),
-       opts.pdfBlob?.length ?? null]
+       opts.pdfMime ?? (pdfBlob ? 'application/pdf' : null),
+       pdfBlob?.length ?? null]
     );
-    if (opts.pdfBlob) {
+    if (pdfBlob) {
       await client.query(
         `INSERT INTO billing_invoice_documents (invoice_id, format, content)
          VALUES ($1, 'pdf', $2)
          ON CONFLICT (invoice_id, format) DO UPDATE SET content = EXCLUDED.content`,
-        [id, opts.pdfBlob]
+        [id, pdfBlob]
       );
     }
 
-    if (opts.pdfBlob) {
+    if (pdfBlob) {
       const { archiveBillingPdf } = await import('./billing-archive');
       const pdfPath = await archiveBillingPdf({
         brand: inv.brand,
         invoiceNumber: inv.number,
         filename: `${inv.number}.pdf`,
-        content: opts.pdfBlob,
+        content: pdfBlob,
       });
       if (pdfPath) {
         await client.query(`UPDATE billing_invoices SET pdf_path=$2 WHERE id=$1`, [id, pdfPath]);
       }
     }
 
+    pdfBytes = pdfBlob?.length ?? null;
     await client.query('COMMIT');
   } catch (e) {
     await client.query('ROLLBACK');
@@ -346,7 +386,7 @@ export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Prom
     actor: opts.actor,
     fromStatus: 'draft',
     toStatus: 'open',
-    metadata: { hash, pdfBytes: opts.pdfBlob?.length ?? null },
+    metadata: { hash, pdfBytes },
   });
   return inv;
 }
@@ -387,6 +427,11 @@ export async function markInvoicePaid(
     metadata: { paidAt: p.paidAt, paidAmount: p.paidAmount },
   });
   return after;
+}
+
+/** Kalendertag eines DATE-Werts (pg liefert Mitternacht in Ortszeit). */
+function isoTag(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function mapInvoice(row: Record<string, unknown>): Invoice {
