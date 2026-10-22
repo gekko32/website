@@ -5,6 +5,7 @@ import { generateInvoicePdf, type InvoicePdfSeller } from './invoice-pdf';
 import { archiveBillingPdf } from './billing-archive';
 import { ladeAbsender } from './billing-absender';
 import { logBillingEvent, type BillingActor } from './billing-audit';
+import { gibPostenFrei, initPostenTabelle } from './billing-posten';
 
 function iso(d: Date): string {
   return d.toISOString().split('T')[0];
@@ -16,6 +17,7 @@ function round2(n: number): number {
 
 export async function createCreditNote(invoiceId: string, reason: string, actor?: BillingActor): Promise<Invoice | null> {
   await initBillingTables();
+  await initPostenTabelle();
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -44,7 +46,7 @@ export async function createCreditNote(invoiceId: string, reason: string, actor?
           locked, cancels_invoice_id, kind, parent_invoice_id,
           currency, currency_rate, net_amount_eur, gross_amount_eur, supply_type)
        VALUES
-         ($1,$2,'open',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,true,$13,'gutschrift',$14,$15,$16,$17,$18,$19)
+         ($1,$2,'open',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,false,$13,'gutschrift',$14,$15,$16,$17,$18,$19)
        RETURNING *`,
       [
         orig.brand,
@@ -71,20 +73,26 @@ export async function createCreditNote(invoiceId: string, reason: string, actor?
     const credit = ins.rows[0];
 
     const linesR = await client.query(
-      `SELECT description, quantity, unit, unit_price, net_amount
+      `SELECT description, quantity, unit, unit_price, net_amount, leistung_von, leistung_bis
          FROM billing_invoice_line_items WHERE invoice_id=$1 ORDER BY id`,
       [orig.id]
     );
     for (const line of linesR.rows) {
       await client.query(
         `INSERT INTO billing_invoice_line_items
-           (invoice_id, description, quantity, unit, unit_price, net_amount)
-         VALUES ($1,$2,$3,$4,$5,$6)`,
-        [credit.id, line.description, -Number(line.quantity), line.unit ?? null, Number(line.unit_price), -Number(line.net_amount)]
+           (invoice_id, description, quantity, unit, unit_price, net_amount, leistung_von, leistung_bis)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [credit.id, line.description, -Number(line.quantity), line.unit ?? null, Number(line.unit_price), -Number(line.net_amount),
+         line.leistung_von ?? null, line.leistung_bis ?? null]
       );
     }
 
+    // Erst nach den Positionen sperren: Der GoBD-Schutz lässt keine Positionen an einer
+    // gesperrten Rechnung zu (Prüfung T10a gegen echtes Postgres: Storno brach hier ab).
+    await client.query(`UPDATE billing_invoices SET locked=true WHERE id=$1`, [credit.id]);
     await client.query(`UPDATE billing_invoices SET status='cancelled', updated_at=now() WHERE id=$1`, [orig.id]);
+    // Stufe 3 T10a: Die Posten der stornierten Rechnung sind wieder offen (K25).
+    await gibPostenFrei(client, orig.id, 'abgerechnet');
     await client.query('COMMIT');
 
     if (origPaid > 0 && Number(orig.gross_amount) !== 0) {
@@ -138,6 +146,10 @@ export async function createCreditNote(invoiceId: string, reason: string, actor?
       grossAmountEur: credit.gross_amount_eur != null ? Number(credit.gross_amount_eur) : Number(credit.gross_amount),
       supplyType: credit.supply_type ?? undefined,
     };
+  } catch (e) {
+    // Stufe 3 T10a: bei Fehler nichts halb speichern (vorher blieb die Transaktion offen).
+    try { await client.query('ROLLBACK'); } catch { /* Verbindung ohnehin unbrauchbar */ }
+    throw e;
   } finally {
     client.release();
   }

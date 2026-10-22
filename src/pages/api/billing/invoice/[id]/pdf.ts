@@ -38,7 +38,7 @@ export const GET: APIRoute = async ({ request, params }) => {
     const data = await getInvoiceForEInvoice(id);
     if (!data) return new Response('Not found', { status: 404 });
     // Bridge EInvoiceLine -> InvoicePdfLine: derive line-level netAmount from quantity * unitPrice.
-    const lines = data.lines.map((l) => ({ ...l, netAmount: l.quantity * l.unitPrice }));
+    const lines = data.lines.map((l) => ({ ...l, netAmount: l.quantity * l.unitPrice, leistungVon: l.periodStart, leistungBis: l.periodEnd }));
     let pdf: Buffer;
     try {
       pdf = await generateInvoicePdf({ ...data, lines, profile: profileParam as EInvoiceProfile } as never);

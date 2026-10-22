@@ -1,4 +1,5 @@
 import { InvoiceInputSchema, type InvoiceInput, type InvoiceLine } from './types';
+import { einheitCode } from './einheit-code';
 
 const PROFILE_EN16931 = 'urn:cen.eu:en16931:2017';
 
@@ -95,19 +96,22 @@ ${taxXml}      <ram:SpecifiedTradePaymentTerms>
 }
 
 function renderLine(l: InvoiceLine, idx: number): string {
+  // Stufe 3 T10a: Leistungsdatum der Position als Abrechnungszeitraum (BG-26, ein Tag: Beginn = Ende).
+  const period = l.periodStart ? `
+        <ram:BillingSpecifiedPeriod><ram:StartDateTime><udt:DateTimeString format="102">${dt(l.periodStart)}</udt:DateTimeString></ram:StartDateTime><ram:EndDateTime><udt:DateTimeString format="102">${dt(l.periodEnd ?? l.periodStart)}</udt:DateTimeString></ram:EndDateTime></ram:BillingSpecifiedPeriod>` : '';
   return `    <ram:IncludedSupplyChainTradeLineItem>
       <ram:AssociatedDocumentLineDocument><ram:LineID>${idx}</ram:LineID></ram:AssociatedDocumentLineDocument>
       <ram:SpecifiedTradeProduct><ram:Name>${esc(l.description)}</ram:Name></ram:SpecifiedTradeProduct>
       <ram:SpecifiedLineTradeAgreement>
         <ram:NetPriceProductTradePrice><ram:ChargeAmount>${fmt(l.unitPrice)}</ram:ChargeAmount></ram:NetPriceProductTradePrice>
       </ram:SpecifiedLineTradeAgreement>
-      <ram:SpecifiedLineTradeDelivery><ram:BilledQuantity unitCode="${esc(l.unit)}">${l.quantity}</ram:BilledQuantity></ram:SpecifiedLineTradeDelivery>
+      <ram:SpecifiedLineTradeDelivery><ram:BilledQuantity unitCode="${esc(einheitCode(l.unit))}">${l.quantity}</ram:BilledQuantity></ram:SpecifiedLineTradeDelivery>
       <ram:SpecifiedLineTradeSettlement>
         <ram:ApplicableTradeTax>
           <ram:TypeCode>VAT</ram:TypeCode>
           <ram:CategoryCode>${l.taxCategory}</ram:CategoryCode>
           <ram:RateApplicablePercent>${fmt(l.taxRate)}</ram:RateApplicablePercent>
-        </ram:ApplicableTradeTax>
+        </ram:ApplicableTradeTax>${period}
         <ram:SpecifiedTradeSettlementLineMonetarySummation><ram:LineTotalAmount>${fmt(l.netAmount)}</ram:LineTotalAmount></ram:SpecifiedTradeSettlementLineMonetarySummation>
       </ram:SpecifiedLineTradeSettlement>
     </ram:IncludedSupplyChainTradeLineItem>

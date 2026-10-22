@@ -4,6 +4,8 @@ import { canonicalInvoiceForHash, sha256Hex, type HashableLine } from './invoice
 import { logBillingEvent, type BillingActor } from './billing-audit';
 import { validateLeitwegId, formatLeitwegId } from './leitweg';
 import { ladeAbsender } from './billing-absender';
+import { initPostenTabelle, postenAbgerechnet } from './billing-posten';
+import type { PoolClient } from 'pg';
 
 export { initBillingTables };
 
@@ -95,7 +97,9 @@ export async function createInvoice(params: {
   parentInvoiceId?: string;
   /** T015362: von E2E/Systemtests erzeugte Rechnungen werden markiert (Purge-Pfad). */
   isTestData?: boolean;
-}): Promise<Invoice> {
+}, db?: PoolClient): Promise<Invoice> {
+  // `db`: laufende Transaktion des Aufrufers (Stufe 3 T10a: Posten sperren und Entwurf
+  // anlegen gelingen zusammen oder gar nicht). Ohne `db` eigene Transaktion wie bisher.
   await initBillingTables();
   // Eine Steuerart für alle Rechnungswege (Befund R3, Gerald 19.10.2026):
   // sonst weist ein Kleinunternehmer womöglich USt aus und schuldet sie (§ 14c UStG).
@@ -133,9 +137,9 @@ export async function createInvoice(params: {
   const paymentRef = number.replace('RE-', 'RG');
   const kind = p.kind ?? 'regular';
 
-  const client = await pool.connect();
+  const client = db ?? await pool.connect();
   try {
-    await client.query('BEGIN');
+    if (!db) await client.query('BEGIN');
     const r = await client.query(
       `INSERT INTO billing_invoices (brand, number, customer_id, issue_date, due_date,
          service_period_start, service_period_end, tax_mode, net_amount, tax_rate,
@@ -152,20 +156,24 @@ export async function createInvoice(params: {
        kind, p.parentInvoiceId??null, p.isTestData ?? false]
     );
     const inv = r.rows[0];
-    await Promise.all(p.lines.map(l =>
-      client.query(
-        `INSERT INTO billing_invoice_line_items (invoice_id,description,quantity,unit,unit_price,net_amount,is_test_data)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [inv.id, l.description, l.quantity, l.unit??null, l.unitPrice, l.quantity*l.unitPrice, p.isTestData ?? false]
-      )
-    ));
-    await client.query('COMMIT');
+    // Nacheinander, damit die Positionen in der gewählten Reihenfolge ihre id bekommen
+    // (Anzeige, PDF und Prüfsumme ordnen nach id).
+    for (const l of p.lines) {
+      await client.query(
+        `INSERT INTO billing_invoice_line_items (invoice_id,description,quantity,unit,unit_price,net_amount,is_test_data,
+           leistung_von,leistung_bis,posten_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        [inv.id, l.description, l.quantity, l.unit??null, l.unitPrice, l.quantity*l.unitPrice, p.isTestData ?? false,
+         l.leistungVon ?? null, l.leistungBis ?? null, l.postenId ?? null]
+      );
+    }
+    if (!db) await client.query('COMMIT');
     return mapInvoice(inv);
   } catch (e) {
-    await client.query('ROLLBACK');
+    if (!db) await client.query('ROLLBACK');
     throw e;
   } finally {
-    client.release();
+    if (!db) client.release();
   }
 }
 
@@ -185,6 +193,7 @@ export interface FinalizeOpts {
 
 export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Promise<Invoice | null> {
   await initBillingTables();
+  await initPostenTabelle();
 
   const client = await pool.connect();
   let inv: Invoice;
@@ -200,6 +209,8 @@ export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Prom
     if (!upd.rows[0]) { await client.query('ROLLBACK'); return null; }
     const row = upd.rows[0];
     inv = mapInvoice(row);
+    // Stufe 3 T10a: Posten dieses Entwurfs sind jetzt abgerechnet (K23).
+    await postenAbgerechnet(client, id);
 
     if (opts.invoiceInput) {
       const { generateFacturX } = await import('./einvoice/factur-x');
@@ -251,7 +262,8 @@ export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Prom
     }
 
     const linesR = await client.query(
-      `SELECT id, description, quantity, unit_price, net_amount, unit
+      `SELECT id, description, quantity, unit_price, net_amount, unit,
+              leistung_von::text AS leistung_von, leistung_bis::text AS leistung_bis
          FROM billing_invoice_line_items WHERE invoice_id=$1 ORDER BY id`,
       [id]
     );
@@ -262,6 +274,8 @@ export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Prom
       unitPrice: Number(l.unit_price),
       netAmount: Number(l.net_amount),
       unit: (l.unit as string) ?? undefined,
+      leistungVon: (l.leistung_von as string | null) ?? undefined,
+      leistungBis: (l.leistung_bis as string | null) ?? undefined,
     }));
     hash = sha256Hex(canonicalInvoiceForHash({
       id: inv.id, number: inv.number, brand: inv.brand, customerId: inv.customerId,
@@ -439,7 +453,9 @@ export async function getInvoiceForEInvoice(id: string): Promise<EInvoiceInput |
   if (!row) return null;
   const lines = (
     await pool.query(
-      `SELECT * FROM billing_invoice_line_items WHERE invoice_id = $1 ORDER BY id`,
+      // Datum als Text: ein DATE als JS-Date verrutscht je nach Zeitzone um einen Tag.
+      `SELECT *, leistung_von::text AS leistung_von_text, leistung_bis::text AS leistung_bis_text
+         FROM billing_invoice_line_items WHERE invoice_id = $1 ORDER BY id`,
       [id]
     )
   ).rows;
@@ -469,6 +485,9 @@ export async function getInvoiceForEInvoice(id: string): Promise<EInvoiceInput |
       quantity: Number(l.quantity),
       unitPrice: Number(l.unit_price),
       unit: l.unit ?? 'C62',
+      // Stufe 3 T10a: Leistungszeitraum der Position (BG-26).
+      periodStart: l.leistung_von_text ?? undefined,
+      periodEnd: l.leistung_bis_text ?? undefined,
     })),
     customer: {
       name: row.c_name,

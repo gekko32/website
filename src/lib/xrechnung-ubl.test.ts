@@ -154,3 +154,23 @@ describe('generateXRechnungUbl', () => {
     expect(xml).toContain('<cac:TaxScheme><cbc:ID>FC</cbc:ID></cac:TaxScheme>');
   });
 });
+
+// Rechnungswesen Stufe 3, T10a: Leistungsdatum je Position (BG-26) und gültiger Einheitencode.
+describe('generateXRechnungUbl — Leistungszeitraum je Position (Stufe 3 T10a)', () => {
+  const input = (line: Record<string, unknown>): EInvoiceInput => ({
+    invoice: baseInvoice, lines: [{ ...baseLine, ...line }], customer: baseCustomer, seller: baseSeller,
+  });
+
+  it('schreibt InvoicePeriod in die Position', () => {
+    const xml = generateXRechnungUbl(input({ periodStart: '2026-11-05', periodEnd: '2026-11-07' }));
+    expect(xml).toMatch(/<cac:InvoiceLine>[\s\S]*<cac:InvoicePeriod>\s*<cbc:StartDate>2026-11-05<\/cbc:StartDate>\s*<cbc:EndDate>2026-11-07<\/cbc:EndDate>\s*<\/cac:InvoicePeriod>[\s\S]*<cac:Item>/);
+  });
+
+  it('ohne Datum keine InvoicePeriod in der Position', () => {
+    expect(generateXRechnungUbl(input({}))).not.toContain('<cac:InvoicePeriod>');
+  });
+
+  it('Einheit „Stunde“ wird HUR', () => {
+    expect(generateXRechnungUbl(input({ unit: 'Stunde' }))).toContain('unitCode="HUR"');
+  });
+});

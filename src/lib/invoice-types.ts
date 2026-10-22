@@ -7,6 +7,10 @@
 export interface InvoiceLine {
   description: string; quantity: number; unitPrice: number; unit?: string;
   taxCategory?: string;
+  /** Rechnungswesen Stufe 3, T10a: Leistungsdatum bzw. -zeitraum der Position (YYYY-MM-DD). */
+  leistungVon?: string | null; leistungBis?: string | null;
+  /** Abrechnungsposten, aus dem die Position entstand. */
+  postenId?: string | null;
 }
 
 export interface Invoice {

@@ -7,6 +7,7 @@ import {
 } from './native-billing';
 import { holeLeistung } from './billing-leistungen';
 import { ladeZahlungsziel } from './billing-regeln';
+import { leistungsdatumZeile } from './leistungszeitraum';
 
 // Die feste Preisliste (SERVICES) ist seit Rechnungswesen Stufe 3 (20.10.2026)
 // entfernt. Leistungen und Preise pflegt Gerald unter Admin → Leistungen
@@ -47,6 +48,8 @@ interface DraftInvoiceItem {
   unitPrice: number;
   amount: number;
   currency: string;
+  /** Stufe 3 T10a: „Leistung: 05.11.2026“, null bei Positionen ohne Datum. */
+  leistung: string | null;
 }
 
 interface DraftInvoiceDetail extends AdminBillingInvoice {
@@ -176,7 +179,8 @@ export async function getDraftInvoiceDetail(invoiceId: string): Promise<DraftInv
   if (!r.rows[0]) return null;
   const row = r.rows[0];
   const linesR = await pool.query(
-    `SELECT * FROM billing_invoice_line_items WHERE invoice_id = $1 ORDER BY id`,
+    `SELECT *, leistung_von::text AS leistung_von_text, leistung_bis::text AS leistung_bis_text
+       FROM billing_invoice_line_items WHERE invoice_id = $1 ORDER BY id`,
     [invoiceId]
   );
   const items: DraftInvoiceItem[] = linesR.rows.map((l: Record<string, unknown>) => ({
@@ -186,6 +190,7 @@ export async function getDraftInvoiceDetail(invoiceId: string): Promise<DraftInv
     unitPrice: Number(l.unit_price),
     amount: Number(l.net_amount),
     currency: 'EUR',
+    leistung: leistungsdatumZeile({ leistungVon: l.leistung_von_text as string | null, leistungBis: l.leistung_bis_text as string | null }),
   }));
   const base = mapAdminRow(row);
   return {

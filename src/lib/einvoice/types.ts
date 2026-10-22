@@ -34,6 +34,9 @@ export const InvoiceLineSchema = z.object({
   netAmount: z.number(),
   taxRate: z.number().min(0).max(100),
   taxCategory: z.enum(['S', 'E', 'AE', 'Z']),
+  // Stufe 3 T10a: Leistungsdatum bzw. -zeitraum der Position (BG-26); ohne Ende ein Tag.
+  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 export type InvoiceLine = z.infer<typeof InvoiceLineSchema>;
 

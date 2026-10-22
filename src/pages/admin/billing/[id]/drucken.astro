@@ -240,6 +240,10 @@ const buyerVatId = dbCustomer?.vatNumber ?? null;
     .items tbody td .desc {
       font-family: var(--serif); font-size: 11pt; color: var(--ink-text); margin-bottom: 1mm;
     }
+    /* Stufe 3 T10a: Leistungsdatum je Position */
+    .items tbody td .leistung {
+      font-family: var(--sans); font-size: 8.5pt; color: var(--ink-soft);
+    }
 
     /* ── totals ── */
     .totals {
@@ -414,7 +418,7 @@ const buyerVatId = dbCustomer?.vatNumber ?? null;
         <tbody>
           {inv.items.map(line => (
             <tr>
-              <td><div class="desc">{line.description}</div></td>
+              <td><div class="desc">{line.description}</div>{line.leistung && <div class="leistung">{line.leistung}</div>}</td>
               <td class="right">{fmtEur(line.amount)} €</td>
             </tr>
           ))}

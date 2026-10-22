@@ -1,4 +1,5 @@
 import type { EInvoiceInput } from './einvoice-types';
+import { einheitCode } from './einvoice/einheit-code';
 
 const XR_UBL_CUSTOMIZATION =
   'urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0';
@@ -23,8 +24,12 @@ export function generateXRechnungUbl(p: EInvoiceInput): string {
   const lineXml = p.lines.map((l, i) => `
   <cac:InvoiceLine>
     <cbc:ID>${i + 1}</cbc:ID>
-    <cbc:InvoicedQuantity unitCode="${esc(l.unit ?? 'C62')}">${l.quantity}</cbc:InvoicedQuantity>
-    <cbc:LineExtensionAmount currencyID="${currency}">${fmt2(l.quantity * l.unitPrice)}</cbc:LineExtensionAmount>
+    <cbc:InvoicedQuantity unitCode="${esc(einheitCode(l.unit))}">${l.quantity}</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="${currency}">${fmt2(l.quantity * l.unitPrice)}</cbc:LineExtensionAmount>${l.periodStart ? `
+    <cac:InvoicePeriod>
+      <cbc:StartDate>${esc(l.periodStart)}</cbc:StartDate>
+      <cbc:EndDate>${esc(l.periodEnd ?? l.periodStart)}</cbc:EndDate>
+    </cac:InvoicePeriod>` : ''}
     <cac:Item>
       <cbc:Name>${esc(l.description)}</cbc:Name>
       <cac:ClassifiedTaxCategory>

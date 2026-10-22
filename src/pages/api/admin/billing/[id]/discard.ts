@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../../lib/auth';
-import { pool, initBillingTables } from '../../../../../lib/website-db';
+import { initBillingTables } from '../../../../../lib/website-db';
+import { verwirfEntwurf } from '../../../../../lib/billing-entwurf';
 
 export const POST: APIRoute = async ({ request, params , locals }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -8,10 +9,8 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
   try {
     await initBillingTables();
     const brand = process.env.BRAND || 'mentolder';
-    await pool.query(
-      `DELETE FROM billing_invoices WHERE id=$1 AND brand=$2 AND status='draft'`,
-      [params.id, brand]
-    );
+    // Stufe 3 T10a: Posten des Entwurfs werden dabei wieder offen (K24).
+    await verwirfEntwurf(brand, params.id as string);
     return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
   } catch (err) {
     locals.requestLogger.error({ err }, '[billing/discard]');

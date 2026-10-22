@@ -1,5 +1,5 @@
 // Rechnungswesen Stufe 3, T5: Sitzung von Hand erfassen, „nicht abrechnen“ umschalten
-// (K11, K14). Nur Admins (K43).
+// (K11, K14); T10a: Rechnung aus gewählten Posten. Nur Admins (K43).
 import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../lib/auth';
 import { getKlient } from '../../../lib/klientenakte';
@@ -9,6 +9,8 @@ import {
   pruefeAuftragTitel, pruefePosition, pruefePreis, pruefeSitzung, setzeAbrechnen, setzePostenPreis,
 } from '../../../lib/billing-posten';
 import { erlasseAusfall, vermerkeAbsage } from '../../../lib/billing-ausfall';
+import { erstelleEntwurfAusPosten } from '../../../lib/billing-entwurf';
+import { isE2ETestRequest } from '../../../lib/e2e-marker';
 
 export const POST: APIRoute = async ({ request, redirect }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -42,6 +44,16 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const ok = await setzePostenPreis(brand, postenId, preis);
     const hinweis = ok ? 'gespeichert=1' : `fehler=${encodeURIComponent('Dieser Posten steht schon auf einer Rechnung und lässt sich hier nicht ändern.')}`;
     return redirect(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
+  }
+
+  // T10a: gewählte offene Posten → Rechnungsentwurf (K22, K23). Versand erst nach Prüfung unter Rechnungen.
+  if (aktion === 'rechnung') {
+    const klient = await getKlient(text('klientId'));
+    if (!klient) return new Response('Klient nicht gefunden', { status: 404 });
+    const ids = form.getAll('postenId').map(String);
+    const r = await erstelleEntwurfAusPosten(brand, klient, ids, { isTestData: isE2ETestRequest(request) });
+    const hinweis = r.ok ? `entwurf=${encodeURIComponent(r.number)}` : `fehler=${encodeURIComponent(r.fehler)}`;
+    return redirect(`/admin/klienten/${klient.id}?${hinweis}#abrechnung`, 303);
   }
 
   // T9: Absage eines gebuchten Termins vermerken (AE8) und Ausfallhonorar erlassen (K20)

@@ -45,7 +45,8 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
 
   // Load line items
   const linesR = await pool.query(
-    `SELECT * FROM billing_invoice_line_items WHERE invoice_id=$1 ORDER BY id`, [id]
+    `SELECT *, leistung_von::text AS leistung_von_text, leistung_bis::text AS leistung_bis_text
+       FROM billing_invoice_line_items WHERE invoice_id=$1 ORDER BY id`, [id]
   );
   const lines = linesR.rows.map((l: Record<string, unknown>) => ({
     description: l.description as string,
@@ -53,6 +54,9 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
     unitPrice: Number(l.unit_price),
     netAmount: Number(l.net_amount),
     unit: l.unit as string | undefined,
+    // Stufe 3 T10a: Leistungsdatum je Position (PDF und E-Rechnung).
+    leistungVon: (l.leistung_von_text as string | null) ?? undefined,
+    leistungBis: (l.leistung_bis_text as string | null) ?? undefined,
   }));
 
   // Use a temporary invoice object for generation (same data as draft row)
@@ -100,6 +104,8 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
       netAmount: l.netAmount,
       taxRate: tempInvoice.taxMode === 'kleinunternehmer' ? 0 : tempInvoice.taxRate,
       taxCategory: (tempInvoice.taxMode === 'kleinunternehmer' ? 'E' : 'S') as 'E' | 'S',
+      periodStart: l.leistungVon,
+      periodEnd: l.leistungBis,
     })),
     netTotal: tempInvoice.netAmount,
     taxTotal: tempInvoice.taxAmount,

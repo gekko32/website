@@ -128,7 +128,7 @@ const STATUS_TABS = [
       {draftInvoices.length > 0 && (
         <section class="mb-8">
           <h2 class="text-lg font-semibold text-light mb-4">
-            Ausstehende Monatsrechnungen
+            Rechnungsentwürfe (noch nicht verschickt)
             <span class="ml-2 text-sm font-normal text-muted">({draftInvoices.length})</span>
           </h2>
           <div class="space-y-3" id="draft-list">
@@ -138,7 +138,7 @@ const STATUS_TABS = [
                 data-invoice-id={inv.id}
               >
                 <div>
-                  <p class="font-semibold text-light">{inv.customerName}</p>
+                  <p class="font-semibold text-light">{inv.customerName} <span class="text-xs font-mono text-muted">{inv.number}</span></p>
                   <p class="text-sm text-muted">{inv.customerEmail}</p>
                   <p class="text-sm text-muted mt-1">
                     Betrag: <span class="text-light font-medium">
@@ -147,7 +147,7 @@ const STATUS_TABS = [
                   </p>
                 </div>
                 <div class="flex gap-2 flex-shrink-0">
-                  <button class="open-draft-btn px-3 py-1.5 text-sm bg-surface-hover border border-border rounded-lg hover:border-gold transition-colors" data-id={inv.id}>Bearbeiten</button>
+                  <button class="open-draft-btn px-3 py-1.5 text-sm bg-surface-hover border border-border rounded-lg hover:border-gold transition-colors" data-id={inv.id}>Prüfen</button>
                   <button class="discard-draft-btn px-3 py-1.5 text-sm text-red-400 border border-border rounded-lg hover:border-red-400 transition-colors" data-id={inv.id}>Verwerfen</button>
                 </div>
               </div>
@@ -284,44 +284,44 @@ const STATUS_TABS = [
 
   <dialog id="draft-editor" class="bg-surface border border-border rounded-2xl p-6 w-full max-w-3xl backdrop:bg-black/60">
     <div class="flex items-center justify-between mb-6">
-      <h3 class="text-lg font-semibold text-light">Rechnung bearbeiten</h3>
+      <h3 class="text-lg font-semibold text-light">Rechnungsentwurf prüfen</h3>
       <button id="editor-close" class="text-muted hover:text-light transition-colors text-xl" aria-label="Schließen">✕</button>
     </div>
 
-    <p id="editor-customer" class="mb-4 text-sm text-muted"></p>
+    <p id="editor-customer" class="mb-1 text-sm text-light"></p>
+    <!-- Stufe 3 T10a: Prüfansicht. Positionen ändert Gerald an den Posten in der Klientenakte
+         (Entwurf verwerfen, Posten ändern, neu erstellen); die frühere Bearbeitung lief über Stripe ins Leere. -->
+    <p class="mb-4 text-xs text-muted">Etwas falsch? Entwurf verwerfen, die Posten in der Klientenakte ändern und die Rechnung dort neu erstellen.</p>
 
     <table class="w-full text-sm mb-4">
       <thead>
         <tr class="text-muted border-b border-border">
-          <th class="text-left py-2 pr-3 font-medium">Beschreibung</th>
-          <th class="text-right py-2 px-3 font-medium w-24">Stunden</th>
-          <th class="text-right py-2 px-3 font-medium w-28">€/h</th>
-          <th class="text-right py-2 px-3 font-medium w-28">Betrag</th>
-          <th class="py-2 w-10"></th>
+          <th class="text-left py-2 pr-3 font-medium">Leistung</th>
+          <th class="text-right py-2 px-3 font-medium w-20">Menge</th>
+          <th class="text-right py-2 px-3 font-medium w-28">Einzelpreis</th>
+          <th class="text-right py-2 pl-3 font-medium w-28">Betrag</th>
         </tr>
       </thead>
       <tbody id="editor-items"></tbody>
       <tfoot>
         <tr class="border-t border-border font-semibold text-light">
           <td colspan="3" class="py-3 pr-3">Gesamt</td>
-          <td class="py-3 px-3 text-right" id="editor-total"></td>
-          <td></td>
+          <td class="py-3 pl-3 text-right" id="editor-total"></td>
         </tr>
       </tfoot>
     </table>
+    <p id="editor-meldung" role="alert" class="text-sm text-red-400 mb-3"></p>
 
-    <button id="add-item-btn" class="text-sm text-gold hover:text-gold-light mb-6 transition-colors">
-      + Position hinzufügen
-    </button>
-
-    <div class="flex gap-3 justify-end">
+    <div class="flex gap-3 justify-end flex-wrap">
       <button id="editor-discard-btn"
         class="px-4 py-2 text-sm text-red-400 border border-border rounded-lg hover:border-red-400 transition-colors">
         Verwerfen
       </button>
+      <a id="editor-ansehen" href="#" target="_blank" rel="noopener"
+        class="px-4 py-2 text-sm border border-border rounded-lg hover:border-gold transition-colors">Ansehen ↗</a>
       <button id="editor-send-btn"
         class="px-4 py-2 text-sm bg-gold hover:bg-gold-light text-dark font-semibold rounded-lg transition-colors">
-        Versenden
+        Festschreiben und versenden
       </button>
     </div>
   </dialog>
@@ -382,11 +382,12 @@ const STATUS_TABS = [
 
 <script>
   interface DraftItem {
-    invoiceItemId: string;
+    id: string;
     description: string;
-    hours: number;
-    rateCents: number;
-    amountCents: number;
+    quantity: number;
+    unitPrice: number;
+    amount: number;
+    leistung: string | null;
   }
 
   let currentInvoiceId: string | null = null;
@@ -395,140 +396,79 @@ const STATUS_TABS = [
   const itemsBody  = document.getElementById('editor-items')!;
   const totalCell  = document.getElementById('editor-total')!;
   const customerEl = document.getElementById('editor-customer')!;
+  const meldung    = document.getElementById('editor-meldung')!;
+  const ansehen    = document.getElementById('editor-ansehen') as HTMLAnchorElement;
 
   document.getElementById('editor-close')!.addEventListener('click', () => dialog.close());
 
-  function formatEur(cents: number): string {
-    return (cents / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  const euro = (n: number) => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+
+  function zelle(text: string, cls: string): HTMLTableCellElement {
+    const td = document.createElement('td');
+    td.className = cls;
+    td.textContent = text;
+    return td;
   }
 
-  function recalcTotal(): void {
-    let total = 0;
-    document.querySelectorAll<HTMLElement>('[data-amount]').forEach(el => {
-      total += parseInt(el.dataset.amount ?? '0', 10);
-    });
-    totalCell.textContent = formatEur(total);
-  }
-
+  // Stufe 3 T10a: nur ansehen; jede Position mit ihrem Leistungsdatum.
   function renderItem(item: DraftItem): HTMLTableRowElement {
     const tr = document.createElement('tr');
     tr.className = 'border-b border-border';
-    tr.dataset.itemId = item.invoiceItemId;
+    const desc = zelle(item.description, 'py-2 pr-3 text-light');
+    if (item.leistung) {
+      const d = document.createElement('span');
+      d.className = 'block text-xs text-muted';
+      d.textContent = item.leistung;
+      desc.appendChild(d);
+    }
+    tr.append(
+      desc,
+      zelle(item.quantity.toLocaleString('de-DE'), 'py-2 px-3 text-right'),
+      zelle(euro(item.unitPrice), 'py-2 px-3 text-right'),
+      zelle(euro(item.amount), 'py-2 pl-3 text-right text-light'),
+    );
+    return tr;
+  }
 
-    const descTd = document.createElement('td');
-    descTd.className = 'py-2 pr-3';
-    const descInput = document.createElement('input');
-    descInput.className = 'w-full bg-transparent text-light focus:outline-none focus:ring-1 focus:ring-gold rounded px-1';
-    descInput.dataset.field = 'description';
-    descInput.value = item.description;
-    descTd.appendChild(descInput);
-
-    const hoursTd = document.createElement('td');
-    hoursTd.className = 'py-2 px-3';
-    const hoursInput = document.createElement('input');
-    hoursInput.type = 'number';
-    hoursInput.min = '0';
-    hoursInput.step = '0.25';
-    hoursInput.className = 'w-full bg-transparent text-light text-right focus:outline-none focus:ring-1 focus:ring-gold rounded px-1';
-    hoursInput.dataset.field = 'hours';
-    hoursInput.value = item.hours.toFixed(2);
-    hoursTd.appendChild(hoursInput);
-
-    const rateTd = document.createElement('td');
-    rateTd.className = 'py-2 px-3';
-    const rateInput = document.createElement('input');
-    rateInput.type = 'number';
-    rateInput.min = '0';
-    rateInput.step = '1';
-    rateInput.className = 'w-full bg-transparent text-light text-right focus:outline-none focus:ring-1 focus:ring-gold rounded px-1';
-    rateInput.dataset.field = 'rate';
-    rateInput.value = (item.rateCents / 100).toFixed(0);
-    rateTd.appendChild(rateInput);
-
-    const amountTd = document.createElement('td');
-    amountTd.className = 'py-2 px-3 text-right text-light';
-    amountTd.dataset.amount = item.amountCents.toString();
-    amountTd.textContent = formatEur(item.amountCents);
-
-    const deleteTd = document.createElement('td');
-    deleteTd.className = 'py-2 pl-2';
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'text-red-400 hover:text-red-300 transition-colors';
-    deleteBtn.setAttribute('aria-label', 'Position löschen');
-    deleteBtn.textContent = '✕';
-    deleteTd.appendChild(deleteBtn);
-
-    tr.append(descTd, hoursTd, rateTd, amountTd, deleteTd);
-
-    [descInput, hoursInput, rateInput].forEach(input => {
-      input.addEventListener('change', async () => {
-        const desc      = descInput.value;
-        const hours     = parseFloat(hoursInput.value);
-        const rateCents = Math.round(parseFloat(rateInput.value) * 100);
-        const newAmount = Math.round(hours * rateCents);
-        amountTd.dataset.amount = newAmount.toString();
-        amountTd.textContent    = formatEur(newAmount);
-        recalcTotal();
-        await fetch(`/api/admin/billing/${currentInvoiceId}/item`, {
-          method:  'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            invoiceItemId: item.invoiceItemId,
-            description:   desc,
-            hours,
-            rateCents:     parseFloat(rateInput.value),
-          }),
-        });
-      });
-    });
-
-    deleteBtn.addEventListener('click', async () => {
-      const res = await fetch(`/api/admin/billing/${currentInvoiceId}/item`, {
-        method:  'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ invoiceItemId: item.invoiceItemId }),
-      });
-      if (!res.ok) {
-        alert('Fehler beim Löschen der Position.');
-        return;
-      }
-      tr.remove();
-      recalcTotal();
-    });
-
+  function hinweisZeile(text: string): HTMLTableRowElement {
+    const tr = document.createElement('tr');
+    const td = zelle(text, 'py-4 text-muted text-center');
+    td.colSpan = 4;
+    tr.appendChild(td);
     return tr;
   }
 
   async function openDraftEditor(invoiceId: string): Promise<void> {
     currentInvoiceId = invoiceId;
-    itemsBody.replaceChildren();
-    const loadingRow = document.createElement('tr');
-    const loadingTd  = document.createElement('td');
-    loadingTd.colSpan = 5;
-    loadingTd.className = 'py-4 text-muted text-center';
-    loadingTd.textContent = 'Lade…';
-    loadingRow.appendChild(loadingTd);
-    itemsBody.appendChild(loadingRow);
+    meldung.textContent = '';
+    customerEl.textContent = '';
+    ansehen.href = `/admin/billing/${invoiceId}/drucken`;
+    itemsBody.replaceChildren(hinweisZeile('Lade…'));
+    totalCell.textContent = '';
     dialog.showModal();
 
-    const res  = await fetch(`/api/admin/billing/${invoiceId}`);
-    const data = await res.json() as { customerName: string; period: string; items: DraftItem[] };
-
-    customerEl.textContent = `${data.customerName} — ${data.period}`;
-    itemsBody.replaceChildren();
-    data.items.forEach(item => itemsBody.appendChild(renderItem(item)));
-    recalcTotal();
+    const res = await fetch(`/api/admin/billing/${invoiceId}`);
+    if (!res.ok) {
+      itemsBody.replaceChildren();
+      meldung.textContent = 'Entwurf konnte nicht geladen werden.';
+      return;
+    }
+    const data = await res.json() as { number: string; customerName: string; customerEmail: string; items: DraftItem[] };
+    customerEl.textContent = `${data.number} · ${data.customerName} · ${data.customerEmail}`;
+    itemsBody.replaceChildren(...data.items.map(renderItem));
+    totalCell.textContent = euro(data.items.reduce((s, i) => s + i.amount, 0));
   }
 
-  async function discardDraft(invoiceId: string): Promise<void> {
-    if (!confirm('Entwurf wirklich verwerfen? Die Zeiteinträge werden wieder als nicht abgerechnet markiert.')) return;
+  async function discardDraft(invoiceId: string): Promise<boolean> {
+    if (!confirm('Entwurf wirklich verwerfen? Seine Posten sind danach in der Akte wieder offen.')) return false;
     const res = await fetch(`/api/admin/billing/${invoiceId}/discard`, { method: 'POST' });
     if (!res.ok) {
       alert('Fehler beim Verwerfen. Bitte erneut versuchen.');
-      return;
+      return false;
     }
     document.querySelector(`[data-invoice-id="${invoiceId}"]`)?.remove();
     updateBadge(-1);
+    return true;
   }
 
   function updateBadge(delta: number): void {
@@ -549,34 +489,26 @@ const STATUS_TABS = [
     if (btn.classList.contains('discard-draft-btn')) await discardDraft(id);
   });
 
-  document.getElementById('add-item-btn')!.addEventListener('click', async () => {
-    await fetch(`/api/admin/billing/${currentInvoiceId}/item`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ description: 'Neue Position', hours: 1, rateCents: 0 }),
-    });
-    if (currentInvoiceId) await openDraftEditor(currentInvoiceId);
-  });
-
   document.getElementById('editor-send-btn')!.addEventListener('click', async () => {
     if (!currentInvoiceId) return;
-    if (!confirm('Rechnung jetzt finalisieren und versenden?')) return;
+    if (!confirm('Rechnung jetzt festschreiben und an den Kunden versenden? Danach lässt sie sich nur noch stornieren.')) return;
+    const knopf = document.getElementById('editor-send-btn') as HTMLButtonElement;
+    knopf.disabled = true;
     const res = await fetch(`/api/admin/billing/${currentInvoiceId}/send`, { method: 'POST' });
+    knopf.disabled = false;
     if (!res.ok) {
-      alert('Fehler beim Versenden. Bitte erneut versuchen.');
+      meldung.textContent = `Nicht versendet: ${(await res.text().catch(() => '')) || 'Fehler'} (${res.status})`;
       return;
     }
-    dialog.close();
-    document.querySelector(`[data-invoice-id="${currentInvoiceId}"]`)?.remove();
-    updateBadge(-1);
-    currentInvoiceId = null;
+    window.location.reload();
   });
 
   document.getElementById('editor-discard-btn')!.addEventListener('click', async () => {
     if (!currentInvoiceId) return;
-    await discardDraft(currentInvoiceId);
-    dialog.close();
-    currentInvoiceId = null;
+    if (await discardDraft(currentInvoiceId)) {
+      dialog.close();
+      currentInvoiceId = null;
+    }
   });
 </script>
 </AdminLayout>

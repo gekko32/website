@@ -137,3 +137,41 @@ describe('invoice-storno.createCreditNote', () => {
     expect(addBooking).not.toHaveBeenCalled();
   });
 });
+
+// Rechnungswesen Stufe 3, T10a (K25, K42).
+describe('invoice-storno.createCreditNote — Stufe 3 T10a', () => {
+  it('Gutschrift wird erst nach ihren Positionen gesperrt; Posten der Rechnung sind wieder offen', async () => {
+    clientQ.mockResolvedValue({ rows: [], rowCount: 0 });
+    clientQ
+      .mockResolvedValueOnce({ rows: [] })                                                        // BEGIN
+      .mockResolvedValueOnce({ rows: [{ ...baseOrigRow, status: 'open' }] })                       // SELECT FOR UPDATE
+      .mockResolvedValueOnce({ rows: [{ paid_amount: '0' }] })                                     // payments SUM
+      .mockResolvedValueOnce({ rows: [{ id: 'gs-3', brand: 'mentolder', number: 'GS-2026-0003', status: 'open', customer_id: 'cust-1', issue_date: new Date(), due_date: new Date(), tax_mode: 'kleinunternehmer', net_amount: '-100', tax_rate: '0', tax_amount: '0', gross_amount: '-100', locked: false, kind: 'gutschrift' }] }) // INSERT
+      .mockResolvedValueOnce({ rows: [{ description: 'Coaching', quantity: '1', unit: 'Session', unit_price: '100', net_amount: '100', leistung_von: '2026-11-05', leistung_bis: null }] }); // SELECT lines
+    await createCreditNote('inv-1', 'Kundenwunsch');
+    const sql = clientQ.mock.calls.map((c) => String(c[0]).replace(/\s+/g, ' '));
+    const insertGutschrift = sql.findIndex((s) => s.includes('INSERT INTO billing_invoices'));
+    const insertZeile = sql.findIndex((s) => s.includes('INSERT INTO billing_invoice_line_items'));
+    const sperren = sql.findIndex((s) => s.includes('SET locked=true'));
+    const freigeben = sql.findIndex((s) => s.includes('UPDATE abrechnungsposten'));
+    const commit = sql.indexOf('COMMIT');
+    expect(sql[insertGutschrift]).toContain('$12,false,$13'); // nicht gesperrt angelegt
+    expect(insertZeile).toBeGreaterThan(insertGutschrift);
+    expect(sperren).toBeGreaterThan(insertZeile);
+    expect(clientQ.mock.calls[sperren][1]).toEqual(['gs-3']);
+    expect(freigeben).toBeGreaterThan(-1);
+    expect(clientQ.mock.calls[freigeben][1]).toEqual(['inv-1', 'abgerechnet']);
+    expect(commit).toBeGreaterThan(freigeben);
+    // Leistungsdatum geht mit auf die Gutschrift.
+    expect(clientQ.mock.calls[insertZeile][1]).toContain('2026-11-05');
+  });
+
+  it('bei einem Fehler wird zurückgerollt, nichts halb gespeichert', async () => {
+    clientQ.mockResolvedValue({ rows: [], rowCount: 0 });
+    clientQ
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ ...baseOrigRow, status: 'draft' }] });
+    await expect(createCreditNote('inv-1', 'x')).rejects.toThrow(/cancelled/);
+    expect(clientQ.mock.calls.map((c) => c[0])).toContain('ROLLBACK');
+  });
+});

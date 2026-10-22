@@ -21,6 +21,8 @@ export interface EInvoiceSeller {
 
 export interface EInvoiceLine {
   description: string; quantity: number; unitPrice: number; unit?: string;
+  /** Stufe 3 T10a: Leistungsdatum bzw. -zeitraum der Position (YYYY-MM-DD). */
+  periodStart?: string; periodEnd?: string;
 }
 
 export interface EInvoiceInput {

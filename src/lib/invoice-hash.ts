@@ -13,6 +13,8 @@ export interface HashableLine {
   id: number; description: string;
   quantity: number; unitPrice: number; netAmount: number;
   unit?: string;
+  /** Stufe 3 T10a: Leistungsdatum der Position; nur wenn gesetzt Teil der Prüfsumme. */
+  leistungVon?: string; leistungBis?: string;
 }
 
 export function canonicalInvoiceForHash(inv: HashableInvoice, lines: HashableLine[]): string {
@@ -23,6 +25,9 @@ export function canonicalInvoiceForHash(inv: HashableInvoice, lines: HashableLin
     unitPrice: Number(l.unitPrice),
     netAmount: Number(l.netAmount),
     unit: l.unit ?? null,
+    // Ältere Rechnungen haben kein Leistungsdatum je Position; ihre Prüfsumme bleibt gleich.
+    ...(l.leistungVon ? { leistungVon: l.leistungVon } : {}),
+    ...(l.leistungBis ? { leistungBis: l.leistungBis } : {}),
   }));
   const payload = {
     brand: inv.brand,
@@ -59,7 +64,8 @@ export async function verifyInvoiceIntegrity(invoiceId: string): Promise<Integri
   const row = invR.rows[0];
   if (!row) return null;
   const linesR = await pool.query(
-    `SELECT id, description, quantity, unit_price, net_amount, unit
+    `SELECT id, description, quantity, unit_price, net_amount, unit,
+            leistung_von::text AS leistung_von, leistung_bis::text AS leistung_bis
        FROM billing_invoice_line_items WHERE invoice_id=$1 ORDER BY id`,
     [invoiceId]
   );
@@ -89,6 +95,8 @@ export async function verifyInvoiceIntegrity(invoiceId: string): Promise<Integri
     unitPrice: Number(l.unit_price),
     netAmount: Number(l.net_amount),
     unit: (l.unit as string) ?? undefined,
+    leistungVon: (l.leistung_von as string | null) ?? undefined,
+    leistungBis: (l.leistung_bis as string | null) ?? undefined,
   }));
   const expected = sha256Hex(canonicalInvoiceForHash(inv, lines));
   return {

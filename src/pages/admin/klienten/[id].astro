@@ -59,6 +59,10 @@ const gebucht = await gebuchteTermine(klient.email).catch(() => []);
 const leistungsName = new Map(aktiveLeistungen.map((l) => [l.key, l.name]));
 const ABSAGE_TEXT: Record<string, string> = { kunde: 'durch Kunde', gerald: 'durch mich', nicht_erschienen: 'nicht erschienen', umbuchung: 'verschoben' };
 const postenFehler = q.get('fehler');
+// T10a: Rechnung aus gewählten Posten; Nummer der Rechnung, auf der ein Posten steht.
+const entwurfAngelegt = q.get('entwurf');
+const rechnungNummer = new Map(rechnungen.map((r) => [String(r.id), r.number]));
+const waehlbar = (p: Posten) => p.zustand === 'offen' && p.einzelpreis !== null;
 // Einheiten als Auswahl (Handtest 21.10.2026); gepflegt unter Einstellungen → Regeln.
 // Ein alter Wert, der nicht mehr in der Liste steht, bleibt wählbar.
 const einheiten = await ladeEinheiten(brand);
@@ -96,7 +100,22 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
         Abrechnung · offen: {offene.length} {offene.length === 1 ? 'Posten' : 'Posten'} · {euro(offenSumme)}
       </h2>
       {postenGespeichert && <p class="text-sm text-green-400 mb-2">Gespeichert.</p>}
+      {entwurfAngelegt && <p class="text-sm text-green-400 mb-2">Rechnungsentwurf {entwurfAngelegt} angelegt. Noch nichts verschickt:
+        prüfen und versenden unter <a class="underline" href="/admin/rechnungen">Rechnungen → Entwürfe</a>.</p>}
       {postenFehler && <p role="alert" class="text-sm text-red-400 mb-2">{postenFehler}</p>}
+
+      {/* T10a: links anlegen (Regel Gerald 22.10.2026): Häkchen bei den offenen Posten, dann Rechnung erstellen. */}
+      {posten.some(waehlbar) && (
+        <form id="f-rechnung" method="POST" action="/api/admin/posten" class="flex flex-wrap gap-2 items-center mb-2">
+          <input type="hidden" name="aktion" value="rechnung" />
+          <input type="hidden" name="klientId" value={klient.id} />
+          <button type="submit" id="rechnung-erstellen" disabled class="px-3 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold disabled:opacity-40">
+            Rechnung aus Auswahl erstellen
+          </button>
+          <button type="button" id="rechnung-alle" class="px-2 py-1 rounded border border-dark-lighter text-xs">Alle offenen ankreuzen</button>
+          <span id="rechnung-summe" class="text-xs text-muted">Posten ankreuzen, die auf die Rechnung sollen.</span>
+        </form>
+      )}
 
       {posten.length === 0 ? <p class="text-sm text-muted mb-3">Noch keine Posten.</p> :
         <table class="w-full text-sm mb-4"><tbody>{posten.map((p) => {
@@ -105,6 +124,10 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
           const f = `f-${p.id}`;
           return (
           <tr class={`zeile border-t border-dark-lighter ${p.zustand === 'offen' ? '' : 'opacity-60'}`}>
+            <td class="py-1 pr-2 align-top w-6">
+              {waehlbar(p) && <input type="checkbox" name="postenId" value={p.id} form="f-rechnung" class="rechnung-wahl"
+                data-betrag={String(postenBetrag(p))} aria-label={`„${p.text}“ in die Rechnung aufnehmen`} />}
+            </td>
             <td class="py-1 pr-3 whitespace-nowrap align-top">
               <span class="ansicht">{leistungszeitraum(p.datum, p.datumBis)}</span>
               {aenderbar && <span class="bearbeiten">
@@ -143,7 +166,8 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
               </span>
             </td>
             <td class="py-1 pr-3 text-right whitespace-nowrap align-top">{p.einzelpreis === null ? <span class="text-red-400">Preis fehlt</span> : euro(postenBetrag(p))}</td>
-            <td class="py-1 pr-3 text-muted whitespace-nowrap align-top">{ZUSTAND_TEXT[p.zustand]}</td>
+            <td class="py-1 pr-3 text-muted whitespace-nowrap align-top">{ZUSTAND_TEXT[p.zustand]}
+              {p.invoiceId && rechnungNummer.has(p.invoiceId) && <span class="block text-xs font-mono">{rechnungNummer.get(p.invoiceId)}</span>}</td>
             <td class="py-1 text-right whitespace-nowrap align-top">
               {aenderbar && <span class="bearbeiten">
                 <form id={f} method="POST" action="/api/admin/posten" autocomplete="off" class="merk-ungespeichert inline">
@@ -434,7 +458,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       {rechnungen.length === 0 ? <p class="text-sm text-muted">Keine Rechnungen.</p> :
         <table class="w-full text-sm"><tbody>{rechnungen.map((r) => (
           <tr class="border-t border-dark-lighter">
-            <td class="py-1 pr-3 font-mono"><a class="hover:underline" href={`/admin/billing/${r.id}`}>{r.number}</a></td>
+            <td class="py-1 pr-3 font-mono"><a class="hover:underline" href={`/admin/billing/${r.id}/drucken`} target="_blank" rel="noopener">{r.number}</a></td>
             <td class="py-1 pr-3">{datum(r.issue_date)}</td>
             <td class="py-1 pr-3 text-right">{euro(r.gross_amount)}</td>
             <td class="py-1 pr-3 text-muted">{STATUS[r.status] ?? r.status}</td>
@@ -518,6 +542,25 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       if (f) { f.reset(); ungespeichert.delete(f); }
       b.closest('.zeile')?.classList.remove('im-bearbeiten');
     });
+  });
+
+  // T10a: Rechnung aus Auswahl – Knopf erst aktiv, wenn etwas angekreuzt ist; Summe anzeigen.
+  const wahl = [...document.querySelectorAll<HTMLInputElement>('input.rechnung-wahl')];
+  const rechnungKnopf = document.getElementById('rechnung-erstellen') as HTMLButtonElement | null;
+  const rechnungSumme = document.getElementById('rechnung-summe');
+  const zeigeAuswahl = () => {
+    const an = wahl.filter((c) => c.checked);
+    const summe = an.reduce((s, c) => s + Number(c.dataset.betrag ?? 0), 0);
+    if (rechnungKnopf) rechnungKnopf.disabled = an.length === 0;
+    if (rechnungSumme) rechnungSumme.textContent = an.length === 0
+      ? 'Posten ankreuzen, die auf die Rechnung sollen.'
+      : `${an.length} Posten · ${summe.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}`;
+  };
+  wahl.forEach((c) => c.addEventListener('change', zeigeAuswahl));
+  document.getElementById('rechnung-alle')?.addEventListener('click', () => {
+    const alle = wahl.every((c) => c.checked);
+    wahl.forEach((c) => { c.checked = !alle; });
+    zeigeAuswahl();
   });
 
   // Löschen nur nach Rückfrage.

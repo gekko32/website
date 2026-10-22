@@ -36,3 +36,19 @@ describe('canonicalInvoiceForHash', () => {
     expect(sha256Hex('x')).toMatch(/^[0-9a-f]{64}$/);
   });
 });
+
+// Rechnungswesen Stufe 3, T10a: Leistungsdatum je Position gehört zur Prüfsumme (K42).
+describe('canonicalInvoiceForHash — Leistungsdatum je Position (Stufe 3 T10a)', () => {
+  it('ältere Positionen ohne Datum: Prüfsumme unverändert (kein neues Feld im Text)', () => {
+    const text = canonicalInvoiceForHash(inv, [{ id: 1, description: 'A', quantity: 1, unitPrice: 50, netAmount: 50 }]);
+    expect(text).toContain('"lines":[{"id":1,"description":"A","quantity":1,"unitPrice":50,"netAmount":50,"unit":null}]');
+    expect(text).not.toContain('leistung');
+  });
+
+  it('ein späteres Ändern des Leistungsdatums fällt in der Prüfsumme auf', () => {
+    const mit = (von: string) => sha256Hex(canonicalInvoiceForHash(inv, [{ ...lines[0], leistungVon: von }]));
+    expect(mit('2026-11-05')).not.toBe(mit('2026-11-06'));
+    const bis = (b: string) => sha256Hex(canonicalInvoiceForHash(inv, [{ ...lines[0], leistungVon: '2026-11-05', leistungBis: b }]));
+    expect(bis('2026-11-07')).not.toBe(bis('2026-11-08'));
+  });
+});

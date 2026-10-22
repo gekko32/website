@@ -287,6 +287,13 @@ export async function initBillingTables(): Promise<void> {
   `);
   // T015362: Testdaten-Kennzeichnung auch fuer Bestandstabellen.
   await pool.query(`ALTER TABLE billing_invoice_line_items ADD COLUMN IF NOT EXISTS is_test_data BOOLEAN NOT NULL DEFAULT false`);
+  // Rechnungswesen Stufe 3, T10a: Leistungsdatum je Position und Herkunft aus einem Abrechnungsposten.
+  await pool.query(`
+    ALTER TABLE billing_invoice_line_items
+      ADD COLUMN IF NOT EXISTS leistung_von DATE,
+      ADD COLUMN IF NOT EXISTS leistung_bis DATE,
+      ADD COLUMN IF NOT EXISTS posten_id    UUID
+  `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS billing_invoice_payments (
       id           BIGSERIAL PRIMARY KEY,

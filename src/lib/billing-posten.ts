@@ -5,6 +5,7 @@
 import { pool } from './website-db';
 import type { Leistung } from './billing-leistungen';
 import { verbucheAusfaelle } from './billing-ausfall';
+import type { PoolClient } from 'pg';
 
 export type Herkunft = 'hand' | 'termin' | 'zeit' | 'ausfall' | 'auftrag';
 export type PostenZustand = 'offen' | 'nicht_abrechnen' | 'erlassen' | 'auf_entwurf' | 'abgerechnet';
@@ -214,18 +215,7 @@ export function pruefeAuftragTitel(roh: string | null | undefined): { titel: str
 export interface PositionEingabe { datum?: string; datumBis?: string; text?: string; menge?: string; einheit?: string; preis?: string }
 export interface PositionWerte { datum: string; datumBis: string | null; text: string; menge: number; einheit: string; einzelpreis: number }
 
-/**
- * Leistungszeitraum für Anzeige und Rechnung (Handtest 21.10.2026): ohne Ende ein Tag,
- * sonst kompakt „20.–22.10.2026“, „28.10.–02.11.2026“ oder „30.12.2026–02.01.2027“.
- */
-export function leistungszeitraum(von: string, bis?: string | null): string {
-  const [vj, vm, vt] = von.split('-');
-  if (!bis || bis === von) return `${vt}.${vm}.${vj}`;
-  const [bj, bm, bt] = bis.split('-');
-  if (vj !== bj) return `${vt}.${vm}.${vj}–${bt}.${bm}.${bj}`;
-  if (vm !== bm) return `${vt}.${vm}.–${bt}.${bm}.${bj}`;
-  return `${vt}.–${bt}.${bm}.${bj}`;
-}
+export { leistungszeitraum } from './leistungszeitraum';
 
 /** Eigene Position eines Auftrags: Text, Menge, Einheit, Einzelpreis, Leistungsdatum oder -zeitraum (K8). */
 export function pruefePosition(e: PositionEingabe): { werte: PositionWerte | null; fehler: { key: string; meldung: string }[] } {
@@ -642,4 +632,28 @@ export async function klientDesPostens(brand: string, postenId: string): Promise
   await initPostenTabelle();
   const { rows } = await pool.query('SELECT klient_id FROM abrechnungsposten WHERE brand = $1 AND id = $2', [brand, postenId]);
   return (rows[0]?.klient_id as string | undefined) ?? null;
+}
+
+// ── T10a: Posten und Rechnung (K23–K25) ─────────────────────────────────────
+// Aufgerufen innerhalb der Transaktion von Festschreiben, Verwerfen und Storno.
+
+type Abfrage = Pick<PoolClient, 'query'>;
+
+/** Beim Festschreiben: Posten des Entwurfs gelten als abgerechnet. */
+export async function postenAbgerechnet(db: Abfrage, invoiceId: string): Promise<number> {
+  const r = await db.query(
+    `UPDATE abrechnungsposten SET zustand = 'abgerechnet', updated_at = now()
+      WHERE invoice_id = $1 AND zustand = 'auf_entwurf'`, [invoiceId]);
+  return r.rowCount ?? 0;
+}
+
+/**
+ * Verwerfen eines Entwurfs (K24, von 'auf_entwurf') oder Storno einer Rechnung (K25, von
+ * 'abgerechnet'): Die Posten sind wieder offen und lassen sich neu abrechnen.
+ */
+export async function gibPostenFrei(db: Abfrage, invoiceId: string, von: 'auf_entwurf' | 'abgerechnet'): Promise<number> {
+  const r = await db.query(
+    `UPDATE abrechnungsposten SET zustand = 'offen', invoice_id = NULL, updated_at = now()
+      WHERE invoice_id = $1 AND zustand = $2`, [invoiceId, von]);
+  return r.rowCount ?? 0;
 }

@@ -96,3 +96,39 @@ describe('generateCII — reverse-charge B2B EU', () => {
     expect(xml).toContain('<ram:CalculatedAmount>0.00</ram:CalculatedAmount>');
   });
 });
+
+// Rechnungswesen Stufe 3, T10a: Leistungsdatum je Position als Abrechnungszeitraum (BG-26).
+describe('generateCII — Leistungszeitraum je Position (Stufe 3 T10a)', () => {
+  const basis = (lines: InvoiceInput['lines']): InvoiceInput => ({
+    number: 'RE-2026-0100', issueDate: '2026-12-01', dueDate: '2026-12-15',
+    currency: 'EUR', taxMode: 'kleinunternehmer', lines,
+    netTotal: 300, taxTotal: 0, grossTotal: 300, seller: baseSeller,
+    buyer: { name: 'Acme GmbH', email: 'buyer@acme.de', country: 'DE' },
+  });
+  const zeile = { description: 'Coaching', quantity: 1, unit: 'C62', unitPrice: 150, netAmount: 150, taxRate: 0, taxCategory: 'E' as const };
+
+  it('schreibt Beginn und Ende der Position (BT-134/BT-135)', () => {
+    const xml = generateCII(basis([{ ...zeile, periodStart: '2026-11-05', periodEnd: '2026-11-07' }]));
+    expect(xml).toContain('<ram:BillingSpecifiedPeriod><ram:StartDateTime><udt:DateTimeString format="102">20261105</udt:DateTimeString></ram:StartDateTime><ram:EndDateTime><udt:DateTimeString format="102">20261107</udt:DateTimeString></ram:EndDateTime></ram:BillingSpecifiedPeriod>');
+    // Reihenfolge laut CII-Schema: Steuer, dann Zeitraum, dann Summe der Position.
+    expect(xml.indexOf('BillingSpecifiedPeriod')).toBeGreaterThan(xml.indexOf('<ram:ApplicableTradeTax>'));
+    expect(xml.indexOf('BillingSpecifiedPeriod')).toBeLessThan(xml.indexOf('SpecifiedTradeSettlementLineMonetarySummation'));
+  });
+
+  it('ein Tag: Beginn = Ende', () => {
+    const xml = generateCII(basis([{ ...zeile, periodStart: '2026-11-05' }]));
+    expect(xml).toContain('20261105</udt:DateTimeString></ram:StartDateTime><ram:EndDateTime><udt:DateTimeString format="102">20261105');
+  });
+
+  it('ohne Datum keine Zeitraum-Angabe (Rechnung von Hand wie bisher, K41)', () => {
+    expect(generateCII(basis([zeile]))).not.toContain('BillingSpecifiedPeriod');
+  });
+
+  it.each([
+    ['Stunde', 'HUR'], ['Std.', 'HUR'], ['Tag', 'DAY'], ['Tage', 'DAY'], ['Session', 'C62'],
+    ['Pauschale', 'C62'], ['', 'C62'], ['HUR', 'HUR'], ['C62', 'C62'],
+  ])('Einheit „%s“ wird als gültiger Einheitencode %s geschrieben', (einheit, code) => {
+    const xml = generateCII(basis([{ ...zeile, unit: einheit }]));
+    expect(xml).toContain(`<ram:BilledQuantity unitCode="${code}">`);
+  });
+});

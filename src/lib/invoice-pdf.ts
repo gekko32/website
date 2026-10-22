@@ -6,6 +6,7 @@ import type { Invoice } from './invoice-types';
 import { embedFacturXIntoPdfA3, type FacturXLevel } from './pdf-a3-embed';
 import { generateEInvoiceXml, type EInvoiceProfile } from './einvoice-profile';
 import type { EInvoiceInput } from './einvoice-types';
+import { leistungsdatumZeile } from './leistungszeitraum';
 
 // Resolve logo from several candidate paths: cwd-relative (production container),
 // then source-relative (dev / test). Falls back to null → logo block is silently skipped.
@@ -34,6 +35,8 @@ const L = 50, R = 545, W = 495;
 
 export interface InvoicePdfLine {
   description: string; quantity: number; unitPrice: number; netAmount: number; unit?: string;
+  /** Stufe 3 T10a: Leistungsdatum bzw. -zeitraum der Position (YYYY-MM-DD). */
+  leistungVon?: string; leistungBis?: string;
 }
 export interface InvoicePdfCustomer {
   name: string; company?: string; addressLine1?: string; city?: string; postalCode?: string;
@@ -359,9 +362,11 @@ export async function generateInvoicePdf(p: {
       doc.font('Helvetica').fontSize(9.5).fillColor(C.ink)
          .text(l.description, COL.desc.x, rowY, { width: COL.desc.w });
       let descEnd = doc.y;
-      if (l.unit) {
+      // Stufe 3 T10a: Leistungsdatum je Position, z. B. „Leistung: 05.–07.11.2026 · Stunde“.
+      const unterzeile = [leistungsdatumZeile(l), l.unit].filter(Boolean).join(' · ');
+      if (unterzeile) {
         doc.font('Helvetica').fontSize(8).fillColor(C.inkMute)
-           .text(l.unit, COL.desc.x, descEnd, { width: COL.desc.w });
+           .text(unterzeile, COL.desc.x, descEnd, { width: COL.desc.w });
         descEnd = doc.y;
       }
       doc.font('Courier').fontSize(9).fillColor(C.inkSoft);
