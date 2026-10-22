@@ -45,9 +45,9 @@ export async function createCreditNote(invoiceId: string, reason: string, actor?
          (brand, number, status, customer_id, issue_date, due_date, tax_mode,
           net_amount, tax_rate, tax_amount, gross_amount, notes, payment_reference,
           locked, cancels_invoice_id, kind, parent_invoice_id,
-          currency, currency_rate, net_amount_eur, gross_amount_eur, supply_type, empfaenger)
+          currency, currency_rate, net_amount_eur, gross_amount_eur, supply_type, empfaenger, klient_id)
        VALUES
-         ($1,$2,'open',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,false,$13,'gutschrift',$14,$15,$16,$17,$18,$19,$20::jsonb)
+         ($1,$2,'open',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,false,$13,'gutschrift',$14,$15,$16,$17,$18,$19,$20::jsonb,$21::uuid)
        RETURNING *`,
       [
         orig.brand,
@@ -71,6 +71,8 @@ export async function createCreditNote(invoiceId: string, reason: string, actor?
         orig.supply_type ?? null,
         // Stufe 3 T11: die Gutschrift geht an denselben Empfänger wie die Rechnung.
         orig.empfaenger ? JSON.stringify(orig.empfaenger) : null,
+        // Prüfung L3 Runde 2 (N1): die Gutschrift steht in derselben Akte wie die Rechnung.
+        orig.klient_id ?? null,
       ]
     );
     const credit = ins.rows[0];
