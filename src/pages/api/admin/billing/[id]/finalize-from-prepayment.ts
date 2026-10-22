@@ -54,6 +54,8 @@ export const POST: APIRoute = async ({ params, request , locals }) => {
       customerId: prepayment.customerId,
       issueDate: new Date().toISOString().split('T')[0],
       dueDays,
+      // N2: ein ausdrücklich gewünschtes Zahlungsziel bleibt auch beim Festschreiben erhalten.
+      zahlungszielTage: typeof dueDaysAnfrage === 'number' ? dueDays : undefined,
       taxMode: prepayment.taxMode as 'kleinunternehmer' | 'regelbesteuerung',
       taxRate: prepayment.taxRate,
       lines: finalLines,

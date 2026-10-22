@@ -42,6 +42,8 @@ export const POST: APIRoute = async ({ request , locals }) => {
       customerId: customer.id,
       issueDate: new Date().toISOString().split('T')[0],
       dueDays,
+      // N2: ein ausdrücklich gewünschtes Zahlungsziel bleibt auch beim Festschreiben erhalten.
+      zahlungszielTage: typeof dueDaysAnfrage === 'number' ? dueDays : undefined,
       // taxMode bewusst nicht aus der Anfrage: zentrale Einstellung (Befund R3).
       taxRate,
       lines: lines as InvoiceLine[],

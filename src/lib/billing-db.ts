@@ -233,6 +233,8 @@ export async function initBillingTables(): Promise<void> {
   // Prüfung L3 (B2): Akte, aus der die Rechnung entstand – mehrere Personen einer Firma teilen
   // sich sonst einen Rechnungskunden (gleiche E-Mail) und damit die erste Akte.
   await pool.query(`ALTER TABLE billing_invoices ADD COLUMN IF NOT EXISTS klient_id UUID`);
+  // N2 (Gerald 22.10.2026): eigenes Zahlungsziel im Einzelfall; leer = Einstellung beim Festschreiben.
+  await pool.query(`ALTER TABLE billing_invoices ADD COLUMN IF NOT EXISTS zahlungsziel_tage INTEGER`);
   // T015362: Testdaten-Kennzeichnung — GoBD-Trigger exempten is_test_data-Zeilen.
   await pool.query(`ALTER TABLE billing_invoices ADD COLUMN IF NOT EXISTS is_test_data BOOLEAN NOT NULL DEFAULT false`);
   await pool.query(`ALTER TABLE billing_invoices ADD COLUMN IF NOT EXISTS einvoice_validated_at TIMESTAMPTZ`);

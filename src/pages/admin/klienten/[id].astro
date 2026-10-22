@@ -111,10 +111,17 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       </div>
     </details>
 
+    {/* Handtest 22.10.2026: alle Listen der Akte auf einmal auf- oder zuklappen. */}
+    <div class="flex justify-end gap-2 mb-3 text-xs">
+      <button type="button" id="listen-auf" class="px-2 py-1 rounded border border-dark-lighter">Alle Listen aufklappen</button>
+      <button type="button" id="listen-zu" class="px-2 py-1 rounded border border-dark-lighter">Alle Listen zuklappen</button>
+    </div>
+
     <section id="abrechnung" class="mb-8">
-      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">
+      <details class="liste" open>
+      <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">
         Abrechnung · offen: {offene.length} {offene.length === 1 ? 'Posten' : 'Posten'} · {euro(offenSumme)}
-      </h2>
+      </summary>
       {postenGespeichert && <p class="text-sm text-green-400 mb-2">Gespeichert.</p>}
       {entwurfAngelegt && <p class="text-sm text-green-400 mb-2">Rechnungsentwurf {entwurfAngelegt} angelegt. Noch nichts verschickt:
         prüfen und versenden unter <a class="underline" href="/admin/rechnungen">Rechnungen → Entwürfe</a>.</p>}
@@ -288,10 +295,12 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
           </tr>
           ); })}</tbody></table>}
 
+      </details>
     </section>
 
     <section id="auftraege" class="mb-8">
-      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">Individuelle Aufträge ({auftraege.length})</h2>
+      <details class="liste" open>
+      <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Individuelle Aufträge ({auftraege.length})</summary>
       <p class="text-xs text-muted mb-2">Vorträge, Moderationen, Analysen … So geht es: 1. hier einen Auftrag mit Titel anlegen,
         2. im Auftrag „+ Neue Position mit Preis“ öffnen – erst die Positionen werden abgerechnet. Sie erscheinen nicht auf der Website.</p>
       {auftragFehler && <p role="alert" class="text-sm text-red-400 mb-2">{auftragFehler}</p>}
@@ -372,6 +381,8 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
               <button type="submit" class="mt-2 px-4 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Position anlegen</button>
             </form>
             </details>
+            <details class="liste" open>
+              <summary class="liste-kopf cursor-pointer text-xs text-muted mb-1">Positionen ({pos.length})</summary>
             {pos.length === 0 ? <p class="text-xs text-muted mb-2">Noch keine Positionen – über „+ Neue Position mit Preis“ hinzufügen.</p> : (
               <table class="w-full text-xs mb-3">
                 <thead><tr class="text-left text-muted">
@@ -447,16 +458,19 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                   ); })}</tbody>
               </table>
             )}
+            </details>
             {/* Handtest L2 (21.10.2026): Positionsformular deutlich beschriftet, sonst als Textfeld missverstanden.
                 Handtest 22.10.2026: zugeklappt, öffnet sich erst per Klick (sonst wird die Seite unnötig lang). */}
           </div>
         );
       })}
 
+      </details>
     </section>
 
     <section id="termine" class="mb-8">
-      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">Gebuchte Termine ({gebucht.length})</h2>
+      <details class="liste" open>
+      <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Gebuchte Termine ({gebucht.length})</summary>
       <p class="text-xs text-muted mb-2">Bestätigte Buchungen. Vorbei und nicht abgesagt → wird automatisch zum offenen Posten.
         Eine Absage hier vermerken (nur für die Abrechnung, es geht keine E-Mail raus): Ausfallhonorar entsteht nur bei
         später Absage durch den Kunden oder Nichterscheinen, nie bei eigener Absage.</p>
@@ -484,22 +498,28 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
               )}
             </td>
           </tr>))}</tbody></table>}
+      </details>
     </section>
 
     <section class="mb-8">
-      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">Termine ({termine.length})</h2>
+      <details class="liste" open>
+      <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Termine ({termine.length})</summary>
       {termine.length === 0 ? <p class="text-sm text-muted">Keine Termine.</p> :
         <ul class="text-sm space-y-1">{termine.map((t) => <li>{zeit(t.scheduled_at)} · {t.meeting_type} <span class="text-muted">({t.status})</span></li>)}</ul>}
+      </details>
     </section>
 
     <section class="mb-8">
-      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">Coaching-Sitzungen ({sitzungen.length})</h2>
+      <details class="liste" open>
+      <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Coaching-Sitzungen ({sitzungen.length})</summary>
       {sitzungen.length === 0 ? <p class="text-sm text-muted">Keine Sitzungen.</p> :
         <ul class="text-sm space-y-1">{sitzungen.map((s) => <li><a class="hover:underline" href={`/admin/coaching/sessions/${s.id}`}>{datum(s.created_at)} · {s.title}</a> <span class="text-muted">({s.status})</span></li>)}</ul>}
+      </details>
     </section>
 
     <section class="mb-8">
-      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">Rechnungen ({rechnungen.length})</h2>
+      <details class="liste" open>
+      <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Rechnungen ({rechnungen.length})</summary>
       {rechnungen.length === 0 ? <p class="text-sm text-muted">Keine Rechnungen.</p> :
         <table class="w-full text-sm"><tbody>{rechnungen.map((r) => (
           <tr class="border-t border-dark-lighter">
@@ -509,6 +529,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
             <td class="py-1 pr-3 text-muted">{STATUS[r.status] ?? r.status}</td>
             <td class="py-1 text-muted">{r.empfaenger}</td>
           </tr>))}</tbody></table>}
+      </details>
     </section>
 
   </div>
@@ -603,6 +624,11 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
     wahl.forEach((c) => { c.checked = !alle; });
     zeigeAuswahl();
   });
+
+  // Alle Listen auf-/zuklappen (nur die Listen, nicht Stammdaten und Anlegen-Formulare).
+  const listen = () => document.querySelectorAll<HTMLDetailsElement>('details.liste');
+  document.getElementById('listen-auf')?.addEventListener('click', () => listen().forEach((d) => { d.open = true; }));
+  document.getElementById('listen-zu')?.addEventListener('click', () => listen().forEach((d) => { d.open = false; }));
 
   // Löschen nur nach Rückfrage.
   document.querySelectorAll<HTMLFormElement>('form.posten-loeschen').forEach((f) => {

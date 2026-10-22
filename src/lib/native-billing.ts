@@ -100,6 +100,8 @@ export async function createInvoice(params: {
   parentInvoiceId?: string;
   /** T015362: von E2E/Systemtests erzeugte Rechnungen werden markiert (Purge-Pfad). */
   isTestData?: boolean;
+  /** N2: eigenes Zahlungsziel dieser Rechnung (gilt auch beim Festschreiben); sonst die Einstellung. */
+  zahlungszielTage?: number;
 }, db?: PoolClient): Promise<Invoice> {
   // `db`: laufende Transaktion des Aufrufers (Stufe 3 T10a: Posten sperren und Entwurf
   // anlegen gelingen zusammen oder gar nicht). Ohne `db` eigene Transaktion wie bisher.
@@ -149,15 +151,15 @@ export async function createInvoice(params: {
          service_period_start, service_period_end, tax_mode, net_amount, tax_rate,
          tax_amount, gross_amount, notes, payment_reference, leitweg_id,
          currency, currency_rate, net_amount_eur, gross_amount_eur, supply_type,
-         kind, parent_invoice_id, is_test_data)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) RETURNING *`,
+         kind, parent_invoice_id, is_test_data, zahlungsziel_tage)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING *`,
       [p.brand, number, p.customerId, p.issueDate,
        dueDate.toISOString().split('T')[0],
        p.servicePeriodStart??null, p.servicePeriodEnd??null,
        taxMode, netAmount, taxRate, taxAmount, grossAmount,
        p.notes??null, paymentRef, p.leitwegId??null,
        currency, currencyRate, netAmountEur, grossAmountEur, p.supplyType??null,
-       kind, p.parentInvoiceId??null, p.isTestData ?? false]
+       kind, p.parentInvoiceId??null, p.isTestData ?? false, p.zahlungszielTage ?? null]
     );
     const inv = r.rows[0];
     // Nacheinander, damit die Positionen in der gewählten Reihenfolge ihre id bekommen
@@ -204,6 +206,8 @@ export interface FinalizeOpts {
     Promise<{ pdfBlob?: Buffer; invoiceInput?: InvoiceInput }>;
   /** Für Tests: „jetzt“ beim Festschreiben. */
   jetzt?: Date;
+  /** N2: Zahlungsziel nur für diese Rechnung (0–365 Tage). */
+  zahlungszielTage?: number;
 }
 
 export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Promise<Invoice | null> {
@@ -212,13 +216,16 @@ export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Prom
 
   // Stufe 3 T11: Empfänger festhalten (K31, K32); ohne vollständige Anschrift kein Festschreiben.
   let empfaenger: Empfaenger | null = opts.empfaenger ?? null;
-  const kopfVorab = (await pool.query(`SELECT brand, customer_id, klient_id::text AS klient_id FROM billing_invoices WHERE id=$1 AND status='draft'`, [id])).rows[0];
+  const kopfVorab = (await pool.query(`SELECT brand, customer_id, klient_id::text AS klient_id, zahlungsziel_tage FROM billing_invoices WHERE id=$1 AND status='draft'`, [id])).rows[0];
   if (!empfaenger && kopfVorab) {
     empfaenger = await aktuellerEmpfaenger(kopfVorab.brand, kopfVorab.customer_id, { klientId: kopfVorab.klient_id });
   }
   // Prüfung L3 (B3, K38): Zahlungsziel aus der heutigen Einstellung – erst jetzt wird es eine Rechnung.
   // Vor der Transaktion gelesen, damit dort nur Rechnung und Zähler berührt werden.
-  const zielTage = kopfVorab ? await ladeZahlungsziel(kopfVorab.brand) : undefined;
+  // N2: im Einzelfall eigenes Ziel (beim Versand gewählt oder beim Anlegen mitgegeben), sonst die Einstellung.
+  const zielTage = opts.zahlungszielTage
+    ?? (kopfVorab?.zahlungsziel_tage != null ? Number(kopfVorab.zahlungsziel_tage) : undefined)
+    ?? (kopfVorab ? await ladeZahlungsziel(kopfVorab.brand) : undefined);
   if (empfaenger) {
     const fehlt = fehlendeAngaben(empfaenger);
     if (fehlt.length > 0) throw new AnschriftFehlt(fehlt);
@@ -247,9 +254,9 @@ export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Prom
       `UPDATE billing_invoices
          SET status='open', locked=true, finalized_at=now(), updated_at=now(), empfaenger=$2::jsonb,
              number=$3, issue_date=COALESCE($4::date, issue_date), due_date=COALESCE($5::date, due_date),
-             payment_reference=COALESCE($6, payment_reference)
+             payment_reference=COALESCE($6, payment_reference), zahlungsziel_tage=COALESCE($7, zahlungsziel_tage)
        WHERE id=$1 AND status='draft' RETURNING *`,
-      [id, empfaenger ? JSON.stringify(empfaenger) : null, kopf.number, kopf.issueDate, kopf.dueDate, kopf.paymentReference]
+      [id, empfaenger ? JSON.stringify(empfaenger) : null, kopf.number, kopf.issueDate, kopf.dueDate, kopf.paymentReference, opts.zahlungszielTage ?? null]
     );
     if (!upd.rows[0]) { await client.query('ROLLBACK'); return null; }
     const row = upd.rows[0];

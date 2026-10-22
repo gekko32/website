@@ -313,6 +313,12 @@ const STATUS_TABS = [
         </tr>
       </tfoot>
     </table>
+    <!-- N2 (Gerald 22.10.2026): Standard aus den Einstellungen, im Einzelfall hier änderbar. -->
+    <label class="block text-xs text-muted mb-3">Zahlungsziel in Tagen
+      <input id="editor-zahlungsziel" type="number" min="0" max="365" step="1"
+        class="ml-2 w-20 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light" />
+      <span id="editor-zahlungsziel-hinweis" class="ml-2"></span>
+    </label>
     <p id="editor-meldung" role="alert" class="text-sm text-red-400 mb-3"></p>
 
     <div class="flex gap-3 justify-end flex-wrap">
@@ -401,6 +407,8 @@ const STATUS_TABS = [
   const customerEl = document.getElementById('editor-customer')!;
   const meldung    = document.getElementById('editor-meldung')!;
   const ansehen    = document.getElementById('editor-ansehen') as HTMLAnchorElement;
+  const zielFeld   = document.getElementById('editor-zahlungsziel') as HTMLInputElement;
+  const zielHinweis = document.getElementById('editor-zahlungsziel-hinweis')!;
 
   document.getElementById('editor-close')!.addEventListener('click', () => dialog.close());
 
@@ -460,7 +468,10 @@ const STATUS_TABS = [
       number: string; customerName: string; customerEmail: string; items: DraftItem[];
       empfaenger: { name: string; company: string | null; email: string; addressLine1: string | null; postalCode: string | null; city: string | null } | null;
       anschriftFehlt: string[];
+      zahlungszielTage: number | null; zahlungszielStandard: number;
     };
+    zielFeld.value = String(data.zahlungszielTage ?? data.zahlungszielStandard);
+    zielHinweis.textContent = `Standard aus den Einstellungen: ${data.zahlungszielStandard} Tage`;
     // Stufe 3 T11: An wen die Rechnung beim Festschreiben geht (heutiger Stand der Akte).
     const e = data.empfaenger;
     customerEl.textContent = e
@@ -510,7 +521,10 @@ const STATUS_TABS = [
     if (!confirm('Rechnung jetzt festschreiben und an den Kunden versenden? Danach lässt sie sich nur noch stornieren.')) return;
     const knopf = document.getElementById('editor-send-btn') as HTMLButtonElement;
     knopf.disabled = true;
-    const res = await fetch(`/api/admin/billing/${currentInvoiceId}/send`, { method: 'POST' });
+    const res = await fetch(`/api/admin/billing/${currentInvoiceId}/send`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zahlungszielTage: zielFeld.value }),
+    });
     knopf.disabled = !res.ok && res.status === 422;
     if (!res.ok) {
       meldung.textContent = `Nicht versendet: ${(await res.text().catch(() => '')) || 'Fehler'} (${res.status})`;

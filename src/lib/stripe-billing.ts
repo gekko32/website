@@ -57,6 +57,9 @@ interface DraftInvoiceDetail extends AdminBillingInvoice {
   /** Stufe 3 T11: Empfänger (Entwurf: heutiger Stand aus der Akte) und was für das Festschreiben fehlt. */
   empfaenger: Empfaenger | null;
   anschriftFehlt: string[];
+  /** N2: eigenes Zahlungsziel des Entwurfs (null = Einstellung) und die Einstellung selbst. */
+  zahlungszielTage: number | null;
+  zahlungszielStandard: number;
   items: DraftInvoiceItem[];
   currency: string;
   subtotalExclTax: number;
@@ -202,6 +205,8 @@ export async function getDraftInvoiceDetail(invoiceId: string): Promise<DraftInv
     ...base,
     empfaenger,
     anschriftFehlt: empfaenger ? fehlendeAngaben(empfaenger) : [],
+    zahlungszielTage: row.zahlungsziel_tage != null ? Number(row.zahlungsziel_tage) : null,
+    zahlungszielStandard: await ladeZahlungsziel(brand),
     items,
     currency: 'EUR',
     subtotalExclTax: Number(row.net_amount ?? 0),

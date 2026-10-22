@@ -7,6 +7,7 @@ import { sendEmail } from '../../../../../lib/email';
 import { pool, getSiteSetting, initBillingTables } from '../../../../../lib/website-db';
 import { ladeAbsender } from '../../../../../lib/billing-absender';
 import { errorResponse } from '../../../_errors';
+import { pruefeZahlungsziel } from '../../../../../lib/billing-regeln';
 import { aktuellerEmpfaenger, AnschriftFehlt, alsKunde, fehlendeAngaben, kaeuferName } from '../../../../../lib/billing-empfaenger';
 
 function interpolate(t: string, vars: Record<string, string>) {
@@ -21,6 +22,15 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
   const brand = process.env.BRAND || 'mentolder';
 
   // Load invoice (must be draft)
+  // N2: Zahlungsziel im Einzelfall aus der Prüfansicht; ohne Angabe gilt die Einstellung.
+  const anfrage = await request.json().catch(() => ({})) as { zahlungszielTage?: unknown };
+  let zahlungszielTage: number | undefined;
+  if (anfrage.zahlungszielTage !== undefined && anfrage.zahlungszielTage !== null && anfrage.zahlungszielTage !== '') {
+    const z = pruefeZahlungsziel(String(anfrage.zahlungszielTage));
+    if (z.wert === null) return new Response(z.fehler ?? 'Zahlungsziel ungültig', { status: 400 });
+    zahlungszielTage = z.wert;
+  }
+
   const draftCheck = await pool.query(
     `SELECT * FROM billing_invoices WHERE id=$1 AND brand=$2 AND status='draft'`, [id, brand]
   );
@@ -173,6 +183,7 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
     pdfMime: 'application/pdf',
     dokumente: erzeugeDokumente,
     empfaenger,
+    zahlungszielTage,
   }).catch((err: unknown) => {
     if (err instanceof AnschriftFehlt) return err;
     locals.requestLogger.error({ err }, '[billing/send] Festschreiben/PDF fehlgeschlagen');
