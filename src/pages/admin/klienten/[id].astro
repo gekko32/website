@@ -3,10 +3,9 @@
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
 import KlientFormular from '../../../components/admin/KlientFormular.svelte';
-import CreateInvoiceModal from '../../../components/admin/CreateInvoiceModal.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
-import { leistungsOptionen, listeLeistungen, listeKategorien, preisAnzeige } from '../../../lib/billing-leistungen';
+import { listeLeistungen, listeKategorien, preisAnzeige } from '../../../lib/billing-leistungen';
 import { gebuchteTermine } from '../../../lib/billing-ausfall';
 import { ladeEinheiten } from '../../../lib/billing-einheiten';
 import { verbucheUndEntwerfe, wirksameAbrechnungsart } from '../../../lib/billing-abrechnungslauf';
@@ -23,7 +22,6 @@ if (!klient) return Astro.redirect('/admin/klienten');
 const brand = process.env.BRAND || 'mentolder';
 const empfaenger = rechnungsempfaenger(klient);
 
-const serviceOptions = await leistungsOptionen(brand).catch(() => []);
 const datum = (d: string | Date | null) => d ? new Date(d).toLocaleDateString('de-DE') : '–';
 const zeit = (d: string | Date | null) => d ? new Date(d).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '–';
 const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
@@ -83,8 +81,8 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       <AdminPageHeader title={klient.name}
         description={`Kundennummer ${klient.customer_number ?? '–'}`} />
       <div class="flex flex-wrap gap-2 items-center">
-        <CreateInvoiceModal {serviceOptions} klientId={klient.id}
-          prefillEmail={empfaenger.email} prefillName={empfaenger.company ?? empfaenger.name} client:load />
+        {/* Handtest 22.10.2026: statt der alten Maske (eine Leistung, ohne Posten) zur Abrechnung springen. */}
+        <a href="#abrechnung" id="rechnung-erstellen-sprung" class="px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">Rechnung erstellen</a>
         {klient.hat_konto
           ? <a class="px-3 py-2 rounded-lg border border-dark-lighter text-sm" href={`/admin/${klient.keycloak_user_id}`}>Konto öffnen</a>
           : <button id="konto-einrichten" data-id={klient.id}
@@ -182,6 +180,8 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       {abrechnungsart === 'je_sitzung' && <p class="text-xs text-muted mb-2">Abrechnung je Sitzung: Jeder Posten mit Preis kommt von selbst
         auf einen eigenen Entwurf (Rechnungen → Entwürfe). Wird ein Entwurf verworfen, bleiben seine Posten offen, bis du sie hier selbst abrechnest.</p>}
       {/* T10a: links anlegen (Regel Gerald 22.10.2026): Häkchen bei den offenen Posten, dann Rechnung erstellen. */}
+      {!posten.some(waehlbar) && <p id="rechnung-hinweis-leer" hidden class="text-sm text-gold mb-2">Keine offenen Posten mit Preis.
+        Zuerst über „+ Sitzung erfassen“ oder einen Auftrag anlegen – dann hier ankreuzen und „Rechnung aus Auswahl erstellen“.</p>}
       {posten.some(waehlbar) && (
         <form id="f-rechnung" method="POST" action="/api/admin/posten" class="flex flex-wrap gap-2 items-center mb-2">
           <input type="hidden" name="aktion" value="rechnung" />
@@ -549,6 +549,8 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
     background: var(--color-dark, #111); border: 1px solid var(--color-dark-lighter, #333); color: var(--color-light, #eee); }
   .zfeld.w-14 { width: 3.5rem; } .zfeld.w-20 { width: 5rem; } .zfeld.w-24 { width: 6rem; }
   .inline-flex > .zfeld { display: inline-block; }
+  /* „Rechnung erstellen“: Häkchen kurz hervorheben */
+  input.rechnung-wahl.hervorheben { outline: 2px solid var(--color-gold, #c9a227); outline-offset: 2px; }
 </style>
 
 <script>
@@ -629,6 +631,23 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
   const listen = () => document.querySelectorAll<HTMLDetailsElement>('details.liste');
   document.getElementById('listen-auf')?.addEventListener('click', () => listen().forEach((d) => { d.open = true; }));
   document.getElementById('listen-zu')?.addEventListener('click', () => listen().forEach((d) => { d.open = false; }));
+
+  // „Rechnung erstellen“ im Kopf: Abrechnung aufklappen, hinscrollen, Häkchen kurz hervorheben.
+  document.getElementById('rechnung-erstellen-sprung')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    const bereich = document.getElementById('abrechnung');
+    bereich?.querySelectorAll<HTMLDetailsElement>('details.liste').forEach((d) => { d.open = true; });
+    bereich?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (rechnungSumme) {
+      rechnungSumme.textContent = wahl.length === 0
+        ? 'Keine offenen Posten mit Preis. Zuerst über „+ Sitzung erfassen“ oder einen Auftrag anlegen.'
+        : 'Posten ankreuzen, die auf die Rechnung sollen, dann „Rechnung aus Auswahl erstellen“.';
+    }
+    const hinweis = document.getElementById('rechnung-hinweis-leer');
+    if (wahl.length === 0 && hinweis) hinweis.hidden = false;
+    wahl.forEach((c) => c.classList.add('hervorheben'));
+    setTimeout(() => wahl.forEach((c) => c.classList.remove('hervorheben')), 2500);
+  });
 
   // Löschen nur nach Rückfrage.
   document.querySelectorAll<HTMLFormElement>('form.posten-loeschen').forEach((f) => {
