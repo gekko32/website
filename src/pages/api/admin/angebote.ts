@@ -5,6 +5,7 @@ import { getSession, isAdmin } from '../../../lib/auth';
 import { getKlient } from '../../../lib/klientenakte';
 import {
   erstelleAngebotsentwurf, holeAngebot, neueFassung, pruefeGueltigBis, verwirfAngebot, versendeAngebot, angebotVorschau,
+  pruefeAntwortDatum, vermerkeAnnahme, vermerkeAblehnung,
 } from '../../../lib/billing-angebot';
 import { erzeugeAngebotsPdf, angebotsMail } from '../../../lib/billing-angebot-pdf';
 import { pruefeVersandweg } from '../../../lib/billing-versand';
@@ -74,6 +75,17 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
   if (aktion === 'neue_fassung') {
     const r = await neueFassung(brand, a.id);
     return redirect(r.ok ? `/admin/angebote/${r.id}` : `/admin/angebote/${a.id}?fehler=${encodeURIComponent(r.fehler)}`, 303);
+  }
+  // T17 (K52–K55): Antwort des Kunden von Hand vermerken.
+  if (aktion === 'angenommen' || aktion === 'abgelehnt') {
+    const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+    const d = pruefeAntwortDatum(text('datum'), a.versendetAm ?? a.datum, heute);
+    if (!d.wert) return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent(d.fehler!)}`, 303);
+    const r = aktion === 'angenommen'
+      ? await vermerkeAnnahme(brand, a.id, d.wert)
+      : await vermerkeAblehnung(brand, a.id, d.wert, text('grund'));
+    if (!r.ok) return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent(r.fehler)}`, 303);
+    return redirect(`/admin/angebote/${a.id}?gespeichert=1`, 303);
   }
   return new Response('Unbekannte Aktion', { status: 400 });
 };

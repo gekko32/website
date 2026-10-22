@@ -102,10 +102,34 @@ const knopf = 'px-3 py-1.5 rounded-lg text-sm';
         )}
       </div>
     )}
+
+    {/* T17 (K52–K55): Antwort des Kunden vermerken – nur bei der neuesten verschickten Fassung. */}
+    {a.status === 'verschickt' && (
+      <section class="border border-dark-lighter rounded-xl p-4 mb-6 grid gap-4" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));">
+        <form method="POST" action="/api/admin/angebote" class="antwort" data-frage="Annahme vermerken? Die angebotenen Positionen werden offene Posten und lassen sich abrechnen.">
+          <input type="hidden" name="aktion" value="angenommen" /><input type="hidden" name="id" value={a.id} />
+          <p class="text-sm font-semibold text-light mb-2">Angenommen</p>
+          <label class="block text-xs text-muted mb-2">am <input type="date" name="datum" value={heute} max={heute} required class="ml-1 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light" style="color-scheme:dark;" /></label>
+          {a.stand === 'abgelaufen' && <p class="text-xs text-gold mb-2">Hinweis: Das Angebot ist abgelaufen; die Annahme wird mit diesem Vermerk gespeichert.</p>}
+          <button type="submit" class={`${knopf} bg-gold text-dark font-semibold`}>Annahme vermerken</button>
+        </form>
+        <form method="POST" action="/api/admin/angebote" class="antwort" data-frage="Ablehnung vermerken? Die Positionen bleiben im Auftrag und werden nicht abgerechnet.">
+          <input type="hidden" name="aktion" value="abgelehnt" /><input type="hidden" name="id" value={a.id} />
+          <p class="text-sm font-semibold text-light mb-2">Abgelehnt</p>
+          <label class="block text-xs text-muted mb-2">am <input type="date" name="datum" value={heute} max={heute} required class="ml-1 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light" style="color-scheme:dark;" /></label>
+          <label class="block text-xs text-muted mb-2">Grund (freiwillig) <input name="grund" maxlength="300" class="block w-full mt-1 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
+          <button type="submit" class={`${knopf} border border-red-400 text-red-300`}>Ablehnung vermerken</button>
+        </form>
+      </section>
+    )}
+    {a.status === 'angenommen' && <p class="text-sm text-green-400 mb-6">Angenommen{a.abgelaufenAngenommen ? ' (nach Ablauf)' : ''}. Die Positionen sind jetzt offene Posten in der <a class="underline" href={`/admin/klienten/${a.klientId}#abrechnung`}>Klientenakte</a> und werden wie alle Posten abgerechnet.</p>}
   </div>
 </AdminLayout>
 
 <script define:vars={{ id: a.id }}>
+  document.querySelectorAll('form.antwort').forEach((f) => f.addEventListener('submit', (e) => {
+    if (!confirm(f.dataset.frage)) e.preventDefault();
+  }));
   document.querySelectorAll('form.angebot-verwerfen').forEach((f) => f.addEventListener('submit', (e) => {
     if (!confirm('Angebotsentwurf verwerfen? Die Positionen bleiben im Auftrag.')) e.preventDefault();
   }));

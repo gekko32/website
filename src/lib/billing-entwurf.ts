@@ -7,6 +7,7 @@ import { pool } from './website-db';
 import { createCustomer, createInvoice } from './native-billing';
 import { ladeZahlungsziel } from './billing-regeln';
 import { gibPostenFrei, initPostenTabelle, type Posten, type PostenZustand } from './billing-posten';
+import { gemaessAngebotText } from './billing-angebot-text';
 import { rechnungsempfaenger, verknuepfeRechnungskunde, type Klient } from './klientenakte';
 import type { InvoiceLine } from './invoice-types';
 
@@ -90,7 +91,7 @@ export async function erstelleEntwurfAusPosten(
     await client.query('BEGIN');
     const { rows } = await client.query(
       `SELECT id, klient_id, herkunft, datum::text AS datum, datum_bis::text AS datum_bis, leistung_key, text,
-              menge, einheit, einzelpreis, zustand, invoice_id, notiz, auftrag_id
+              menge, einheit, einzelpreis, zustand, invoice_id, notiz, auftrag_id, angebot_id
          FROM abrechnungsposten
         WHERE brand = $1 AND klient_id = $2 AND id = ANY($3::uuid[])
         FOR UPDATE`,
@@ -107,6 +108,12 @@ export async function erstelleEntwurfAusPosten(
     if (fehler) { await client.query('ROLLBACK'); return { ok: false, fehler }; }
 
     const zeilen = rechnungszeilen(posten, { person: e.company ? klient.name : null });
+    // Stufe 4 T17 (K53): Posten aus angenommenen Angeboten → „gemäß Angebot AN-…“ auf der Rechnung.
+    const angebotIds = [...new Set(rows.filter((r: Record<string, unknown>) => ids.includes(r.id as string) && r.angebot_id)
+      .map((r: Record<string, unknown>) => r.angebot_id as string))];
+    const nummern = angebotIds.length === 0 ? [] : (await client.query(
+      'SELECT number FROM billing_quotes WHERE id = ANY($1::text[])', [angebotIds])).rows.map((r: { number: string }) => r.number);
+    const hinweis = gemaessAngebotText(nummern);
     const zeitraum = rechnungsZeitraum(zeilen);
     const inv = await createInvoice({
       brand, customerId: kunde.id,
@@ -115,6 +122,7 @@ export async function erstelleEntwurfAusPosten(
       // Steuerart bewusst nicht gesetzt: zentrale Einstellung, als Kleinunternehmer ohne USt (K30).
       lines: zeilen,
       servicePeriodStart: zeitraum.start, servicePeriodEnd: zeitraum.end,
+      notes: hinweis ?? undefined,
       isTestData: opts.isTestData,
     }, client);
 

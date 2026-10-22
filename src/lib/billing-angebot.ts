@@ -89,8 +89,6 @@ export function initAngebotTabelle(): Promise<void> {
         ADD COLUMN IF NOT EXISTS antwort_grund  TEXT,
         ADD COLUMN IF NOT EXISTS abgelaufen_angenommen BOOLEAN NOT NULL DEFAULT false,
         ADD COLUMN IF NOT EXISTS pdf            BYTEA`);
-    // Rechnung „gemäß Angebot“ (K53): Herkunft eines Postens aus einem angenommenen Angebot.
-    await pool.query(`ALTER TABLE abrechnungsposten ADD COLUMN IF NOT EXISTS angebot_id TEXT`);
   })().catch((e) => { bereit = null; throw e; });
   return bereit;
 }
@@ -322,4 +320,81 @@ export async function neueFassung(brand: string, id: string, jetzt = new Date())
   } finally {
     client.release();
   }
+}
+
+// ── T17: Antwort des Kunden (K52–K55) ─────────────────────────────────────────
+
+/** Antwort zwischen Versand und heute. */
+export function pruefeAntwortDatum(roh: string | null | undefined, versendet: string, heute: string): { wert: string | null; fehler: string | null } {
+  const s = (roh ?? '').trim();
+  const d = new Date(`${s}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== s) {
+    return { wert: null, fehler: 'Bitte ein gültiges Datum der Antwort wählen.' };
+  }
+  if (s > heute) return { wert: null, fehler: 'Das Datum der Antwort liegt in der Zukunft.' };
+  if (s < versendet.slice(0, 10)) return { wert: null, fehler: 'Das Datum der Antwort liegt vor dem Versand des Angebots.' };
+  return { wert: s, fehler: null };
+}
+
+export { gemaessAngebotText } from './billing-angebot-text';
+
+export const VERMERK_NICHT_IM_ANGEBOT = 'nicht im angenommenen Angebot';
+
+/**
+ * K52, K55: Annahme vermerken. Die angebotenen Positionen werden offene Posten mit genau den
+ * angebotenen Werten (Herkunft angebot_id); später dazugekommene, nicht angebotene Positionen
+ * werden „ausgenommen“ mit Vermerk. Der Auftrag ist danach beauftragt.
+ */
+export async function vermerkeAnnahme(brand: string, id: string, datum: string): Promise<Ergebnis<object>> {
+  await initAngebotTabelle();
+  const a = await holeAngebot(brand, id);
+  if (!a || a.status !== 'verschickt') return { ok: false, fehler: 'Annehmen geht nur bei der neuesten verschickten Fassung.' };
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const upd = await client.query(
+      `UPDATE billing_quotes SET status='angenommen', antwort_am=$2, abgelaufen_angenommen=$3 WHERE id=$1 AND status='verschickt'`,
+      [id, datum, datum > a.gueltigBis]);
+    if ((upd.rowCount ?? 0) === 0) { await client.query('ROLLBACK'); return { ok: false, fehler: 'Das Angebot wurde inzwischen geändert.' }; }
+    const angeboten = new Set<string>();
+    for (const z of a.positionen) {
+      const werte = [id, z.description, z.quantity, z.unit ?? '', z.unitPrice, z.leistungVon, z.leistungBis ?? null];
+      const r = await client.query(
+        `UPDATE abrechnungsposten SET zustand='offen', angebot_id=$1, text=$2, menge=$3, einheit=$4, einzelpreis=$5, datum=$6,
+           datum_bis=$7, updated_at=now()
+         WHERE id=$8 AND zustand='geplant' RETURNING id`, [...werte, z.postenId]);
+      if (r.rows[0]) { angeboten.add(z.postenId); continue; }
+      // Position wurde nach dem Versand gelöscht oder geändert: aus der Kopie des Angebots neu anlegen.
+      const neu = await client.query(
+        `INSERT INTO abrechnungsposten (brand, klient_id, herkunft, auftrag_id, angebot_id, text, menge, einheit, einzelpreis, datum, datum_bis, zustand)
+         VALUES ($8,$9,'auftrag',$10,$1,$2,$3,$4,$5,$6,$7,'offen') RETURNING id`, [...werte, brand, a.klientId, a.auftragId]);
+      angeboten.add(neu.rows[0].id as string);
+    }
+    await client.query(
+      `UPDATE abrechnungsposten SET zustand='nicht_abrechnen',
+         notiz = CASE WHEN notiz IS NULL OR notiz = '' THEN $3 ELSE notiz || ' · ' || $3 END, updated_at=now()
+       WHERE brand=$1 AND auftrag_id=$2 AND zustand='geplant' AND NOT (id::text = ANY($4::text[]))`,
+      [brand, a.auftragId, VERMERK_NICHT_IM_ANGEBOT, [...angeboten]]);
+    await client.query(`UPDATE auftraege SET stand='beauftragt' WHERE id=$1`, [a.auftragId]);
+    await client.query('COMMIT');
+    return { ok: true };
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/** K54: Ablehnung vermerken – Positionen bleiben geplant und damit nicht abrechenbar. */
+export async function vermerkeAblehnung(brand: string, id: string, datum: string, grund: string | null): Promise<Ergebnis<object>> {
+  await initAngebotTabelle();
+  const a = await holeAngebot(brand, id);
+  if (!a || a.status !== 'verschickt') return { ok: false, fehler: 'Ablehnen geht nur bei der neuesten verschickten Fassung.' };
+  const g = (grund ?? '').trim().slice(0, 300) || null;
+  const upd = await pool.query(
+    `UPDATE billing_quotes SET status='abgelehnt', antwort_am=$2, antwort_grund=$3 WHERE id=$1 AND status='verschickt'`, [id, datum, g]);
+  if ((upd.rowCount ?? 0) === 0) return { ok: false, fehler: 'Das Angebot wurde inzwischen geändert.' };
+  await pool.query(`UPDATE auftraege SET stand='abgelehnt' WHERE id=$1`, [a.auftragId]);
+  return { ok: true };
 }

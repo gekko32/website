@@ -347,6 +347,8 @@ export function initPostenTabelle(): Promise<void> {
       END $$`);
     await pool.query(`ALTER TABLE auftraege ADD COLUMN IF NOT EXISTS modus TEXT NOT NULL DEFAULT 'ohne_angebot'`);
     await pool.query(`ALTER TABLE auftraege ADD COLUMN IF NOT EXISTS stand TEXT`);
+    // Stufe 4 T17 (K53): Posten aus einem angenommenen Angebot – Rechnung nennt „gemäß Angebot“.
+    await pool.query(`ALTER TABLE abrechnungsposten ADD COLUMN IF NOT EXISTS angebot_id TEXT`);
     // Leistungszeitraum (Handtest 21.10.2026): leer = ein Tag.
     await pool.query(`ALTER TABLE abrechnungsposten ADD COLUMN IF NOT EXISTS datum_bis DATE`);
     // T10b: nach Verwerfen/Storno kein automatischer Entwurf „je Sitzung“ mehr.
