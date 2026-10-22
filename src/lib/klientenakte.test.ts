@@ -88,3 +88,26 @@ describe('getKlient / verknuepfeRechnungskunde', () => {
     expect(params).toEqual(['bc1', 'k1']);
   });
 });
+
+// Rechnungswesen Stufe 3, T10b: Abrechnungsart je Klient (K26).
+describe('pruefeKlient — Abrechnungsart (Stufe 3 T10b)', () => {
+  it('übernimmt „monatlich“ oder „je Sitzung“', () => {
+    expect(pruefeKlient({ name: 'X', email: 'a@b.de', abrechnungsart: 'monatlich' }).abrechnungsart).toBe('monatlich');
+    expect(pruefeKlient({ name: 'X', email: 'a@b.de', abrechnungsart: 'je_sitzung' }).abrechnungsart).toBe('je_sitzung');
+  });
+  it('ohne Angabe: null = Voreinstellung aus den Regeln', () => {
+    expect(pruefeKlient({ name: 'X', email: 'a@b.de' }).abrechnungsart).toBeNull();
+    expect(pruefeKlient({ name: 'X', email: 'a@b.de', abrechnungsart: '' as never }).abrechnungsart).toBeNull();
+  });
+  it('lehnt anderes ab', () => {
+    expect(() => pruefeKlient({ name: 'X', email: 'a@b.de', abrechnungsart: 'woechentlich' as never })).toThrow(/Abrechnungsart/);
+  });
+  it('speichert die Abrechnungsart beim Anlegen', async () => {
+    query.mockImplementation(async (sql: string) =>
+      /INSERT INTO customers/.test(sql) ? { rows: [{ id: 'k1' }] } : { rows: [] });
+    await createKlient({ name: 'X', email: 'x@y.de', abrechnungsart: 'monatlich' });
+    const insert = query.mock.calls.find((c) => /INSERT INTO customers/.test(c[0] as string))!;
+    expect(insert[0]).toMatch(/abrechnungsart/);
+    expect(insert[1]).toContain('monatlich');
+  });
+});

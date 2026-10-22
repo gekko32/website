@@ -7,9 +7,16 @@
     rechnung_firma: string; rechnung_firma_adresse: string;
     rechnung_firma_plz: string; rechnung_firma_ort: string;
     rechnung_email: string; rechnung_ust_id: string; notiz: string;
+    abrechnungsart: Art;
   }
+  type Art = 'monatlich' | 'je_sitzung';
+  const ART_TEXT: Record<Art, string> = { monatlich: 'monatlich (Sammelrechnung)', je_sitzung: 'je Sitzung' };
 
-  let { klientId = '', start = {} }: { klientId?: string; start?: Partial<Record<keyof Werte, string | null>> } = $props();
+  // Stufe 3 T10b: voreinstellung = Einstellungen → Regeln (Firma / Privat), K26.
+  let { klientId = '', start = {}, voreinstellung = { firma: 'monatlich', privat: 'je_sitzung' } }: {
+    klientId?: string; start?: Partial<Record<keyof Werte, string | null>>; voreinstellung?: { firma: Art; privat: Art };
+  } = $props();
+  const vorbelegt = (an: 'person' | 'firma'): Art => (an === 'firma' ? voreinstellung.firma : voreinstellung.privat);
 
   const s = (v: string | null | undefined) => v ?? '';
   let w = $state<Werte>({
@@ -19,7 +26,15 @@
     rechnung_firma: s(start.rechnung_firma), rechnung_firma_adresse: s(start.rechnung_firma_adresse),
     rechnung_firma_plz: s(start.rechnung_firma_plz), rechnung_firma_ort: s(start.rechnung_firma_ort),
     rechnung_email: s(start.rechnung_email), rechnung_ust_id: s(start.rechnung_ust_id), notiz: s(start.notiz),
+    abrechnungsart: start.abrechnungsart === 'monatlich' || start.abrechnungsart === 'je_sitzung'
+      ? start.abrechnungsart
+      : vorbelegt(start.rechnung_an === 'firma' ? 'firma' : 'person'),
   });
+  // Solange Gerald die Abrechnungsart nicht selbst gewählt hat, folgt sie „Rechnung an“.
+  let artSelbstGewaehlt = $state(start.abrechnungsart === 'monatlich' || start.abrechnungsart === 'je_sitzung');
+  function rechnungAnGeaendert() {
+    if (!artSelbstGewaehlt) w.abrechnungsart = vorbelegt(w.rechnung_an);
+  }
 
   let fehler = $state('');
   let meldung = $state('');
@@ -69,8 +84,8 @@
   <fieldset class="border border-dark-lighter rounded-lg p-3 space-y-3">
     <legend class="text-xs text-muted uppercase tracking-wide px-1">Rechnung an</legend>
     <div class="flex gap-4 text-sm">
-      <label class="flex items-center gap-2"><input type="radio" bind:group={w.rechnung_an} value="person" /> die Person selbst</label>
-      <label class="flex items-center gap-2"><input type="radio" bind:group={w.rechnung_an} value="firma" /> eine Firma</label>
+      <label class="flex items-center gap-2"><input type="radio" bind:group={w.rechnung_an} value="person" onchange={rechnungAnGeaendert} /> die Person selbst</label>
+      <label class="flex items-center gap-2"><input type="radio" bind:group={w.rechnung_an} value="firma" onchange={rechnungAnGeaendert} /> eine Firma</label>
     </div>
     {#if w.rechnung_an === 'firma'}
       <div class="grid gap-3 sm:grid-cols-2">
@@ -82,6 +97,13 @@
       </div>
     {/if}
     <div><label class={lbl} for="k-remail">Rechnungs-E-Mail (falls abweichend)</label><input id="k-remail" type="email" class={feld} bind:value={w.rechnung_email} /></div>
+    <div>
+      <label class={lbl} for="k-art">Abrechnung</label>
+      <select id="k-art" class={feld} bind:value={w.abrechnungsart} onchange={() => (artSelbstGewaehlt = true)}>
+        {#each (['monatlich', 'je_sitzung'] as const) as a (a)}<option value={a}>{ART_TEXT[a]}</option>{/each}
+      </select>
+      <p class="text-xs text-muted mt-1">Monatlich: am Monatsersten ein Entwurf mit allem aus dem Vormonat. Je Sitzung: jeder Posten sofort ein eigener Entwurf. Verschickt wird erst nach deiner Prüfung.</p>
+    </div>
   </fieldset>
 
   <div>

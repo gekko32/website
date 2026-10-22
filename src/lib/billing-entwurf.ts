@@ -139,6 +139,8 @@ export async function verwirfEntwurf(brand: string, invoiceId: string): Promise<
   try {
     await client.query('BEGIN');
     await gibPostenFrei(client, invoiceId, 'auf_entwurf');
+    // T10b: Der Monat darf für diesen Klienten danach erneut laufen.
+    await client.query('DELETE FROM abrechnungslaeufe WHERE invoice_id = $1', [invoiceId]);
     const del = await client.query(
       `DELETE FROM billing_invoices WHERE id = $1 AND brand = $2 AND status = 'draft'`, [invoiceId, brand]);
     if ((del.rowCount ?? 0) === 0) { await client.query('ROLLBACK'); return false; }

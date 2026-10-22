@@ -29,6 +29,9 @@ export interface Posten {
   auftragId?: string | null;
   /** Ende eines Leistungszeitraums; null = nur ein Tag (datum). */
   datumBis?: string | null;
+  /** T10b: false, nachdem ein Entwurf mit diesem Posten verworfen oder storniert wurde –
+   *  dann legt „je Sitzung“ keinen neuen Entwurf von selbst an (Gerald korrigiert erst). */
+  autoEntwurf?: boolean;
 }
 
 export const HERKUNFT_TEXT: Record<Herkunft, string> = {
@@ -321,13 +324,25 @@ export function initPostenTabelle(): Promise<void> {
     await pool.query(`ALTER TABLE abrechnungsposten ADD COLUMN IF NOT EXISTS auftrag_id UUID`);
     // Leistungszeitraum (Handtest 21.10.2026): leer = ein Tag.
     await pool.query(`ALTER TABLE abrechnungsposten ADD COLUMN IF NOT EXISTS datum_bis DATE`);
+    // T10b: nach Verwerfen/Storno kein automatischer Entwurf „je Sitzung“ mehr.
+    await pool.query(`ALTER TABLE abrechnungsposten ADD COLUMN IF NOT EXISTS auto_entwurf BOOLEAN NOT NULL DEFAULT true`);
+    // T10b: Monatslauf je Klient und Monat höchstens einmal (K29); Verwerfen löscht den Vermerk.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS abrechnungslaeufe (
+        brand       TEXT NOT NULL,
+        klient_id   UUID NOT NULL,
+        monat       TEXT NOT NULL,
+        invoice_id  TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (brand, klient_id, monat)
+      )`);
   })().catch((err) => { tabelleBereit = null; throw err; });
   return tabelleBereit;
 }
 
 const POSTEN_SPALTEN = `p.id, p.klient_id, COALESCE(c.name, '') AS klient_name, p.herkunft, p.datum::text AS datum,
   p.leistung_key, p.text, p.menge, p.einheit, p.einzelpreis, p.zustand, p.invoice_id, p.notiz, p.auftrag_id,
-  p.datum_bis::text AS datum_bis`;
+  p.datum_bis::text AS datum_bis, p.auto_entwurf`;
 
 function zeileZuPosten(r: Record<string, unknown>): Posten {
   return {
@@ -337,6 +352,7 @@ function zeileZuPosten(r: Record<string, unknown>): Posten {
     einzelpreis: r.einzelpreis === null || r.einzelpreis === undefined ? null : Number(r.einzelpreis),
     zustand: r.zustand as PostenZustand, invoiceId: (r.invoice_id as string | null) ?? null, notiz: (r.notiz as string | null) ?? null,
     auftragId: (r.auftrag_id as string | null) ?? null, datumBis: (r.datum_bis as string | null) ?? null,
+    autoEntwurf: r.auto_entwurf !== false,
   };
 }
 
@@ -653,7 +669,7 @@ export async function postenAbgerechnet(db: Abfrage, invoiceId: string): Promise
  */
 export async function gibPostenFrei(db: Abfrage, invoiceId: string, von: 'auf_entwurf' | 'abgerechnet'): Promise<number> {
   const r = await db.query(
-    `UPDATE abrechnungsposten SET zustand = 'offen', invoice_id = NULL, updated_at = now()
+    `UPDATE abrechnungsposten SET zustand = 'offen', invoice_id = NULL, auto_entwurf = false, updated_at = now()
       WHERE invoice_id = $1 AND zustand = $2`, [invoiceId, von]);
   return r.rowCount ?? 0;
 }

@@ -13,6 +13,7 @@
 
 import { pool } from './website-db';
 import { ensureCustomerCrmSchema } from './customer-crm-db';
+import type { Abrechnungsart } from './billing-regeln';
 
 export type RechnungAn = 'person' | 'firma';
 
@@ -31,6 +32,8 @@ export interface KlientEingabe {
   rechnung_email?: string | null;
   rechnung_ust_id?: string | null;
   notiz?: string | null;
+  /** Stufe 3 T10b: null = Voreinstellung aus Einstellungen → Regeln (Firma/Privat). */
+  abrechnungsart?: Abrechnungsart | null;
 }
 
 export interface Klient extends Required<Pick<KlientEingabe, 'name' | 'email'>> {
@@ -48,6 +51,7 @@ export interface Klient extends Required<Pick<KlientEingabe, 'name' | 'email'>> 
   rechnung_email: string | null;
   rechnung_ust_id: string | null;
   notiz: string | null;
+  abrechnungsart: Abrechnungsart | null;
   hat_konto: boolean;
   keycloak_user_id: string | null;
   created_at: string;
@@ -72,6 +76,10 @@ export function pruefeKlient(input: KlientEingabe): Required<KlientEingabe> {
   if (rechnung_email && !EMAIL_RE.test(rechnung_email)) {
     throw new Error('Die Rechnungs-E-Mail ist ungültig.');
   }
+  const artRoh = leer(input.abrechnungsart);
+  if (artRoh !== null && artRoh !== 'monatlich' && artRoh !== 'je_sitzung') {
+    throw new Error('Abrechnungsart: bitte „monatlich“ oder „je Sitzung“ wählen.');
+  }
   const out: Required<KlientEingabe> = {
     name, email,
     phone: leer(input.phone),
@@ -86,6 +94,7 @@ export function pruefeKlient(input: KlientEingabe): Required<KlientEingabe> {
     rechnung_email,
     rechnung_ust_id: leer(input.rechnung_ust_id),
     notiz: leer(input.notiz),
+    abrechnungsart: artRoh,
   };
   if (rechnung_an === 'firma' && !out.rechnung_firma) {
     throw new Error('Bei „Rechnung an Firma“ bitte den Firmennamen angeben.');
@@ -135,13 +144,14 @@ export async function ensureKlientenakteSchema(): Promise<void> {
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS rechnung_email TEXT;
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS rechnung_ust_id TEXT;
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS notiz TEXT;
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS abrechnungsart TEXT;
   `);
   schemaFertig = true;
 }
 
 const SPALTEN = `id, name, email, customer_number, phone, address, postal_code, city,
   rechnung_an, rechnung_firma, rechnung_firma_adresse, rechnung_firma_plz, rechnung_firma_ort,
-  rechnung_email, rechnung_ust_id, notiz, keycloak_user_id,
+  rechnung_email, rechnung_ust_id, notiz, abrechnungsart, keycloak_user_id,
   (keycloak_user_id IS NOT NULL) AS hat_konto, created_at`;
 
 export async function listKlienten(): Promise<Klient[]> {
@@ -173,12 +183,12 @@ export async function createKlient(input: KlientEingabe): Promise<{ ok: true; kl
   const r = await pool.query(
     `INSERT INTO customers (name, email, phone, address, postal_code, city,
        rechnung_an, rechnung_firma, rechnung_firma_adresse, rechnung_firma_plz, rechnung_firma_ort,
-       rechnung_email, rechnung_ust_id, notiz, company, acquisition_source)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$8,'manuell')
+       rechnung_email, rechnung_ust_id, notiz, company, acquisition_source, abrechnungsart)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$8,'manuell',$15)
      RETURNING ${SPALTEN}`,
     [k.name, k.email, k.phone, k.address, k.postal_code, k.city,
      k.rechnung_an, k.rechnung_firma, k.rechnung_firma_adresse, k.rechnung_firma_plz, k.rechnung_firma_ort,
-     k.rechnung_email, k.rechnung_ust_id, k.notiz],
+     k.rechnung_email, k.rechnung_ust_id, k.notiz, k.abrechnungsart],
   );
   return { ok: true, klient: r.rows[0] };
 }
@@ -193,11 +203,11 @@ export async function updateKlient(id: string, input: KlientEingabe): Promise<{ 
     `UPDATE customers SET name=$2, email=$3, phone=$4, address=$5, postal_code=$6, city=$7,
        rechnung_an=$8, rechnung_firma=$9, rechnung_firma_adresse=$10, rechnung_firma_plz=$11,
        rechnung_firma_ort=$12, rechnung_email=$13, rechnung_ust_id=$14, notiz=$15,
-       company=COALESCE($9, company), updated_at=now()
+       company=COALESCE($9, company), abrechnungsart=$16, updated_at=now()
      WHERE id=$1 RETURNING ${SPALTEN}`,
     [id, k.name, k.email, k.phone, k.address, k.postal_code, k.city,
      k.rechnung_an, k.rechnung_firma, k.rechnung_firma_adresse, k.rechnung_firma_plz,
-     k.rechnung_firma_ort, k.rechnung_email, k.rechnung_ust_id, k.notiz],
+     k.rechnung_firma_ort, k.rechnung_email, k.rechnung_ust_id, k.notiz, k.abrechnungsart],
   );
   if (!r.rows[0]) return { ok: false, error: 'Akte nicht gefunden.' };
   return { ok: true, klient: r.rows[0] };

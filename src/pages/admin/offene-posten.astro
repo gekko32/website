@@ -1,29 +1,54 @@
 ---
 // Rechnungswesen Stufe 3, T5: Übersicht offener Posten je Klient (K16).
+// T10b: Monatsabrechnung von Hand starten (K28, K29); Abrechnungsart je Klient.
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import AdminPageHeader from '../../components/admin/ui/AdminPageHeader.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
-import { alleOffenenPosten, summenJeKlient, verbucheQuellen, type Posten } from '../../lib/billing-posten';
-import { holeLeistung } from '../../lib/billing-leistungen';
+import { alleOffenenPosten, summenJeKlient, type Posten } from '../../lib/billing-posten';
+import { verbucheUndEntwerfe, vormonat, wirksameAbrechnungsart } from '../../lib/billing-abrechnungslauf';
+import { ladeRegeln } from '../../lib/billing-regeln';
+import { listKlienten, type Klient } from '../../lib/klientenakte';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
 if (!isAdmin(session)) return Astro.redirect('/admin');
 
 const brand = process.env.BRAND || 'mentolder';
-// T6: vergangene, freigegebene Termine zuerst als Posten übernehmen (K12).
-await verbucheQuellen(brand, (k) => holeLeistung(brand, k));
+// T6: vergangene, freigegebene Termine zuerst als Posten übernehmen (K12); T10b: Entwürfe „je Sitzung“ (K27).
+await verbucheUndEntwerfe(brand);
 let dbFehler = false;
 const posten: Posten[] = await alleOffenenPosten(brand).catch(() => { dbFehler = true; return []; });
 const summen = summenJeKlient(posten);
 const gesamt = summen.reduce((s, k) => Math.round((s + k.summe) * 100) / 100, 0);
 const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
+const regeln = await ladeRegeln(brand);
+const klienten = new Map((await listKlienten().catch((): Klient[] => [])).map((k) => [k.id, k]));
+const artText = (id: string) => {
+  const k = klienten.get(id);
+  return k ? (wirksameAbrechnungsart(k, regeln) === 'monatlich' ? 'monatlich' : 'je Sitzung') : '–';
+};
+const vm = vormonat(new Date());
+const vormonatWert = `${vm.jahr}-${String(vm.monat).padStart(2, '0')}`;
 ---
 
 <AdminLayout title="Offene Posten">
   <div style="padding:2rem;max-width:960px;">
     <AdminPageHeader title="Offene Posten"
       description="Was erbracht, aber noch auf keiner Rechnung ist – je Klient." />
+
+    {/* T10b: links anlegen (Regel Gerald 22.10.2026). Läuft sonst am Monatsersten von selbst. */}
+    <form id="monatslauf" class="flex flex-wrap gap-2 items-end mb-6 border border-dark-lighter rounded-xl p-4">
+      <label class="text-xs text-muted">Monat
+        <input type="month" name="monat" value={vormonatWert} required
+          class="block mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+      </label>
+      <button type="submit" class="px-3 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Monatsabrechnung erstellen</button>
+      <button type="button" id="monatslauf-vorschau" class="px-3 py-1.5 rounded-lg border border-dark-lighter text-sm">Vorschau</button>
+      <p class="text-xs text-muted basis-full">Für jeden Klienten mit Abrechnung „monatlich“ entsteht ein Entwurf mit allen offenen Posten bis Monatsende.
+        Läuft am Monatsersten auch von selbst; ein zweiter Lauf für denselben Monat legt nichts doppelt an. Verschickt wird erst nach deiner Prüfung unter
+        <a class="underline" href="/admin/rechnungen">Rechnungen → Entwürfe</a>.</p>
+      <p id="monatslauf-meldung" role="status" class="text-sm basis-full"></p>
+    </form>
 
     {dbFehler && <p role="alert" class="text-sm text-red-400 mb-4">Die Posten konnten gerade nicht geladen werden.</p>}
 
@@ -34,6 +59,7 @@ const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', 
         <thead>
           <tr class="text-left text-xs text-muted uppercase tracking-wide">
             <th class="py-2 pr-3">Klient</th>
+            <th class="py-2 pr-3">Abrechnung</th>
             <th class="py-2 pr-3 text-right">Posten</th>
             <th class="py-2 pr-3 text-right">Summe</th>
           </tr>
@@ -42,12 +68,13 @@ const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', 
           {summen.map((k) => (
             <tr class="border-t border-dark-lighter">
               <td class="py-2 pr-3"><a class="hover:underline" href={`/admin/klienten/${k.klientId}#abrechnung`}>{k.klientName || 'ohne Namen'}</a></td>
+              <td class="py-2 pr-3 text-muted">{artText(k.klientId)}</td>
               <td class="py-2 pr-3 text-right">{k.anzahl}{k.ohnePreis > 0 && <span class="block text-xs text-red-400">davon {k.ohnePreis} ohne Preis</span>}</td>
               <td class="py-2 pr-3 text-right">{euro(k.summe)}</td>
             </tr>
           ))}
           <tr class="border-t-2 border-dark-lighter font-semibold">
-            <td class="py-2 pr-3">Gesamt</td>
+            <td class="py-2 pr-3" colspan="2">Gesamt</td>
             <td class="py-2 pr-3 text-right">{posten.length}</td>
             <td class="py-2 pr-3 text-right">{euro(gesamt)}</td>
           </tr>
@@ -56,3 +83,39 @@ const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', 
     )}
   </div>
 </AdminLayout>
+
+<script>
+  const form = document.getElementById('monatslauf') as HTMLFormElement;
+  const meldung = document.getElementById('monatslauf-meldung')!;
+
+  async function lauf(vorschau: boolean): Promise<void> {
+    const [jahr, monat] = String(new FormData(form).get('monat') ?? '').split('-').map(Number);
+    if (!jahr || !monat) { meldung.textContent = 'Bitte einen Monat wählen.'; return; }
+    meldung.className = 'text-sm basis-full text-muted';
+    meldung.textContent = vorschau ? 'Berechne …' : 'Lege Entwürfe an …';
+    const res = await fetch(`/api/admin/billing/create-monthly-invoices${vorschau ? '?dryRun=true' : ''}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year: jahr, month: monat }),
+    });
+    const data = await res.json().catch(() => ({})) as {
+      error?: string; created?: number; skipped?: number; errors?: string[]; preview?: { klient: string; posten: number }[];
+    };
+    if (!res.ok) {
+      meldung.className = 'text-sm basis-full text-red-400';
+      meldung.textContent = data.error ?? 'Monatsabrechnung fehlgeschlagen.';
+      return;
+    }
+    const fehler = data.errors?.length ? ` Nicht angelegt: ${data.errors.join('; ')}` : '';
+    if (vorschau) {
+      const liste = (data.preview ?? []).map((p) => `${p.klient} (${p.posten} Posten)`).join(', ');
+      meldung.className = 'text-sm basis-full text-light';
+      meldung.textContent = liste ? `Würde anlegen: ${liste}.` : 'Nichts abzurechnen (oder dieser Monat ist schon gelaufen).';
+      return;
+    }
+    meldung.className = `text-sm basis-full ${fehler ? 'text-red-400' : 'text-green-400'}`;
+    meldung.textContent = `${data.created ?? 0} Entwürfe angelegt.${fehler}`;
+    if ((data.created ?? 0) > 0) setTimeout(() => window.location.reload(), 1500);
+  }
+
+  form.addEventListener('submit', (e) => { e.preventDefault(); void lauf(false); });
+  document.getElementById('monatslauf-vorschau')?.addEventListener('click', () => void lauf(true));
+</script>

@@ -6,10 +6,12 @@ import KlientFormular from '../../../components/admin/KlientFormular.svelte';
 import CreateInvoiceModal from '../../../components/admin/CreateInvoiceModal.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
-import { leistungsOptionen, listeLeistungen, listeKategorien, preisAnzeige, holeLeistung } from '../../../lib/billing-leistungen';
+import { leistungsOptionen, listeLeistungen, listeKategorien, preisAnzeige } from '../../../lib/billing-leistungen';
 import { gebuchteTermine } from '../../../lib/billing-ausfall';
 import { ladeEinheiten } from '../../../lib/billing-einheiten';
-import { postenDesKlienten, postenBetrag, verbucheQuellen, auftraegeDesKlienten, postenAenderbar, terminAbgesagt, postenLoeschbar, auftragLoeschbar, leistungszeitraum, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
+import { verbucheUndEntwerfe, wirksameAbrechnungsart } from '../../../lib/billing-abrechnungslauf';
+import { ladeRegeln } from '../../../lib/billing-regeln';
+import { postenDesKlienten, postenBetrag, auftraegeDesKlienten, postenAenderbar, terminAbgesagt, postenLoeschbar, auftragLoeschbar, leistungszeitraum, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -19,18 +21,23 @@ const klient = await getKlient(Astro.params.id ?? '');
 if (!klient) return Astro.redirect('/admin/klienten');
 
 const brand = process.env.BRAND || 'mentolder';
-const { termine, sitzungen, rechnungen } = await akteVerlauf(klient, brand);
 const empfaenger = rechnungsempfaenger(klient);
 
 const serviceOptions = await leistungsOptionen(brand).catch(() => []);
 const datum = (d: string | Date | null) => d ? new Date(d).toLocaleDateString('de-DE') : '–';
 const zeit = (d: string | Date | null) => d ? new Date(d).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '–';
 const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
-const STATUS: Record<string, string> = { draft: 'Entwurf', open: 'offen', paid: 'bezahlt', void: 'storniert', uncollectible: 'uneinbringlich' };
+const STATUS: Record<string, string> = { draft: 'Entwurf', open: 'offen', paid: 'bezahlt', void: 'storniert', uncollectible: 'uneinbringlich', cancelled: 'storniert' };
 
 // Rechnungswesen Stufe 3, T5/T6: vergangene, freigegebene Termine zuerst als Posten
 // übernehmen, dann Posten und „Sitzung erfassen“ (K11, K12, K14, K16).
-await verbucheQuellen(brand, (k) => holeLeistung(brand, k));
+// T10b: danach für Klienten „je Sitzung“ je Posten einen Entwurf anlegen (K27).
+await verbucheUndEntwerfe(brand);
+const regeln = await ladeRegeln(brand);
+const voreinstellung = { firma: regeln.abrechnungsartFirma, privat: regeln.abrechnungsartPrivat };
+const abrechnungsart = wirksameAbrechnungsart(klient, regeln);
+// Erst nach dem Anlegen der Entwürfe lesen, damit neue Entwürfe in der Liste stehen.
+const { termine, sitzungen, rechnungen } = await akteVerlauf(klient, brand);
 const [posten, aktiveLeistungen, kategorien] = await Promise.all([
   postenDesKlienten(brand, klient.id).catch((): Posten[] => []),
   listeLeistungen(brand, { nurAktiv: true }).catch(() => []),
@@ -92,6 +99,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
         {empfaenger.company ? <strong>{empfaenger.company}</strong> : <strong>{empfaenger.name}</strong>}
         {empfaenger.company && <span class="text-muted"> (z. Hd. {empfaenger.name})</span>}
         <br /><span class="text-muted">{[empfaenger.addressLine1, [empfaenger.postalCode, empfaenger.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Anschrift fehlt noch'} · {empfaenger.email}</span>
+        <br /><span class="text-muted">Abrechnung: {abrechnungsart === 'monatlich' ? 'monatlich (Sammelrechnung am Monatsersten)' : 'je Sitzung (jeder Posten sofort ein Entwurf)'}{!klient.abrechnungsart && ' – Voreinstellung'}</span>
       </p>
     </section>
 
@@ -104,6 +112,8 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
         prüfen und versenden unter <a class="underline" href="/admin/rechnungen">Rechnungen → Entwürfe</a>.</p>}
       {postenFehler && <p role="alert" class="text-sm text-red-400 mb-2">{postenFehler}</p>}
 
+      {abrechnungsart === 'je_sitzung' && <p class="text-xs text-muted mb-2">Abrechnung je Sitzung: Jeder Posten mit Preis kommt von selbst
+        auf einen eigenen Entwurf (Rechnungen → Entwürfe). Wird ein Entwurf verworfen, bleiben seine Posten offen, bis du sie hier selbst abrechnest.</p>}
       {/* T10a: links anlegen (Regel Gerald 22.10.2026): Häkchen bei den offenen Posten, dann Rechnung erstellen. */}
       {posten.some(waehlbar) && (
         <form id="f-rechnung" method="POST" action="/api/admin/posten" class="flex flex-wrap gap-2 items-center mb-2">
@@ -468,7 +478,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
 
     <details class="border border-dark-lighter rounded-xl p-4" open={!klient.address && !klient.rechnung_firma}>
       <summary class="cursor-pointer text-sm font-semibold text-gold">Stammdaten bearbeiten</summary>
-      <div class="mt-4"><KlientFormular klientId={klient.id} start={klient} client:load /></div>
+      <div class="mt-4"><KlientFormular klientId={klient.id} start={klient} {voreinstellung} client:load /></div>
     </details>
   </div>
 </AdminLayout>
