@@ -142,6 +142,13 @@ export async function erstelleEntwurfAusPosten(
   }
 }
 
+/** N3: Vermerkfeld mit aktuellem „gemäß Angebot …“; übrige Zeilen bleiben, leer → null. */
+export function mitAngebotsVermerk(alt: string | null, hinweis: string | null): string | null {
+  const rest = (alt ?? '').split('\n').filter((z) => !/^gemäß Angebot(en)? /.test(z.trim()) && z.trim() !== '');
+  const zeilen = hinweis ? [hinweis, ...rest] : rest;
+  return zeilen.length > 0 ? zeilen.join('\n') : null;
+}
+
 /**
  * Handtest 23.10.2026: Ein Entwurf bleibt bis zum Festschreiben änderbar. Nach jeder Änderung an
  * seinen Posten wird er neu aufgebaut: Positionen aus den Posten (in derselben Reihenfolge und
@@ -151,7 +158,7 @@ export async function erstelleEntwurfAusPosten(
 export async function aktualisiereEntwurf(brand: string, invoiceId: string): Promise<'aktualisiert' | 'verworfen' | 'kein_entwurf'> {
   await initPostenTabelle();
   const kopf = (await pool.query(
-    `SELECT status, klient_id::text AS klient_id, tax_mode, tax_rate FROM billing_invoices WHERE id = $1 AND brand = $2`,
+    `SELECT status, klient_id::text AS klient_id, tax_mode, tax_rate, notes FROM billing_invoices WHERE id = $1 AND brand = $2`,
     [invoiceId, brand])).rows[0];
   if (!kopf || kopf.status !== 'draft') return 'kein_entwurf';
   const { rows } = await pool.query(
@@ -180,6 +187,8 @@ export async function aktualisiereEntwurf(brand: string, invoiceId: string): Pro
   const nummern = [...new Set(rows.map((r: Record<string, unknown>) => r.angebot_id as string | null).filter(Boolean))];
   const hinweis = nummern.length === 0 ? null : gemaessAngebotText((await pool.query(
     'SELECT number FROM billing_quotes WHERE id = ANY($1::text[])', [nummern])).rows.map((r: { number: string }) => r.number));
+  // Prüfung Stufe 4 Runde 3 (N3, K53): alten „gemäß Angebot …“-Vermerk ersetzen, andere Vermerke behalten.
+  const vermerk = mitAngebotsVermerk(kopf.notes as string | null, hinweis);
 
   const client = await pool.connect();
   try {
@@ -203,9 +212,9 @@ export async function aktualisiereEntwurf(brand: string, invoiceId: string): Pro
     const zeitraum = datiert.length > 0 ? rechnungsZeitraum(datiert) : null;
     await client.query(
       `UPDATE billing_invoices SET net_amount=$2, tax_amount=$3, gross_amount=$4, net_amount_eur=$2, gross_amount_eur=$4,
-         service_period_start=$5, service_period_end=$6, notes=COALESCE($7, notes), updated_at=now()
+         service_period_start=$5, service_period_end=$6, notes=$7, updated_at=now()
        WHERE id=$1 AND status='draft'`,
-      [invoiceId, netto, steuer, Math.round((netto + steuer) * 100) / 100, zeitraum?.start ?? null, zeitraum?.end ?? null, hinweis]);
+      [invoiceId, netto, steuer, Math.round((netto + steuer) * 100) / 100, zeitraum?.start ?? null, zeitraum?.end ?? null, vermerk]);
     await client.query('COMMIT');
     return 'aktualisiert';
   } catch (e) {

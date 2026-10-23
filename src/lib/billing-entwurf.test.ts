@@ -108,3 +108,15 @@ describe('Leistungszeitraum der ganzen Rechnung (Kopf)', () => {
       .toEqual({ start: '2026-12-15', end: '2026-12-29' });
   });
 });
+
+// Prüfung Stufe 4 Runde 3 (N3, K53): Vermerk „gemäß Angebot“ folgt den Posten des Entwurfs.
+import { mitAngebotsVermerk } from './billing-entwurf';
+describe('Vermerk „gemäß Angebot“ (N3)', () => {
+  it('kommt dazu, wird ersetzt und fällt weg; andere Vermerke bleiben', () => {
+    expect(mitAngebotsVermerk(null, 'gemäß Angebot AN-2026-0001')).toBe('gemäß Angebot AN-2026-0001');
+    expect(mitAngebotsVermerk('gemäß Angebot AN-2026-0001', null)).toBeNull();
+    expect(mitAngebotsVermerk('gemäß Angebot AN-2026-0001\nBitte Bestellnummer 4711 angeben', null)).toBe('Bitte Bestellnummer 4711 angeben');
+    expect(mitAngebotsVermerk('gemäß Angebot AN-2026-0001\nX', 'gemäß Angeboten AN-2026-0001, AN-2026-0002')).toBe('gemäß Angeboten AN-2026-0001, AN-2026-0002\nX');
+    expect(mitAngebotsVermerk('Eigener Vermerk', null)).toBe('Eigener Vermerk');
+  });
+});
