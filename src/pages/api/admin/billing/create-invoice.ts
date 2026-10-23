@@ -1,9 +1,11 @@
 import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
 import { createInvoice, type InvoiceLine } from '../../../../lib/native-billing';
-import { getCustomerByEmail, createCustomer } from '../../../../lib/native-billing';
+import { createCustomer } from '../../../../lib/native-billing';
 import { isE2ETestRequest } from '../../../../lib/e2e-marker';
 import { ladeZahlungsziel } from '../../../../lib/billing-regeln';
+import { getKlient, rechnungsempfaenger, verknuepfeRechnungskunde } from '../../../../lib/klientenakte';
+import { pool } from '../../../../lib/website-db';
 
 export const POST: APIRoute = async ({ request , locals }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -15,27 +17,28 @@ export const POST: APIRoute = async ({ request , locals }) => {
     const isTestData = isE2ETestRequest(request);
     const body = await request.json();
     const {
-      name, email, company, addressLine1, city, postalCode, vatNumber,
-      lines, notes, servicePeriodStart, servicePeriodEnd, leitwegId,
+      klientId, lines, notes, servicePeriodStart, servicePeriodEnd, leitwegId,
       currency, supplyType, kind, parentInvoiceId,
       dueDays: dueDaysAnfrage, taxRate = 19
     } = body;
 
-    if (!name || !email || !lines || !Array.isArray(lines)) {
-      return new Response(JSON.stringify({ error: 'name, email, and lines array required' }), { status: 400 });
+    // Stufe 4, B7 (K66): Rechnungen nur mit Klientenakte; Empfänger kommt aus der Akte.
+    const klient = typeof klientId === 'string' && klientId ? await getKlient(klientId) : null;
+    if (!klient) return new Response(JSON.stringify({ error: 'Rechnungen gibt es nur noch aus der Klientenakte (klientId fehlt). Fakturierung → Neue Rechnung → Klient wählen.' }), { status: 400 });
+    if (!lines || !Array.isArray(lines)) {
+      return new Response(JSON.stringify({ error: 'lines array required' }), { status: 400 });
     }
 
     const brand = process.env.BRAND || 'mentolder';
     // Prüfung Runde 1 (K38): ohne Angabe gilt das Zahlungsziel aus den Einstellungen.
     const dueDays = typeof dueDaysAnfrage === 'number' ? dueDaysAnfrage : await ladeZahlungsziel(brand);
 
-    let customer = await getCustomerByEmail(brand, email);
-    if (!customer) {
-      customer = await createCustomer({
-        brand, name, email, company, addressLine1, city, postalCode, vatNumber,
-        isTestData,
-      });
-    }
+    const e = rechnungsempfaenger(klient);
+    const customer = await createCustomer({
+      brand, name: e.name, email: e.email, company: e.company ?? undefined, addressLine1: e.addressLine1 ?? undefined,
+      city: e.city ?? undefined, postalCode: e.postalCode ?? undefined, vatNumber: e.vatNumber ?? undefined, isTestData,
+    });
+    await verknuepfeRechnungskunde(customer.id, klient.id);
 
     const invoice = await createInvoice({
       brand,
@@ -58,6 +61,7 @@ export const POST: APIRoute = async ({ request , locals }) => {
       isTestData
     });
 
+    await pool.query('UPDATE billing_invoices SET klient_id = $2 WHERE id = $1', [invoice.id, klient.id]);
     return new Response(JSON.stringify({ success: true, data: invoice }), { status: 200 });
   } catch (err: unknown) {
     locals.requestLogger.error({ err }, '[api/admin/billing/create-invoice]');

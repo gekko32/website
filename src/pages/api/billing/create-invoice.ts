@@ -32,6 +32,10 @@ export const POST: APIRoute = async ({ request , locals }) => {
 
     // Rechnung aus der Klientenakte (Stufe 2): Empfänger und Anschrift kommen aus
     // der Akte (Person oder Firma), der Rechnungskunde wird mit der Akte verknüpft.
+    // Stufe 4, B7 (K66): ohne Akte keine Rechnung mehr.
+    if (typeof klientId !== 'string' || !klientId) {
+      return new Response(JSON.stringify({ error: 'Rechnungen gibt es nur noch aus der Klientenakte (klientId fehlt). Fakturierung → Neue Rechnung → Klient wählen.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
     let klient: Awaited<ReturnType<typeof getKlient>> = null;
     if (typeof klientId === 'string' && klientId) {
       klient = await getKlient(klientId);
