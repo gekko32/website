@@ -12,7 +12,7 @@ import { verbucheUndEntwerfe, wirksameAbrechnungsart } from '../../../lib/billin
 import { angeboteDesKlienten, ANGEBOT_STAND_TEXT, type Angebot } from '../../../lib/billing-angebot';
 import { ladeRegeln } from '../../../lib/billing-regeln';
 import { anzeigeEmail, hatEchteEmail } from '../../../lib/billing-versand';
-import { postenDesKlienten, postenBetrag, AUFTRAG_STAND_TEXT, auftragMitAngebotLoeschbar, auftraegeDesKlienten, postenAenderbar, terminAbgesagt, postenLoeschbar, auftragLoeschbar, leistungszeitraum, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
+import { postenDesKlienten, postenBetrag, AUFTRAG_STAND_TEXT, auftragMitAngebotLoeschbar, postenImEntwurfAenderbar, auftraegeDesKlienten, terminAbgesagt, postenLoeschbar, auftragLoeschbar, leistungszeitraum, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -207,7 +207,8 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       {abrechnungsPosten.length === 0 ? <p class="text-sm text-muted mb-3">Noch keine Posten.</p> :
         <table class="w-full text-sm mb-4"><tbody>{abrechnungsPosten.map((p) => {
           // Handtest 22.10.2026: Ändern direkt in der Zeile statt in einem Kasten darunter.
-          const aenderbar = postenAenderbar(p.zustand) && !terminAbgesagt(p) && p.herkunft !== 'auftrag';
+          // Handtest 23.10.2026: bis zum Festschreiben änderbar, auch auf einem Entwurf.
+          const aenderbar = postenImEntwurfAenderbar(p.zustand) && !terminAbgesagt(p) && p.herkunft !== 'auftrag';
           const f = `f-${p.id}`;
           return (
           <tr class={`zeile border-t border-dark-lighter ${p.zustand === 'offen' ? '' : 'opacity-60'}`}>
@@ -254,7 +255,9 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
             </td>
             <td class="py-1 pr-3 text-right whitespace-nowrap align-top">{p.einzelpreis === null ? <span class="text-red-400">Preis fehlt</span> : euro(postenBetrag(p))}</td>
             <td class="py-1 pr-3 text-muted whitespace-nowrap align-top">{ZUSTAND_TEXT[p.zustand]}
-              {p.invoiceId && rechnungNummer.has(p.invoiceId) && <span class="block text-xs font-mono">{rechnungNummer.get(p.invoiceId)}</span>}</td>
+              {p.invoiceId && rechnungNummer.has(p.invoiceId) && (p.zustand === 'auf_entwurf'
+                ? <a class="block text-xs font-mono text-gold underline" href={`/admin/rechnungen/entwurf/${p.invoiceId}`} title="Entwurf prüfen, ändern, verschicken">{rechnungNummer.get(p.invoiceId)} ›</a>
+                : <span class="block text-xs font-mono">{rechnungNummer.get(p.invoiceId)}</span>)}</td>
             <td class="py-1 text-right whitespace-nowrap align-top">
               {aenderbar && <span class="bearbeiten">
                 <form id={f} method="POST" action="/api/admin/posten" autocomplete="off" class="merk-ungespeichert inline">
@@ -275,22 +278,22 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                     class="w-28 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-xs text-light" />
                   <button type="submit" class="px-2 py-1 rounded border border-dark-lighter text-xs">Erlassen</button>
                 </form>
-              ) : (p.zustand === 'offen' || p.zustand === 'nicht_abrechnen') && !terminAbgesagt(p) && (
+              ) : (p.zustand === 'offen' || p.zustand === 'nicht_abrechnen' || p.zustand === 'auf_entwurf') && !terminAbgesagt(p) && (
                 <form method="POST" action="/api/admin/posten" style="display:inline;">
                   <input type="hidden" name="postenId" value={p.id} />
-                  <input type="hidden" name="aktion" value={p.zustand === 'offen' ? 'nicht_abrechnen' : 'abrechnen'} />
+                  <input type="hidden" name="aktion" value={p.zustand === 'nicht_abrechnen' ? 'abrechnen' : 'nicht_abrechnen'} />
                   <button type="submit" class="px-2 py-1 rounded border border-dark-lighter text-xs"
-                    title={p.zustand === 'offen' ? 'Diesen Posten nicht in Rechnung stellen (z. B. Kulanz)' : 'Wieder in die Abrechnung aufnehmen'}>
-                    {p.zustand === 'offen' ? 'Ausnehmen' : 'Wieder aufnehmen'}
+                    title={p.zustand === 'nicht_abrechnen' ? 'Wieder in die Abrechnung aufnehmen' : 'Diesen Posten nicht in Rechnung stellen (z. B. Kulanz)'}>
+                    {p.zustand === 'nicht_abrechnen' ? 'Wieder aufnehmen' : 'Ausnehmen'}
                   </button>
                 </form>
               )}
               {p.zustand === 'auf_entwurf' && p.invoiceId && (
                 <form method="POST" action="/api/admin/posten" class="posten-loeschen inline"
-                  data-frage={`Entwurf ${rechnungNummer.get(p.invoiceId) ?? ''} verwerfen? Seine ${posten.filter((x) => x.invoiceId === p.invoiceId).length} Posten sind danach wieder offen und lassen sich ändern.`}>
-                  <input type="hidden" name="aktion" value="entwurf_verwerfen" />
+                  data-frage="Diesen Posten vom Rechnungsentwurf nehmen? Er bleibt als offener Posten in der Akte, der Entwurf behält die übrigen Positionen.">
+                  <input type="hidden" name="aktion" value="vom_entwurf" />
                   <input type="hidden" name="postenId" value={p.id} />
-                  <button type="submit" class="px-2 py-1 rounded border border-dark-lighter text-xs" title="Zum Ändern: Entwurf verwerfen, der Posten ist dann wieder offen.">Entwurf verwerfen</button>
+                  <button type="submit" class="px-2 py-1 rounded border border-dark-lighter text-xs" title="Nur diesen Posten aus dem Entwurf nehmen.">Vom Entwurf nehmen</button>
                 </form>
               )}
               {postenLoeschbar(p.herkunft, p.zustand) && (
@@ -436,7 +439,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                 </tr></thead>
                 <tbody>{pos.map((p) => {
                   // Prüfung Stufe 4 (B1): bei verschicktem Angebot gesperrt.
-                  const aenderbar = postenAenderbar(p.zustand) && a.stand !== 'angeboten';
+                  const aenderbar = postenImEntwurfAenderbar(p.zustand) && a.stand !== 'angeboten';
                   const f = `f-${p.id}`;
                   return (
                   <tr class="zeile border-t border-dark-lighter">
@@ -490,10 +493,10 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                       </>) : <><span class="text-muted">{ZUSTAND_TEXT[p.zustand]}</span>
                         {p.zustand === 'auf_entwurf' && p.invoiceId && (
                           <form method="POST" action="/api/admin/posten" class="posten-loeschen inline"
-                            data-frage={`Entwurf ${rechnungNummer.get(p.invoiceId) ?? ''} verwerfen? Seine ${posten.filter((x) => x.invoiceId === p.invoiceId).length} Posten sind danach wieder offen und lassen sich ändern.`}>
-                            <input type="hidden" name="aktion" value="entwurf_verwerfen" />
+                            data-frage="Diesen Posten vom Rechnungsentwurf nehmen? Er bleibt als offener Posten in der Akte, der Entwurf behält die übrigen Positionen.">
+                            <input type="hidden" name="aktion" value="vom_entwurf" />
                             <input type="hidden" name="postenId" value={p.id} />
-                            <button type="submit" class="px-2 py-1 rounded border border-dark-lighter text-xs" title="Zum Ändern: Entwurf verwerfen, der Posten ist dann wieder offen.">Entwurf verwerfen</button>
+                            <button type="submit" class="px-2 py-1 rounded border border-dark-lighter text-xs" title="Nur diesen Posten aus dem Entwurf nehmen.">Vom Entwurf nehmen</button>
                           </form>
                         )}
                       </>}
@@ -590,7 +593,9 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       {rechnungen.length === 0 ? <p class="text-sm text-muted">Keine Rechnungen.</p> :
         <table class="w-full text-sm"><tbody>{rechnungen.map((r) => (
           <tr class="border-t border-dark-lighter">
-            <td class="py-1 pr-3 font-mono"><a class="hover:underline" href={`/admin/billing/${r.id}/drucken`} target="_blank" rel="noopener">{r.number}</a></td>
+            <td class="py-1 pr-3 font-mono">{r.status === 'draft'
+              ? <a class="text-gold underline" href={`/admin/rechnungen/entwurf/${r.id}`} title="Entwurf prüfen, ändern, verschicken">{r.number} ›</a>
+              : <a class="hover:underline" href={`/admin/billing/${r.id}/drucken`} target="_blank" rel="noopener">{r.number}</a>}</td>
             <td class="py-1 pr-3">{datum(r.issue_date)}</td>
             <td class="py-1 pr-3 text-right">{euro(r.gross_amount)}</td>
             <td class="py-1 pr-3 text-muted">{STATUS[r.status] ?? r.status}

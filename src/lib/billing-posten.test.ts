@@ -235,7 +235,7 @@ describe('Ändern und Löschen offener Posten (Handtest L2, 21.10.2026)', () => 
   it('löschen nur bei Hand- und Auftragsposten, solange sie auf keiner Rechnung stehen', () => {
     expect(postenLoeschbar('hand', 'offen')).toBe(true);
     expect(postenLoeschbar('auftrag', 'nicht_abrechnen')).toBe(true);
-    expect(postenLoeschbar('hand', 'auf_entwurf')).toBe(false);
+    expect(postenLoeschbar('hand', 'auf_entwurf')).toBe(true); // Handtest 23.10.2026: Entwurf bis zum Versand änderbar
     expect(postenLoeschbar('hand', 'abgerechnet')).toBe(false);
     // würden beim nächsten Öffnen neu entstehen → stattdessen ausnehmen
     expect(postenLoeschbar('termin', 'offen')).toBe(false);

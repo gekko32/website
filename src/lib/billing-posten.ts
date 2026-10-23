@@ -280,7 +280,8 @@ export function postenAenderbar(zustand: PostenZustand): boolean {
  * entstehen – sie werden stattdessen ausgenommen.
  */
 export function postenLoeschbar(herkunft: Herkunft, zustand: PostenZustand): boolean {
-  return (herkunft === 'hand' || herkunft === 'auftrag') && postenAenderbar(zustand);
+  // Handtest 23.10.2026: auch auf einem Entwurf (der Entwurf wird danach neu aufgebaut).
+  return (herkunft === 'hand' || herkunft === 'auftrag') && (postenAenderbar(zustand) || zustand === 'auf_entwurf');
 }
 
 /** Ein Auftrag lässt sich samt Positionen löschen, solange keine Position auf einer Rechnung steht. */
@@ -438,8 +439,10 @@ export function terminAbgesagt(p: Pick<Posten, 'herkunft' | 'notiz'>): boolean {
 export async function setzeAbrechnen(brand: string, postenId: string, abrechnen: boolean): Promise<boolean> {
   await initPostenTabelle();
   const { rowCount } = await pool.query(
-    `UPDATE abrechnungsposten SET zustand = $3, updated_at = now()
-      WHERE brand = $1 AND id = $2 AND zustand IN ('offen','nicht_abrechnen')
+    `UPDATE abrechnungsposten SET zustand = $3, updated_at = now(),
+         -- Handtest 23.10.2026: ein Posten auf einem Entwurf lässt sich direkt ausnehmen.
+         invoice_id = CASE WHEN zustand = 'auf_entwurf' THEN NULL ELSE invoice_id END
+      WHERE brand = $1 AND id = $2 AND (zustand IN ('offen','nicht_abrechnen') OR ($3 = 'nicht_abrechnen' AND zustand = 'auf_entwurf'))
         -- Prüfung L2 (N1): ein abgesagter Termin lässt sich nicht wieder öffnen.
         AND NOT ($3 = 'offen' AND ${ABGESAGT_SQL})`,
     [brand, postenId, abrechnen ? 'offen' : 'nicht_abrechnen']);
@@ -591,7 +594,7 @@ export async function setzePostenPreis(brand: string, postenId: string, preis: n
     `UPDATE abrechnungsposten SET einzelpreis = $3,
        notiz = CASE WHEN notiz = 'Preis fehlt – bitte eintragen' THEN NULL ELSE notiz END,
        updated_at = now()
-      WHERE brand = $1 AND id = $2 AND zustand IN ('offen','nicht_abrechnen','geplant') AND ${NICHT_ANGEBOTEN_SQL}`,
+      WHERE brand = $1 AND id = $2 AND zustand IN ('offen','nicht_abrechnen','geplant','auf_entwurf') AND ${NICHT_ANGEBOTEN_SQL}`,
     [brand, postenId, preis]);
   return (rowCount ?? 0) > 0;
 }
@@ -654,7 +657,7 @@ export async function aenderePosition(brand: string, postenId: string, w: Positi
   const { rowCount } = await pool.query(
     `UPDATE abrechnungsposten SET datum=$3, text=$4, menge=$5, einheit=$6, einzelpreis=$7, datum_bis=$8,
        notiz = CASE WHEN notiz = 'Preis fehlt – bitte eintragen' THEN NULL ELSE notiz END, updated_at=now()
-      WHERE brand=$1 AND id=$2 AND zustand IN ('offen','nicht_abrechnen','geplant') AND NOT ${ABGESAGT_SQL} AND ${NICHT_ANGEBOTEN_SQL}`,
+      WHERE brand=$1 AND id=$2 AND zustand IN ('offen','nicht_abrechnen','geplant','auf_entwurf') AND NOT ${ABGESAGT_SQL} AND ${NICHT_ANGEBOTEN_SQL}`,
     [brand, postenId, w.datum, w.text, w.menge, w.einheit, w.einzelpreis, w.datumBis]);
   return (rowCount ?? 0) > 0;
 }
@@ -706,7 +709,7 @@ export async function loeschePosten(brand: string, postenId: string): Promise<bo
   await initPostenTabelle();
   const { rowCount } = await pool.query(
     `DELETE FROM abrechnungsposten
-      WHERE brand=$1 AND id=$2 AND herkunft IN ('hand','auftrag') AND zustand IN ('offen','nicht_abrechnen','geplant') AND ${NICHT_ANGEBOTEN_SQL}`,
+      WHERE brand=$1 AND id=$2 AND herkunft IN ('hand','auftrag') AND zustand IN ('offen','nicht_abrechnen','geplant','auf_entwurf') AND ${NICHT_ANGEBOTEN_SQL}`,
     [brand, postenId]);
   return (rowCount ?? 0) > 0;
 }
@@ -715,6 +718,31 @@ export async function klientDesPostens(brand: string, postenId: string): Promise
   await initPostenTabelle();
   const { rows } = await pool.query('SELECT klient_id FROM abrechnungsposten WHERE brand = $1 AND id = $2', [brand, postenId]);
   return (rows[0]?.klient_id as string | undefined) ?? null;
+}
+
+/** Posten auf einem noch nicht festgeschriebenen Entwurf? Dann wird dieser nach einer Änderung neu aufgebaut. */
+export const postenImEntwurfAenderbar = (zustand: PostenZustand): boolean => postenAenderbar(zustand) || zustand === 'auf_entwurf';
+
+/** Handtest 23.10.2026: einen Posten vom Entwurf nehmen – wieder offen, kein neuer Auto-Entwurf. Liefert den Entwurf. */
+export async function nimmVomEntwurf(brand: string, postenId: string): Promise<string | null> {
+  await initPostenTabelle();
+  const { rows } = await pool.query(
+    `UPDATE abrechnungsposten p SET zustand = 'offen', invoice_id = NULL, auto_entwurf = false, updated_at = now()
+       FROM abrechnungsposten alt WHERE alt.id = p.id AND p.brand = $1 AND p.id = $2 AND p.zustand = 'auf_entwurf'
+     RETURNING alt.invoice_id`, [brand, postenId]);
+  return (rows[0]?.invoice_id as string | undefined) ?? null;
+}
+
+/** Handtest 23.10.2026: weitere offene Posten (mit Preis) desselben Klienten auf einen Entwurf setzen. */
+export async function fuegeZumEntwurf(brand: string, invoiceId: string, klientId: string, postenIds: string[]): Promise<number> {
+  await initPostenTabelle();
+  const ids = postenIds.filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  if (ids.length === 0) return 0;
+  const r = await pool.query(
+    `UPDATE abrechnungsposten SET zustand = 'auf_entwurf', invoice_id = $3, updated_at = now()
+      WHERE brand = $1 AND klient_id = $2 AND id = ANY($4::uuid[]) AND zustand = 'offen' AND einzelpreis IS NOT NULL`,
+    [brand, klientId, invoiceId, ids]);
+  return r.rowCount ?? 0;
 }
 
 /** Akte, Zustand und Rechnung eines Postens (für „Entwurf verwerfen“ aus der Akte). */

@@ -1,0 +1,229 @@
+---
+// Handtest 23.10.2026: Rechnungsentwurf auf eigener Seite – bis zum Festschreiben alles änderbar.
+// Positionen ändern oder herausnehmen, weitere offene Posten hinzufügen, Zahlungsziel, Ansehen,
+// Verwerfen, Festschreiben per E-Mail oder Post. Links anlegen, rechts alles für bestehende Zeilen.
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../../../components/admin/ui/AdminPageHeader.svelte';
+import { getSession, getLoginUrl, isAdmin } from '../../../../lib/auth';
+import { pool, initBillingTables } from '../../../../lib/website-db';
+import { getKlient } from '../../../../lib/klientenakte';
+import { aktuellerEmpfaenger, fehlendeAngaben } from '../../../../lib/billing-empfaenger';
+import { anzeigeEmail, versandwege } from '../../../../lib/billing-versand';
+import { ladeZahlungsziel } from '../../../../lib/billing-regeln';
+import { ladeEinheiten } from '../../../../lib/billing-einheiten';
+import { leistungsdatumZeile } from '../../../../lib/leistungszeitraum';
+import { postenDesKlienten, postenBetrag, HERKUNFT_TEXT, type Posten } from '../../../../lib/billing-posten';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+
+const brand = process.env.BRAND || 'mentolder';
+await initBillingTables();
+const id = Astro.params.id ?? '';
+const kopf = (await pool.query(
+  `SELECT id, number, status, customer_id, klient_id::text AS klient_id, zahlungsziel_tage, net_amount::float AS netto, notes
+     FROM billing_invoices WHERE id = $1 AND brand = $2`, [id, brand])).rows[0];
+if (!kopf) return Astro.redirect('/admin/rechnungen');
+// Festgeschrieben: nur noch ansehen (GoBD).
+if (kopf.status !== 'draft') return Astro.redirect(`/admin/billing/${id}/drucken`);
+
+const zeilen = (await pool.query(
+  `SELECT id::text AS id, description, quantity::float AS menge, unit, unit_price::float AS preis, net_amount::float AS betrag,
+          leistung_von::text AS von, leistung_bis::text AS bis, posten_id::text AS posten_id
+     FROM billing_invoice_line_items WHERE invoice_id = $1 ORDER BY id`, [id])).rows as {
+  id: string; description: string; menge: number; unit: string | null; preis: number; betrag: number; von: string | null; bis: string | null; posten_id: string | null;
+}[];
+const klient = kopf.klient_id ? await getKlient(kopf.klient_id) : null;
+const alle: Posten[] = klient ? await postenDesKlienten(brand, klient.id).catch(() => []) : [];
+const postenVon = new Map(alle.map((p) => [p.id, p]));
+const hinzufuegbar = alle.filter((p) => p.zustand === 'offen' && p.einzelpreis !== null);
+const empfaenger = await aktuellerEmpfaenger(brand, kopf.customer_id, { klientId: kopf.klient_id });
+const fehlt = empfaenger ? fehlendeAngaben(empfaenger) : ['Empfänger'];
+const wege = versandwege(empfaenger?.email);
+const standardZiel = await ladeZahlungsziel(brand);
+const einheiten = await ladeEinheiten(brand);
+const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.includes(aktuell) ? [aktuell, ...einheiten] : einheiten);
+const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
+const zahl = (n: number | null) => (n === null ? '' : String(n).replace('.', ','));
+const summe = zeilen.reduce((s, z) => Math.round((s + z.betrag) * 100) / 100, 0);
+const q = Astro.url.searchParams;
+const fehler = q.get('fehler');
+const zurueck = `/admin/rechnungen/entwurf/${id}`;
+const feld = 'zfeld';
+---
+
+<AdminLayout title={`Rechnungsentwurf ${kopf.number}`}>
+  <div style="padding:2rem;max-width:1000px;">
+    <p class="text-xs text-muted mb-2">
+      {klient && <a class="hover:underline" href={`/admin/klienten/${klient.id}#abrechnung`}>← Zur Klientenakte {klient.name}</a>}
+      <span class="mx-2">·</span><a class="hover:underline" href="/admin/rechnungen">Alle Rechnungen und Entwürfe</a>
+    </p>
+    <AdminPageHeader title={`Rechnungsentwurf ${kopf.number}`}
+      description="Noch nichts verschickt. Bis zum Festschreiben lässt sich hier alles ändern." />
+
+    {q.get('neu') === '1' && <p class="text-sm text-green-400 mb-3">Entwurf angelegt. Bitte prüfen – Positionen lassen sich hier noch ändern oder herausnehmen.</p>}
+    {q.get('gespeichert') === '1' && <p class="text-sm text-green-400 mb-3">Gespeichert. Der Entwurf ist aktualisiert.</p>}
+    {fehler && <p role="alert" class="text-sm text-red-400 mb-3">{fehler}</p>}
+
+    <section class="mb-6">
+      <h2 class="text-xs text-muted uppercase tracking-wide mb-1">An</h2>
+      {empfaenger ? (
+        <p class="text-sm">
+          <strong>{empfaenger.company ?? empfaenger.name}</strong>{empfaenger.company && <span class="text-muted"> (z. Hd. {empfaenger.name})</span>}
+          <br /><span class="text-muted">{[empfaenger.addressLine1, [empfaenger.postalCode, empfaenger.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Anschrift fehlt'} · {anzeigeEmail(empfaenger.email)}</span>
+        </p>
+      ) : <p class="text-sm text-red-400">Empfänger nicht gefunden.</p>}
+      {fehlt.length > 0 && <p class="text-sm text-red-400 mt-1">Festschreiben erst möglich, wenn die Anschrift vollständig ist. Es fehlt: {fehlt.join(', ')}.
+        {klient && <a class="underline ml-1" href={`/admin/klienten/${klient.id}`}>In der Akte ergänzen</a>}</p>}
+    </section>
+
+    {/* Links anlegen: weitere offene Posten dieses Klienten hinzufügen. */}
+    {hinzufuegbar.length > 0 && (
+      <details class="mb-3">
+        <summary class="cursor-pointer inline-block px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Weitere offene Posten hinzufügen ({hinzufuegbar.length})</summary>
+        <form method="POST" action="/api/admin/posten" class="mt-2 border border-dark-lighter rounded-xl p-3">
+          <input type="hidden" name="aktion" value="zum_entwurf" /><input type="hidden" name="invoiceId" value={id} /><input type="hidden" name="zurueck" value={zurueck} />
+          <ul class="text-sm space-y-1 mb-2">{hinzufuegbar.map((p) => (
+            <li><label class="flex gap-2 items-baseline"><input type="checkbox" name="postenId" value={p.id} />
+              <span>{leistungsdatumZeile({ leistungVon: p.datum, leistungBis: p.datumBis })?.replace('Leistung: ', '')} · {p.text} · {euro(postenBetrag(p))}</span></label></li>))}
+          </ul>
+          <button type="submit" class="px-3 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Ausgewählte hinzufügen</button>
+        </form>
+      </details>
+    )}
+
+    <section class="mb-6">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-xs text-muted">
+          <th class="py-1 pr-2 font-normal">Leistungsdatum</th><th class="py-1 pr-2 font-normal">Position</th>
+          <th class="py-1 pr-2 font-normal text-right">Menge × Einzelpreis</th><th class="py-1 pr-2 font-normal text-right">Betrag</th><th></th>
+        </tr></thead>
+        <tbody>{zeilen.map((z) => {
+          const p = z.posten_id ? postenVon.get(z.posten_id) : undefined;
+          const f = `f-${z.id}`;
+          // Eingabewerte: beim Posten dessen eigener Text (ohne angehängten Namen), sonst die Zeile.
+          const w = p
+            ? { datum: p.datum, bis: p.datumBis ?? '', text: p.text, menge: p.menge, einheit: p.einheit, preis: p.einzelpreis }
+            : { datum: z.von ?? '', bis: z.bis ?? '', text: z.description, menge: z.menge, einheit: z.unit ?? '', preis: z.preis };
+          return (
+          <tr class="zeile border-t border-dark-lighter">
+            <td class="py-1 pr-2 whitespace-nowrap align-top">
+              <span class="ansicht">{leistungsdatumZeile({ leistungVon: z.von, leistungBis: z.bis })?.replace('Leistung: ', '') ?? '–'}</span>
+              <span class="bearbeiten">
+                <label class="text-xs text-muted">von<input type="date" name="datum" value={w.datum} form={f} class={feld} required /></label>
+                <label class="text-xs text-muted">bis<input type="date" name="datumBis" value={w.bis} form={f} class={feld} /></label>
+              </span>
+            </td>
+            <td class="py-1 pr-2 align-top">
+              <span class="ansicht">{z.description}</span>
+              <span class="bearbeiten"><input name="text" value={w.text} form={f} aria-label="Text auf der Rechnung" class={feld} required /></span>
+              <span class="block text-xs text-muted">{p ? HERKUNFT_TEXT[p.herkunft] : 'freie Position'}</span>
+            </td>
+            <td class="py-1 pr-2 text-right whitespace-nowrap align-top">
+              <span class="ansicht">{z.menge.toLocaleString('de-DE')}{z.unit ? ` ${z.unit}` : ''} × {euro(z.preis)}</span>
+              <span class="bearbeiten"><span class="inline-flex gap-1 items-center">
+                <input name="menge" value={zahl(w.menge)} inputmode="decimal" form={f} aria-label="Menge" class={`${feld} w-14`} required />
+                <select name="einheit" form={f} aria-label="Einheit" class={`${feld} w-24`}>
+                  <option value="" selected={!w.einheit}>–</option>
+                  {einheitOptionen(w.einheit).map((e) => <option value={e} selected={e === w.einheit}>{e}</option>)}
+                </select> ×
+                <input name="preis" value={zahl(w.preis)} inputmode="decimal" form={f} aria-label="Preis je Einheit in €" class={`${feld} w-20`} required />
+              </span></span>
+            </td>
+            <td class="py-1 pr-2 text-right whitespace-nowrap align-top">{euro(z.betrag)}</td>
+            <td class="py-1 text-right whitespace-nowrap align-top">
+              <span class="bearbeiten">
+                <form id={f} method="POST" action="/api/admin/posten" class="inline">
+                  <input type="hidden" name="zurueck" value={zurueck} />
+                  {p ? (<><input type="hidden" name="aktion" value="position_aendern" /><input type="hidden" name="postenId" value={p.id} /></>)
+                     : (<><input type="hidden" name="aktion" value="freie_zeile_aendern" /><input type="hidden" name="invoiceId" value={id} /><input type="hidden" name="zeileId" value={z.id} /></>)}
+                  <button type="submit" class="px-2 py-1 rounded bg-gold text-dark text-xs font-semibold">Speichern</button>
+                </form>
+                <button type="button" class="zeile-abbrechen px-2 py-1 rounded border border-dark-lighter text-xs" data-form={f}>Abbrechen</button>
+              </span>
+              <span class="ansicht">
+                <button type="button" class="zeile-aendern px-2 py-1 rounded border border-gold text-gold text-xs">Ändern</button>
+                <form method="POST" action="/api/admin/posten" class="inline rausnehmen"
+                  data-frage={p ? 'Diese Position aus dem Entwurf nehmen? Sie bleibt als offener Posten in der Akte.' : 'Diese freie Position aus dem Entwurf entfernen?'}>
+                  <input type="hidden" name="zurueck" value={zurueck} />
+                  {p ? (<><input type="hidden" name="aktion" value="vom_entwurf" /><input type="hidden" name="postenId" value={p.id} /></>)
+                     : (<><input type="hidden" name="aktion" value="freie_zeile_entfernen" /><input type="hidden" name="invoiceId" value={id} /><input type="hidden" name="zeileId" value={z.id} /></>)}
+                  <button type="submit" class="px-2 py-1 rounded border border-red-400 text-red-300 text-xs">Herausnehmen</button>
+                </form>
+              </span>
+            </td>
+          </tr>
+          ); })}
+          <tr class="border-t-2 border-dark-lighter font-semibold"><td class="py-1" colspan="3">Gesamt</td><td class="py-1 pr-2 text-right">{euro(summe)}</td><td></td></tr>
+        </tbody>
+      </table>
+      {kopf.notes && <p class="text-xs text-muted mt-2">Vermerk auf der Rechnung: {kopf.notes}</p>}
+    </section>
+
+    <section class="border border-dark-lighter rounded-xl p-4 mb-6">
+      <label class="block text-sm text-light mb-3">Zahlungsziel in Tagen
+        <input id="zahlungsziel" type="number" min="0" max="365" step="1" value={kopf.zahlungsziel_tage ?? standardZiel}
+          class="ml-2 w-20 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light" />
+        <span class="ml-2 text-xs text-muted">Standard aus den Einstellungen: {standardZiel} Tage</span>
+      </label>
+      <p id="meldung" role="alert" class="text-sm text-red-400 mb-3"></p>
+      <div class="flex flex-wrap gap-2 justify-end">
+        <button type="button" id="verwerfen" class="px-3 py-2 rounded-lg border border-red-400 text-red-300 text-sm">Entwurf verwerfen</button>
+        <a href={`/admin/billing/${id}/drucken`} target="_blank" rel="noopener" class="px-3 py-2 rounded-lg border border-light/40 text-light text-sm hover:border-gold">Ansehen ↗</a>
+        <button type="button" data-weg="post" disabled={fehlt.length > 0 || zeilen.length === 0} class="festschreiben px-3 py-2 rounded-lg border border-gold text-gold text-sm disabled:opacity-40">Festschreiben ohne E-Mail (Post/persönlich)</button>
+        {wege.includes('email') && <button type="button" data-weg="email" disabled={fehlt.length > 0 || zeilen.length === 0} class="festschreiben px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold disabled:opacity-40">Festschreiben und per E-Mail senden</button>}
+      </div>
+      {!wege.includes('email') && <p class="text-xs text-muted mt-2">Keine E-Mail-Adresse: nur Versand per Post/persönlich.</p>}
+    </section>
+  </div>
+</AdminLayout>
+
+<style>
+  input[type='date'] { color-scheme: dark; }
+  .zeile .bearbeiten { display: none; }
+  .zeile.im-bearbeiten .ansicht { display: none; }
+  .zeile.im-bearbeiten .bearbeiten { display: block; }
+  .zeile.im-bearbeiten { background: var(--color-gold-dim, rgba(200, 170, 90, 0.14)); outline: 1px solid var(--color-gold, #c9a227); }
+  .zfeld { display: block; width: 100%; min-width: 0; margin: 0.125rem 0; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.8rem;
+    background: var(--color-dark, #111); border: 1px solid var(--color-dark-lighter, #333); color: var(--color-light, #eee); }
+  .zfeld.w-14 { width: 3.5rem; } .zfeld.w-20 { width: 5rem; } .zfeld.w-24 { width: 6rem; }
+  .inline-flex > .zfeld { display: inline-block; }
+</style>
+
+<script define:vars={{ id }}>
+  document.querySelectorAll('.zeile-aendern').forEach((b) => b.addEventListener('click', () => b.closest('.zeile')?.classList.add('im-bearbeiten')));
+  document.querySelectorAll('.zeile-abbrechen').forEach((b) => b.addEventListener('click', () => {
+    document.getElementById(b.dataset.form)?.reset();
+    b.closest('.zeile')?.classList.remove('im-bearbeiten');
+  }));
+  document.querySelectorAll('form.rausnehmen').forEach((f) => f.addEventListener('submit', (e) => {
+    if (!confirm(f.dataset.frage)) e.preventDefault();
+  }));
+  const meldung = document.getElementById('meldung');
+  document.getElementById('verwerfen')?.addEventListener('click', async () => {
+    if (!confirm('Entwurf verwerfen? Seine Posten sind danach in der Akte wieder offen.')) return;
+    const res = await fetch(`/api/admin/billing/${id}/discard`, { method: 'POST' });
+    if (res.ok) window.location.href = '/admin/rechnungen'; else if (meldung) meldung.textContent = 'Verwerfen fehlgeschlagen.';
+  });
+  document.querySelectorAll('button.festschreiben').forEach((b) => b.addEventListener('click', async () => {
+    const weg = b.dataset.weg;
+    const frage = weg === 'email'
+      ? 'Rechnung jetzt festschreiben und per E-Mail senden? Danach lässt sie sich nur noch stornieren.'
+      : 'Rechnung jetzt festschreiben, ohne E-Mail? Das PDF wird zum Drucken heruntergeladen. Danach lässt sie sich nur noch stornieren.';
+    if (!confirm(frage)) return;
+    b.disabled = true;
+    const res = await fetch(`/api/admin/billing/${id}/send`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zahlungszielTage: document.getElementById('zahlungsziel')?.value, versand: weg }),
+    });
+    if (!res.ok) { b.disabled = false; if (meldung) meldung.textContent = `Nicht festgeschrieben: ${(await res.text().catch(() => '')) || 'Fehler'} (${res.status})`; return; }
+    const data = await res.json().catch(() => ({}));
+    if (data.pdfUrl) {
+      const link = document.createElement('a');
+      link.href = data.pdfUrl; link.download = `${data.number ?? 'Rechnung'}.pdf`;
+      document.body.appendChild(link); link.click(); link.remove();
+    }
+    setTimeout(() => { window.location.href = `/admin/billing/${id}/drucken`; }, data.pdfUrl ? 1500 : 0);
+  }));
+</script>

@@ -9,7 +9,9 @@ import {
   pruefeAuftragTitel, pruefePosition, pruefePreis, pruefeSitzung, setzeAbrechnen, setzePostenPreis,
 } from '../../../lib/billing-posten';
 import { erlasseAusfall, vermerkeAbsage } from '../../../lib/billing-ausfall';
-import { erstelleEntwurfAusPosten, verwirfEntwurf } from '../../../lib/billing-entwurf';
+import { aktualisiereEntwurf, aendereFreieZeile, entferneFreieZeile, erstelleEntwurfAusPosten } from '../../../lib/billing-entwurf';
+import { fuegeZumEntwurf, nimmVomEntwurf } from '../../../lib/billing-posten';
+import { pool } from '../../../lib/website-db';
 import { isE2ETestRequest } from '../../../lib/e2e-marker';
 
 /** Prüfung Stufe 4 Runde 2 (N2): bei gesperrten Auftragspositionen den richtigen Grund nennen. */
@@ -33,6 +35,28 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   const text = (k: string) => String(form.get(k) ?? '');
   const aktion = text('aktion');
 
+  // Handtest 23.10.2026: Ein Rechnungsentwurf bleibt bis zum Festschreiben änderbar. Ändert sich ein
+  // Posten, der auf einem Entwurf steht, wird der Entwurf danach neu aufgebaut. Kommt die Anfrage von
+  // der Entwurfsseite (zurueck), geht es dorthin zurück.
+  const zurueck = text('zurueck');
+  const zurEntwurfsseite = /^\/admin\/rechnungen\/entwurf\/[0-9a-f-]{36}$/i.test(zurueck);
+  const pid = text('postenId');
+  const vorher = /^[0-9a-f-]{36}$/i.test(pid) ? await rechnungDesPostens(brand, pid) : null;
+  let entwurfNachher: string | null = vorher?.zustand === 'auf_entwurf' ? vorher.invoiceId : null;
+  const weiter = async (ziel: string, _status = 303): Promise<Response> => {
+    let ergebnis: string | null = null;
+    if (entwurfNachher) ergebnis = await aktualisiereEntwurf(brand, entwurfNachher);
+    if (zurEntwurfsseite) {
+      if (ergebnis === 'verworfen') {
+        return redirect(`/admin/klienten/${vorher?.klientId ?? ''}?fehler=${encodeURIComponent('Der Entwurf hatte keine Position mehr und wurde verworfen. Die Posten sind wieder offen.')}#abrechnung`, 303);
+      }
+      const q = new URLSearchParams((ziel.split('?')[1] ?? '').split('#')[0]);
+      const f = q.get('fehler') ?? q.get('auftragFehler');
+      return redirect(zurueck + (f ? `?fehler=${encodeURIComponent(f)}` : '?gespeichert=1'), 303);
+    }
+    return redirect(ziel, 303);
+  };
+
   if (aktion === 'nicht_abrechnen' || aktion === 'abrechnen') {
     const postenId = text('postenId');
     if (!/^[0-9a-f-]{36}$/i.test(postenId)) return new Response('Posten nicht gefunden', { status: 404 });
@@ -40,7 +64,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!klientId) return new Response('Posten nicht gefunden', { status: 404 });
     const ok = await setzeAbrechnen(brand, postenId, aktion === 'abrechnen');
     const hinweis = ok ? 'gespeichert=1' : `fehler=${encodeURIComponent('Dieser Posten steht schon auf einer Rechnung und lässt sich hier nicht ändern.')}`;
-    return redirect(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
+    return weiter(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
   }
 
   if (aktion === 'preis') {
@@ -50,11 +74,11 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!klientId) return new Response('Posten nicht gefunden', { status: 404 });
     const preis = pruefePreis(text('preis'));
     if (preis === null) {
-      return redirect(`/admin/klienten/${klientId}?fehler=${encodeURIComponent('Bitte einen Preis ab 0 mit höchstens zwei Nachkommastellen eintragen.')}#abrechnung`, 303);
+      return weiter(`/admin/klienten/${klientId}?fehler=${encodeURIComponent('Bitte einen Preis ab 0 mit höchstens zwei Nachkommastellen eintragen.')}#abrechnung`, 303);
     }
     const ok = await setzePostenPreis(brand, postenId, preis);
     const hinweis = ok ? 'gespeichert=1' : `fehler=${encodeURIComponent('Dieser Posten steht schon auf einer Rechnung und lässt sich hier nicht ändern.')}`;
-    return redirect(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
+    return weiter(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
   }
 
   // T10a: gewählte offene Posten → Rechnungsentwurf (K22, K23). Versand erst nach Prüfung unter Rechnungen.
@@ -63,19 +87,43 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!klient) return new Response('Klient nicht gefunden', { status: 404 });
     const ids = form.getAll('postenId').map(String);
     const r = await erstelleEntwurfAusPosten(brand, klient, ids, { isTestData: isE2ETestRequest(request) });
-    const hinweis = r.ok ? `entwurf=${encodeURIComponent(r.number)}` : `fehler=${encodeURIComponent(r.fehler)}`;
-    return redirect(`/admin/klienten/${klient.id}?${hinweis}#abrechnung`, 303);
+    // Handtest 23.10.2026: direkt zur Entwurfsseite – dort prüfen, ändern, verschicken.
+    if (r.ok) return redirect(`/admin/rechnungen/entwurf/${r.invoiceId}?neu=1`, 303);
+    return weiter(`/admin/klienten/${klient.id}?fehler=${encodeURIComponent(r.fehler)}#abrechnung`, 303);
   }
 
-  // Handtest 22.10.2026: gesperrten Posten wieder änderbar machen – Entwurf, auf dem er steht, verwerfen.
-  if (aktion === 'entwurf_verwerfen') {
-    const postenId = text('postenId');
-    if (!/^[0-9a-f-]{36}$/i.test(postenId)) return new Response('Posten nicht gefunden', { status: 404 });
-    const r = await rechnungDesPostens(brand, postenId);
-    if (!r) return new Response('Posten nicht gefunden', { status: 404 });
-    const ok = r.zustand === 'auf_entwurf' && r.invoiceId !== null && await verwirfEntwurf(brand, r.invoiceId);
-    const hinweis = ok ? 'gespeichert=1' : `fehler=${encodeURIComponent('Nur Posten auf einem noch nicht festgeschriebenen Entwurf lassen sich so freigeben. Festgeschriebene Rechnungen bitte stornieren.')}`;
-    return redirect(`/admin/klienten/${r.klientId}?${hinweis}#abrechnung`, 303);
+  // Handtest 23.10.2026: nur diesen Posten vom Entwurf nehmen (wieder offen); der Entwurf bleibt.
+  if (aktion === 'vom_entwurf' || aktion === 'entwurf_verwerfen') {
+    if (!vorher) return new Response('Posten nicht gefunden', { status: 404 });
+    const invoiceId = await nimmVomEntwurf(brand, pid);
+    const hinweis = invoiceId ? 'gespeichert=1' : `fehler=${encodeURIComponent('Nur Posten auf einem noch nicht festgeschriebenen Entwurf lassen sich herausnehmen. Festgeschriebene Rechnungen bitte stornieren.')}`;
+    return weiter(`/admin/klienten/${vorher.klientId}?${hinweis}#abrechnung`, 303);
+  }
+
+  // Handtest 23.10.2026: weitere offene Posten auf einen Entwurf setzen (Entwurfsseite).
+  if (aktion === 'zum_entwurf') {
+    const invoiceId = text('invoiceId');
+    const kopf = (await pool.query(`SELECT klient_id::text AS klient_id FROM billing_invoices WHERE id=$1 AND brand=$2 AND status='draft'`, [invoiceId, brand])).rows[0];
+    if (!kopf?.klient_id) return new Response('Entwurf nicht gefunden', { status: 404 });
+    const n = await fuegeZumEntwurf(brand, invoiceId, kopf.klient_id, form.getAll('postenId').map(String));
+    entwurfNachher = invoiceId;
+    return weiter(`/admin/klienten/${kopf.klient_id}?${n > 0 ? 'gespeichert=1' : `fehler=${encodeURIComponent('Bitte mindestens einen offenen Posten mit Preis ankreuzen.')}`}`, 303);
+  }
+
+  // Handtest 23.10.2026: freie Positionen (ohne Posten, z. B. ältere Entwürfe) ändern oder entfernen.
+  if (aktion === 'freie_zeile_aendern' || aktion === 'freie_zeile_entfernen') {
+    const invoiceId = text('invoiceId');
+    const kopf = (await pool.query(`SELECT klient_id::text AS klient_id FROM billing_invoices WHERE id=$1 AND brand=$2 AND status='draft'`, [invoiceId, brand])).rows[0];
+    if (!kopf) return new Response('Entwurf nicht gefunden', { status: 404 });
+    let ok = false;
+    if (aktion === 'freie_zeile_entfernen') ok = await entferneFreieZeile(invoiceId, text('zeileId'));
+    else {
+      const { werte, fehler } = pruefePosition({ datum: text('datum'), datumBis: text('datumBis'), text: text('text'), menge: text('menge'), einheit: text('einheit'), preis: text('preis') });
+      if (!werte) return weiter(`/admin/klienten/${kopf.klient_id}?fehler=${encodeURIComponent(fehler.map((x) => x.meldung).join(' '))}`, 303);
+      ok = await aendereFreieZeile(invoiceId, text('zeileId'), werte);
+    }
+    entwurfNachher = invoiceId;
+    return weiter(`/admin/klienten/${kopf.klient_id}?${ok ? 'gespeichert=1' : `fehler=${encodeURIComponent('Position nicht gefunden.')}`}`, 303);
   }
 
   // T9: Absage eines gebuchten Termins vermerken (AE8) und Ausfallhonorar erlassen (K20)
@@ -88,7 +136,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const hinweis = email
       ? 'gespeichert=1'
       : `fehler=${encodeURIComponent('Der Termin war schon abgesagt oder gehört nicht zu dieser Akte.')}`;
-    return redirect(`/admin/klienten/${klient.id}?${hinweis}#termine`, 303);
+    return weiter(`/admin/klienten/${klient.id}?${hinweis}#termine`, 303);
   }
 
   if (aktion === 'erlassen') {
@@ -98,7 +146,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!klientId) return new Response('Posten nicht gefunden', { status: 404 });
     const ok = await erlasseAusfall(brand, postenId, text('grund'));
     const hinweis = ok ? 'gespeichert=1' : `fehler=${encodeURIComponent('Nur offene Ausfallhonorare lassen sich erlassen.')}`;
-    return redirect(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
+    return weiter(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
   }
 
   // T8: individuelle Aufträge (K8–K10)
@@ -106,10 +154,10 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const klient = await getKlient(text('klientId'));
     if (!klient) return new Response('Klient nicht gefunden', { status: 404 });
     const { titel, fehler } = pruefeAuftragTitel(text('titel'));
-    if (!titel) return redirect(`/admin/klienten/${klient.id}?auftragFehler=${encodeURIComponent(fehler!)}#auftraege`, 303);
+    if (!titel) return weiter(`/admin/klienten/${klient.id}?auftragFehler=${encodeURIComponent(fehler!)}#auftraege`, 303);
     // Stufe 4 T15 (K44): „mit Angebot“ – Positionen erst nach Annahme abrechenbar.
     await legeAuftragAn(brand, klient.id, titel, form.get('mitAngebot') === 'on' ? 'mit_angebot' : 'ohne_angebot');
-    return redirect(`/admin/klienten/${klient.id}?gespeichert=1#auftraege`, 303);
+    return weiter(`/admin/klienten/${klient.id}?gespeichert=1#auftraege`, 303);
   }
 
   // Handtest L2: von Hand erfasste Posten löschen, solange sie auf keiner Rechnung stehen.
@@ -120,7 +168,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!klientId) return new Response('Posten nicht gefunden', { status: 404 });
     const ok = await loeschePosten(brand, postenId);
     const hinweis = ok ? 'gespeichert=1' : `fehler=${encodeURIComponent('Löschen geht nur bei von Hand erfassten Posten, die auf keiner Rechnung stehen. Andere bitte ausnehmen.')}`;
-    return redirect(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
+    return weiter(`/admin/klienten/${klientId}?${hinweis}#abrechnung`, 303);
   }
 
   // Handtest L2: ganzen Auftrag umbenennen oder löschen.
@@ -131,13 +179,13 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!klientId) return new Response('Auftrag nicht gefunden', { status: 404 });
     if (aktion === 'auftrag_umbenennen') {
       const { titel, fehler } = pruefeAuftragTitel(text('titel'));
-      if (!titel) return redirect(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent(fehler!)}#auftraege`, 303);
+      if (!titel) return weiter(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent(fehler!)}#auftraege`, 303);
       await benenneAuftragUm(brand, auftragId, titel);
     } else {
       const ok = await loescheAuftrag(brand, auftragId);
-      if (!ok) return redirect(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent(await gesperrtGrund(brand, auftragId, 'Dieser Auftrag hat Positionen auf einer Rechnung und lässt sich nicht mehr löschen.', true))}#auftraege`, 303);
+      if (!ok) return weiter(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent(await gesperrtGrund(brand, auftragId, 'Dieser Auftrag hat Positionen auf einer Rechnung und lässt sich nicht mehr löschen.', true))}#auftraege`, 303);
     }
-    return redirect(`/admin/klienten/${klientId}?gespeichert=1#auftraege`, 303);
+    return weiter(`/admin/klienten/${klientId}?gespeichert=1#auftraege`, 303);
   }
 
   if (aktion === 'loeschen_auftragsposition') {
@@ -148,7 +196,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const ok = await loeschePosten(brand, postenId);
     const auftragDesPostens = ok ? null : (await rechnungDesPostens(brand, postenId))?.auftragId ?? null;
     const hinweis = ok ? 'gespeichert=1' : `auftragFehler=${encodeURIComponent(await gesperrtGrund(brand, auftragDesPostens, 'Diese Position steht schon auf einer Rechnung und lässt sich nicht mehr löschen.'))}`;
-    return redirect(`/admin/klienten/${klientId}?${hinweis}#auftraege`, 303);
+    return weiter(`/admin/klienten/${klientId}?${hinweis}#auftraege`, 303);
   }
 
   if (aktion === 'position' || aktion === 'position_aendern') {
@@ -166,24 +214,24 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       if (!klientId) return new Response('Auftrag nicht gefunden', { status: 404 });
       // Prüfung Stufe 4 (B1): verschicktes Angebot – Positionen nur über eine neue Fassung ändern.
       if ((await holeAuftrag(brand, auftragId))?.stand === 'angeboten') {
-        return redirect(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent('Das Angebot ist verschickt. Für Änderungen auf der Angebotsseite eine neue Fassung anlegen.')}#auftraege`, 303);
+        return weiter(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent('Das Angebot ist verschickt. Für Änderungen auf der Angebotsseite eine neue Fassung anlegen.')}#auftraege`, 303);
       }
-      if (!werte) return redirect(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent(fehler.map((f) => f.meldung).join(' '))}#auftraege`, 303);
+      if (!werte) return weiter(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent(fehler.map((f) => f.meldung).join(' '))}#auftraege`, 303);
       await legePositionAn(brand, klientId, auftragId, werte);
     } else {
       const postenId = text('postenId');
       if (!/^[0-9a-f-]{36}$/i.test(postenId)) return new Response('Posten nicht gefunden', { status: 404 });
       klientId = await klientDesPostens(brand, postenId);
       if (!klientId) return new Response('Posten nicht gefunden', { status: 404 });
-      if (!werte) return redirect(`/admin/klienten/${klientId}?${fehlerParam}=${encodeURIComponent(fehler.map((f) => f.meldung).join(' '))}${anker}`, 303);
+      if (!werte) return weiter(`/admin/klienten/${klientId}?${fehlerParam}=${encodeURIComponent(fehler.map((f) => f.meldung).join(' '))}${anker}`, 303);
       const ok = await aenderePosition(brand, postenId, werte);
       if (!ok) {
         const auftragDesPostens = (await rechnungDesPostens(brand, postenId))?.auftragId ?? null;
         const meldung = await gesperrtGrund(brand, auftragDesPostens, 'Dieser Posten steht schon auf einer Rechnung (oder der Termin wurde abgesagt) und lässt sich nicht mehr ändern.');
-        return redirect(`/admin/klienten/${klientId}?${fehlerParam}=${encodeURIComponent(meldung)}${anker}`, 303);
+        return weiter(`/admin/klienten/${klientId}?${fehlerParam}=${encodeURIComponent(meldung)}${anker}`, 303);
       }
     }
-    return redirect(`/admin/klienten/${klientId}?gespeichert=1${anker}`, 303);
+    return weiter(`/admin/klienten/${klientId}?gespeichert=1${anker}`, 303);
   }
 
   if (aktion !== 'sitzung') return new Response('Unbekannte Aktion', { status: 400 });
@@ -199,8 +247,8 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   const { werte, fehler } = pruefeSitzung(eingabe, leistung);
   if (!werte) {
     const params = new URLSearchParams({ sitzungFehler: JSON.stringify(fehler), sitzungEingabe: JSON.stringify(eingabe) });
-    return redirect(`/admin/klienten/${klient.id}?${params.toString()}#abrechnung`, 303);
+    return weiter(`/admin/klienten/${klient.id}?${params.toString()}#abrechnung`, 303);
   }
   await legeSitzungAn(brand, klient.id, werte);
-  return redirect(`/admin/klienten/${klient.id}?gespeichert=1#abrechnung`, 303);
+  return weiter(`/admin/klienten/${klient.id}?gespeichert=1#abrechnung`, 303);
 };

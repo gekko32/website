@@ -187,7 +187,7 @@ const STATUS_TABS = [
                   </p>
                 </div>
                 <div class="flex gap-2 flex-shrink-0">
-                  <button class="open-draft-btn px-3 py-1.5 text-sm bg-surface-hover border border-border rounded-lg hover:border-gold transition-colors" data-id={inv.id}>Prüfen</button>
+                  <a class="px-3 py-1.5 text-sm bg-gold text-dark font-semibold rounded-lg" href={`/admin/rechnungen/entwurf/${inv.id}`}>Prüfen und ändern</a>
                   <button class="discard-draft-btn px-3 py-1.5 text-sm text-red-400 border border-border rounded-lg hover:border-red-400 transition-colors" data-id={inv.id}>Verwerfen</button>
                 </div>
               </div>
@@ -323,60 +323,6 @@ const STATUS_TABS = [
 
   <div id="payment-modal-mount"></div>
 
-  <dialog id="draft-editor" class="bg-surface border border-border rounded-2xl p-6 w-full max-w-3xl backdrop:bg-black/60">
-    <div class="flex items-center justify-between mb-6">
-      <h3 class="text-lg font-semibold text-light">Rechnungsentwurf prüfen</h3>
-      <button id="editor-close" class="text-muted hover:text-light transition-colors text-xl" aria-label="Schließen">✕</button>
-    </div>
-
-    <p id="editor-customer" class="mb-1 text-sm text-light"></p>
-    <!-- Stufe 3 T10a: Prüfansicht. Positionen ändert Gerald an den Posten in der Klientenakte
-         (Entwurf verwerfen, Posten ändern, neu erstellen); die frühere Bearbeitung lief über Stripe ins Leere. -->
-    <p class="mb-4 text-xs text-muted">Etwas falsch? Entwurf verwerfen, die Posten in der Klientenakte ändern und die Rechnung dort neu erstellen.</p>
-
-    <table class="w-full text-sm mb-4">
-      <thead>
-        <tr class="text-muted border-b border-border">
-          <th class="text-left py-2 pr-3 font-medium">Leistung</th>
-          <th class="text-right py-2 px-3 font-medium w-20">Menge</th>
-          <th class="text-right py-2 px-3 font-medium w-28">Einzelpreis</th>
-          <th class="text-right py-2 pl-3 font-medium w-28">Betrag</th>
-        </tr>
-      </thead>
-      <tbody id="editor-items"></tbody>
-      <tfoot>
-        <tr class="border-t border-border font-semibold text-light">
-          <td colspan="3" class="py-3 pr-3">Gesamt</td>
-          <td class="py-3 pl-3 text-right" id="editor-total"></td>
-        </tr>
-      </tfoot>
-    </table>
-    <!-- N2 (Gerald 22.10.2026): Standard aus den Einstellungen, im Einzelfall hier änderbar. -->
-    <label class="block text-xs text-muted mb-3">Zahlungsziel in Tagen
-      <input id="editor-zahlungsziel" type="number" min="0" max="365" step="1"
-        class="ml-2 w-20 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light" />
-      <span id="editor-zahlungsziel-hinweis" class="ml-2"></span>
-    </label>
-    <p id="editor-meldung" role="alert" class="text-sm text-red-400 mb-3"></p>
-
-    <div class="flex gap-3 justify-end flex-wrap">
-      <button id="editor-discard-btn"
-        class="px-4 py-2 text-sm text-red-400 border border-border rounded-lg hover:border-red-400 transition-colors">
-        Verwerfen
-      </button>
-      <a id="editor-ansehen" href="#" target="_blank" rel="noopener"
-        class="px-4 py-2 text-sm border border-border rounded-lg hover:border-gold transition-colors">Ansehen ↗</a>
-      <!-- Stufe 4 T14 (K58, K59): ohne E-Mail-Adresse nur „ohne E-Mail“. -->
-      <button id="editor-post-btn"
-        class="px-4 py-2 text-sm border border-gold text-gold rounded-lg transition-colors disabled:opacity-40">
-        Festschreiben ohne E-Mail (Post/persönlich)
-      </button>
-      <button id="editor-send-btn"
-        class="px-4 py-2 text-sm bg-gold hover:bg-gold-light text-dark font-semibold rounded-lg transition-colors disabled:opacity-40">
-        Festschreiben und per E-Mail senden
-      </button>
-    </div>
-  </dialog>
 
 <script>
   document.addEventListener('invoice-created', () => window.location.reload());
@@ -449,119 +395,8 @@ const STATUS_TABS = [
 </script>
 
 <script>
-  interface DraftItem {
-    id: string;
-    description: string;
-    quantity: number;
-    unitPrice: number;
-    amount: number;
-    leistung: string | null;
-  }
-
-  let currentInvoiceId: string | null = null;
-
-  const dialog     = document.getElementById('draft-editor') as HTMLDialogElement;
-  const itemsBody  = document.getElementById('editor-items')!;
-  const totalCell  = document.getElementById('editor-total')!;
-  const customerEl = document.getElementById('editor-customer')!;
-  const meldung    = document.getElementById('editor-meldung')!;
-  const ansehen    = document.getElementById('editor-ansehen') as HTMLAnchorElement;
-  const zielFeld   = document.getElementById('editor-zahlungsziel') as HTMLInputElement;
-  const zielHinweis = document.getElementById('editor-zahlungsziel-hinweis')!;
-
-  document.getElementById('editor-close')!.addEventListener('click', () => dialog.close());
-
-  const euro = (n: number) => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-
-  function zelle(text: string, cls: string): HTMLTableCellElement {
-    const td = document.createElement('td');
-    td.className = cls;
-    td.textContent = text;
-    return td;
-  }
-
-  // Stufe 3 T10a: nur ansehen; jede Position mit ihrem Leistungsdatum.
-  function renderItem(item: DraftItem): HTMLTableRowElement {
-    const tr = document.createElement('tr');
-    tr.className = 'border-b border-border';
-    const desc = zelle(item.description, 'py-2 pr-3 text-light');
-    if (item.leistung) {
-      const d = document.createElement('span');
-      d.className = 'block text-xs text-muted';
-      d.textContent = item.leistung;
-      desc.appendChild(d);
-    }
-    tr.append(
-      desc,
-      zelle(item.quantity.toLocaleString('de-DE'), 'py-2 px-3 text-right'),
-      zelle(euro(item.unitPrice), 'py-2 px-3 text-right'),
-      zelle(euro(item.amount), 'py-2 pl-3 text-right text-light'),
-    );
-    return tr;
-  }
-
-  function hinweisZeile(text: string): HTMLTableRowElement {
-    const tr = document.createElement('tr');
-    const td = zelle(text, 'py-4 text-muted text-center');
-    td.colSpan = 4;
-    tr.appendChild(td);
-    return tr;
-  }
-
-  async function openDraftEditor(invoiceId: string): Promise<void> {
-    currentInvoiceId = invoiceId;
-    meldung.textContent = '';
-    customerEl.textContent = '';
-    ansehen.href = `/admin/billing/${invoiceId}/drucken`;
-    itemsBody.replaceChildren(hinweisZeile('Lade…'));
-    totalCell.textContent = '';
-    dialog.showModal();
-
-    const res = await fetch(`/api/admin/billing/${invoiceId}`);
-    if (!res.ok) {
-      itemsBody.replaceChildren();
-      meldung.textContent = 'Entwurf konnte nicht geladen werden.';
-      return;
-    }
-    const data = await res.json() as {
-      number: string; customerName: string; customerEmail: string; items: DraftItem[];
-      empfaenger: { name: string; company: string | null; email: string; addressLine1: string | null; postalCode: string | null; city: string | null } | null;
-      anschriftFehlt: string[];
-      zahlungszielTage: number | null; zahlungszielStandard: number; versandwege: ('email' | 'post')[];
-    };
-    const ohneEmail = !data.versandwege.includes('email');
-    (document.getElementById('editor-send-btn') as HTMLButtonElement).hidden = ohneEmail;
-    zielFeld.value = String(data.zahlungszielTage ?? data.zahlungszielStandard);
-    zielHinweis.textContent = `Standard aus den Einstellungen: ${data.zahlungszielStandard} Tage`;
-    // Stufe 3 T11: An wen die Rechnung beim Festschreiben geht (heutiger Stand der Akte).
-    const e = data.empfaenger;
-    customerEl.textContent = e
-      ? `${data.number} · An: ${e.company ? `${e.company}, z. Hd. ${e.name}` : e.name} · ${[e.addressLine1, [e.postalCode, e.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'ohne Anschrift'} · ${e.email}`
-      : `${data.number} · ${data.customerName} · ${data.customerEmail}`;
-    const sendKnopf = document.getElementById('editor-send-btn') as HTMLButtonElement;
-    sendKnopf.disabled = data.anschriftFehlt.length > 0;
-    (document.getElementById('editor-post-btn') as HTMLButtonElement).disabled = data.anschriftFehlt.length > 0;
-    if (ohneEmail && data.anschriftFehlt.length === 0) meldung.textContent = '';
-    zielHinweis.textContent += ohneEmail ? ' · keine E-Mail-Adresse: nur Versand per Post/persönlich' : '';
-    if (data.anschriftFehlt.length > 0) {
-      meldung.textContent = `Festschreiben erst möglich, wenn die Rechnungsanschrift vollständig ist. Es fehlt: ${data.anschriftFehlt.join(', ')}. Bitte in der Klientenakte ergänzen.`;
-    }
-    itemsBody.replaceChildren(...data.items.map(renderItem));
-    totalCell.textContent = euro(data.items.reduce((s, i) => s + i.amount, 0));
-  }
-
-  async function discardDraft(invoiceId: string): Promise<boolean> {
-    if (!confirm('Entwurf wirklich verwerfen? Seine Posten sind danach in der Akte wieder offen.')) return false;
-    const res = await fetch(`/api/admin/billing/${invoiceId}/discard`, { method: 'POST' });
-    if (!res.ok) {
-      alert('Fehler beim Verwerfen. Bitte erneut versuchen.');
-      return false;
-    }
-    document.querySelector(`[data-invoice-id="${invoiceId}"]`)?.remove();
-    updateBadge(-1);
-    return true;
-  }
-
+  // Handtest 23.10.2026: Entwürfe werden auf ihrer eigenen Seite geprüft und geändert
+  // (/admin/rechnungen/entwurf/[id]); hier nur noch Verwerfen aus der Liste.
   function updateBadge(delta: number): void {
     const badge = document.getElementById('draft-badge');
     if (!badge) return;
@@ -569,54 +404,15 @@ const STATUS_TABS = [
     badge.textContent = count.toString();
     badge.classList.toggle('hidden', count === 0);
   }
-
   document.getElementById('draft-list')?.addEventListener('click', async (e) => {
-    const target = e.target as HTMLElement;
-    const btn    = target.closest('button') as HTMLButtonElement | null;
-    if (!btn) return;
-    const id = btn.dataset.id;
+    const btn = (e.target as HTMLElement).closest('button.discard-draft-btn') as HTMLButtonElement | null;
+    const id = btn?.dataset.id;
     if (!id) return;
-    if (btn.classList.contains('open-draft-btn'))    await openDraftEditor(id);
-    if (btn.classList.contains('discard-draft-btn')) await discardDraft(id);
-  });
-
-  async function festschreiben(weg: 'email' | 'post'): Promise<void> {
-    if (!currentInvoiceId) return;
-    const frage = weg === 'email'
-      ? 'Rechnung jetzt festschreiben und per E-Mail an den Kunden senden? Danach lässt sie sich nur noch stornieren.'
-      : 'Rechnung jetzt festschreiben, ohne E-Mail? Das PDF öffnet sich zum Drucken; vermerkt wird „verschickt per Post“. Danach lässt sie sich nur noch stornieren.';
-    if (!confirm(frage)) return;
-    const knopf = document.getElementById(weg === 'email' ? 'editor-send-btn' : 'editor-post-btn') as HTMLButtonElement;
-    knopf.disabled = true;
-    const res = await fetch(`/api/admin/billing/${currentInvoiceId}/send`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ zahlungszielTage: zielFeld.value, versand: weg }),
-    });
-    knopf.disabled = !res.ok && res.status === 422;
-    if (!res.ok) {
-      meldung.textContent = `Nicht festgeschrieben: ${(await res.text().catch(() => '')) || 'Fehler'} (${res.status})`;
-      return;
-    }
-    const data = await res.json().catch(() => ({})) as { pdfUrl?: string; number?: string };
-    if (data.pdfUrl) {
-      // Ohne E-Mail: PDF zum Drucken herunterladen (ein neues Fenster nach dem Warten blockieren Browser oft).
-      const link = document.createElement('a');
-      link.href = data.pdfUrl; link.download = `${data.number ?? 'Rechnung'}.pdf`;
-      document.body.appendChild(link); link.click(); link.remove();
-      setTimeout(() => window.location.reload(), 1500);
-      return;
-    }
-    window.location.reload();
-  }
-  document.getElementById('editor-send-btn')!.addEventListener('click', () => void festschreiben('email'));
-  document.getElementById('editor-post-btn')!.addEventListener('click', () => void festschreiben('post'));
-
-  document.getElementById('editor-discard-btn')!.addEventListener('click', async () => {
-    if (!currentInvoiceId) return;
-    if (await discardDraft(currentInvoiceId)) {
-      dialog.close();
-      currentInvoiceId = null;
-    }
+    if (!confirm('Entwurf wirklich verwerfen? Seine Posten sind danach in der Akte wieder offen.')) return;
+    const res = await fetch(`/api/admin/billing/${id}/discard`, { method: 'POST' });
+    if (!res.ok) { alert('Fehler beim Verwerfen. Bitte erneut versuchen.'); return; }
+    document.querySelector(`[data-invoice-id="${id}"]`)?.remove();
+    updateBadge(-1);
   });
 </script>
 </AdminLayout>

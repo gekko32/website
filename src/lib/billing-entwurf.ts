@@ -6,7 +6,7 @@
 import { pool } from './website-db';
 import { createCustomer, createInvoice } from './native-billing';
 import { ladeZahlungsziel } from './billing-regeln';
-import { gibPostenFrei, initPostenTabelle, type Posten, type PostenZustand } from './billing-posten';
+import { gibPostenFrei, initPostenTabelle, type Posten, type PostenZustand, type PositionWerte } from './billing-posten';
 import { gemaessAngebotText } from './billing-angebot-text';
 import { rechnungsempfaenger, verknuepfeRechnungskunde, type Klient } from './klientenakte';
 import type { InvoiceLine } from './invoice-types';
@@ -140,6 +140,99 @@ export async function erstelleEntwurfAusPosten(
   } finally {
     client.release();
   }
+}
+
+/**
+ * Handtest 23.10.2026: Ein Entwurf bleibt bis zum Festschreiben änderbar. Nach jeder Änderung an
+ * seinen Posten wird er neu aufgebaut: Positionen aus den Posten (in derselben Reihenfolge und
+ * Schreibweise wie beim Anlegen), freie Positionen ohne Posten bleiben, Summen und Leistungszeitraum
+ * neu. Ohne eine einzige Position wird der Entwurf verworfen. Liefert, was geschah.
+ */
+export async function aktualisiereEntwurf(brand: string, invoiceId: string): Promise<'aktualisiert' | 'verworfen' | 'kein_entwurf'> {
+  await initPostenTabelle();
+  const kopf = (await pool.query(
+    `SELECT status, klient_id::text AS klient_id, tax_mode, tax_rate FROM billing_invoices WHERE id = $1 AND brand = $2`,
+    [invoiceId, brand])).rows[0];
+  if (!kopf || kopf.status !== 'draft') return 'kein_entwurf';
+  const { rows } = await pool.query(
+    `SELECT id, klient_id, herkunft, datum::text AS datum, datum_bis::text AS datum_bis, leistung_key, text, menge, einheit,
+            einzelpreis, zustand, invoice_id, notiz, auftrag_id, angebot_id
+       FROM abrechnungsposten WHERE brand = $1 AND invoice_id = $2 AND zustand = 'auf_entwurf' ORDER BY datum, created_at`,
+    [brand, invoiceId]);
+  const frei = (await pool.query(
+    `SELECT quantity, unit_price, leistung_von::text AS von, leistung_bis::text AS bis FROM billing_invoice_line_items
+      WHERE invoice_id = $1 AND posten_id IS NULL`, [invoiceId])).rows;
+  if (rows.length === 0 && frei.length === 0) {
+    await verwirfEntwurf(brand, invoiceId);
+    return 'verworfen';
+  }
+  const { getKlient } = await import('./klientenakte');
+  const klient = kopf.klient_id ? await getKlient(kopf.klient_id) : null;
+  const person = klient && rechnungsempfaenger(klient).company ? klient.name : null;
+  const posten: Posten[] = rows.map((r: Record<string, unknown>) => ({
+    id: r.id as string, klientId: r.klient_id as string, klientName: klient?.name ?? '', herkunft: r.herkunft as Posten['herkunft'],
+    datum: r.datum as string, datumBis: (r.datum_bis as string | null) ?? null, leistungKey: (r.leistung_key as string | null) ?? null,
+    text: r.text as string, menge: Number(r.menge), einheit: (r.einheit as string) ?? '',
+    einzelpreis: r.einzelpreis === null ? null : Number(r.einzelpreis), zustand: 'auf_entwurf', invoiceId,
+    notiz: (r.notiz as string | null) ?? null, auftragId: (r.auftrag_id as string | null) ?? null,
+  }));
+  const zeilen = rechnungszeilen(posten, { person });
+  const nummern = [...new Set(rows.map((r: Record<string, unknown>) => r.angebot_id as string | null).filter(Boolean))];
+  const hinweis = nummern.length === 0 ? null : gemaessAngebotText((await pool.query(
+    'SELECT number FROM billing_quotes WHERE id = ANY($1::text[])', [nummern])).rows.map((r: { number: string }) => r.number));
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM billing_invoice_line_items WHERE invoice_id = $1 AND posten_id IS NOT NULL', [invoiceId]);
+    for (const z of zeilen) {
+      await client.query(
+        `INSERT INTO billing_invoice_line_items (invoice_id, description, quantity, unit, unit_price, net_amount, leistung_von, leistung_bis, posten_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [invoiceId, z.description, z.quantity, z.unit ?? null, z.unitPrice, Math.round(z.quantity * z.unitPrice * 100) / 100,
+         z.leistungVon, z.leistungBis, z.postenId]);
+    }
+    const netto = Math.round((zeilen.reduce((s, z) => s + z.quantity * z.unitPrice, 0)
+      + frei.reduce((s: number, f: Record<string, unknown>) => s + Number(f.quantity) * Number(f.unit_price), 0)) * 100) / 100;
+    const satz = kopf.tax_mode === 'kleinunternehmer' ? 0 : Number(kopf.tax_rate ?? 0);
+    const steuer = Math.round(netto * satz) / 100;
+    const datiert = [
+      ...zeilen.map((z) => ({ leistungVon: z.leistungVon, leistungBis: z.leistungBis })),
+      ...frei.filter((f: Record<string, unknown>) => f.von).map((f: Record<string, unknown>) => ({ leistungVon: f.von as string, leistungBis: (f.bis as string | null) ?? null })),
+    ];
+    const zeitraum = datiert.length > 0 ? rechnungsZeitraum(datiert) : null;
+    await client.query(
+      `UPDATE billing_invoices SET net_amount=$2, tax_amount=$3, gross_amount=$4, net_amount_eur=$2, gross_amount_eur=$4,
+         service_period_start=$5, service_period_end=$6, notes=COALESCE($7, notes), updated_at=now()
+       WHERE id=$1 AND status='draft'`,
+      [invoiceId, netto, steuer, Math.round((netto + steuer) * 100) / 100, zeitraum?.start ?? null, zeitraum?.end ?? null, hinweis]);
+    await client.query('COMMIT');
+    return 'aktualisiert';
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/** Handtest 23.10.2026: freie Position eines Entwurfs (ohne Posten) ändern; danach aktualisiereEntwurf. */
+export async function aendereFreieZeile(invoiceId: string, zeileId: string, w: PositionWerte): Promise<boolean> {
+  if (!/^\d+$/.test(zeileId)) return false;
+  const r = await pool.query(
+    `UPDATE billing_invoice_line_items l SET description=$3, quantity=$4, unit=$5, unit_price=$6, net_amount=$7, leistung_von=$8, leistung_bis=$9
+       FROM billing_invoices i WHERE i.id = l.invoice_id AND i.status = 'draft' AND l.invoice_id=$1 AND l.id=$2 AND l.posten_id IS NULL`,
+    [invoiceId, zeileId, w.text, w.menge, w.einheit || null, w.einzelpreis, Math.round(w.menge * w.einzelpreis * 100) / 100, w.datum, w.datumBis]);
+  return (r.rowCount ?? 0) > 0;
+}
+
+/** Handtest 23.10.2026: freie Position eines Entwurfs entfernen; danach aktualisiereEntwurf. */
+export async function entferneFreieZeile(invoiceId: string, zeileId: string): Promise<boolean> {
+  if (!/^\d+$/.test(zeileId)) return false;
+  const r = await pool.query(
+    `DELETE FROM billing_invoice_line_items l USING billing_invoices i
+      WHERE i.id = l.invoice_id AND i.status = 'draft' AND l.invoice_id=$1 AND l.id=$2 AND l.posten_id IS NULL`, [invoiceId, zeileId]);
+  return (r.rowCount ?? 0) > 0;
 }
 
 /** Entwurf verwerfen: Posten freigeben und Entwurf löschen, beides oder nichts (K24). */
