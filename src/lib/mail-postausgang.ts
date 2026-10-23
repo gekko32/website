@@ -84,13 +84,18 @@ export interface PostausgangStand {
   anbieter: string | null;
   passwortAm: string | null;
   geaendertAm: string | null;
+  /** Es gibt einen gespeicherten Eintrag (auch wenn er gerade nicht nutzbar ist, K82 / Prüfung M4). */
+  eintrag: { anbieter: string; host: string; port: number; sicherheit: Sicherheit; benutzer: string } | null;
   /** Für den Absender (E3): Benutzername des gültigen Postfachs. */
   benutzer: string;
   host: string;
 }
 
-const serverStand = (hinweis: string | null): PostausgangStand => ({
-  quelle: 'server', hinweis, postausgang: null, anbieter: null, passwortAm: null, geaendertAm: null,
+interface GespeicherteZeile { anbieter: string; host: string; port: number | string; sicherheit: Sicherheit; benutzer: string; geaendert_am: string }
+
+const serverStand = (hinweis: string | null, r?: GespeicherteZeile): PostausgangStand => ({
+  quelle: 'server', hinweis, postausgang: null, anbieter: r?.anbieter ?? null, passwortAm: null, geaendertAm: r?.geaendert_am ?? null,
+  eintrag: r ? { anbieter: r.anbieter, host: r.host, port: Number(r.port), sicherheit: r.sicherheit, benutzer: r.benutzer } : null,
   benutzer: process.env.SMTP_USER || '', host: process.env.SMTP_HOST || '',
 });
 
@@ -101,11 +106,12 @@ export async function ladePostausgang(brand: string): Promise<PostausgangStand> 
     `SELECT anbieter, host, port, sicherheit, benutzer, passwort_enc, passwort_am::text AS passwort_am, geaendert_am::text AS geaendert_am
        FROM mail_postausgang WHERE brand = $1`, [brand])).rows[0];
   if (!r) return serverStand(null);
-  if (!schluesselVorhanden()) return serverStand('Auf dem Server fehlt der Schlüssel MAIL_SETTINGS_KEY. Bis er eingerichtet ist, gilt die Server-Einstellung.');
+  if (!schluesselVorhanden()) return serverStand('Auf dem Server fehlt der Schlüssel MAIL_SETTINGS_KEY. Bis er eingerichtet ist, gilt die Server-Einstellung.', r);
   const passwort = entschluessle(r.passwort_enc);
-  if (passwort === null) return serverStand('Das gespeicherte Passwort lässt sich nicht mehr entschlüsseln (Schlüssel auf dem Server geändert). Bitte Passwort neu eintragen; bis dahin gilt die Server-Einstellung.');
+  if (passwort === null) return serverStand('Das gespeicherte Passwort lässt sich nicht mehr entschlüsseln (Schlüssel auf dem Server geändert). Bitte Passwort neu eintragen; bis dahin gilt die Server-Einstellung.', r);
   return {
     quelle: 'admin', hinweis: null, anbieter: r.anbieter, passwortAm: r.passwort_am, geaendertAm: r.geaendert_am,
+    eintrag: { anbieter: r.anbieter, host: r.host, port: Number(r.port), sicherheit: r.sicherheit, benutzer: r.benutzer },
     postausgang: { host: r.host, port: Number(r.port), sicherheit: r.sicherheit, benutzer: r.benutzer, passwort },
     benutzer: r.benutzer, host: r.host,
   };
@@ -126,7 +132,7 @@ export async function pruefeAnmeldung(p: Postausgang): Promise<{ ok: true } | ({
     await t.verify();
     return { ok: true };
   } catch (err) {
-    return { ok: false, ...uebersetzeMailFehler(err) };
+    return { ok: false, ...uebersetzeMailFehler(err, p) };
   } finally {
     t.close();
   }
@@ -181,6 +187,12 @@ export async function speicherePostausgang(
     [brand, anbieter, host, port, sicherheit, benutzer, verschluessle(passwort), wer ?? null, neuesPasswort]);
   await verlauf(brand, wer, neuesPasswort ? 'gespeichert (neues Passwort)' : 'gespeichert', host, benutzer);
   return { ok: true };
+}
+
+/** K81 (Prüfung M3): auch Änderungen am Absender kommen in den Verlauf. */
+export async function vermerkeAbsender(brand: string, wer: string | undefined, name: string, adresse: string): Promise<void> {
+  await initPostausgangTabellen();
+  await verlauf(brand, wer, `Absender geändert: ${name} <${adresse || 'Benutzername des Postfachs'}>`, null, null);
 }
 
 /** K79: zurück zur Server-Einstellung. */

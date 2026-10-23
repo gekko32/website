@@ -22,6 +22,15 @@ describe('uebersetzeMailFehler (K76)', () => {
     const f = uebersetzeMailFehler({ code: 'EENVELOPE', responseCode: 553, command: 'MAIL FROM', response: '553 5.7.1 Sender address rejected: not owned by user' });
     expect(f.grund).toMatch(/Absenderadresse nicht/);
   });
+  it('Prüfung M1: Port 465 mit STARTTLS → Hinweis Verschlüsselung statt „nicht erreichbar“', () => {
+    const err = { code: 'ETIMEDOUT', message: 'Greeting never received' };
+    expect(uebersetzeMailFehler(err, { port: 465, sicherheit: 'starttls' }).grund).toMatch(/465.*587/);
+    expect(uebersetzeMailFehler(err, { port: 587, sicherheit: 'starttls' }).grund).toMatch(/nicht erreichbar/);
+  });
+  it('Prüfung M7: 530 STARTTLS verlangt → Hinweis Verschlüsselung', () => {
+    expect(uebersetzeMailFehler({ responseCode: 530, response: '530 5.7.0 Must issue a STARTTLS command first' }).grund).toMatch(/465.*587/);
+    expect(uebersetzeMailFehler({ code: 'EAUTH', responseCode: 530, response: '530 5.7.0 Authentication required' }).grund).toMatch(/Passwort abgelehnt/);
+  });
   it('Unbekanntes bleibt allgemein, mit Meldung des Servers', () => {
     const f = uebersetzeMailFehler(new Error('irgendwas'));
     expect(f.grund).toMatch(/nicht verschickt/);

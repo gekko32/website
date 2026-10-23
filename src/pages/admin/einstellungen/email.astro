@@ -22,7 +22,8 @@ const [fromName, fromAddress, stand, verlauf] = await Promise.all([
 ]);
 const schluessel = schluesselVorhanden();
 // Vorbelegung: gespeicherter Eintrag, sonst die Server-Einstellung.
-const p = stand.postausgang;
+// Prüfung M4: auch ein gerade nicht nutzbarer Eintrag (Schlüssel gewechselt) belegt die Felder vor.
+const p = stand.eintrag;
 const vor = {
   anbieter: stand.anbieter ?? (ANBIETER.find((a) => a.host === (process.env.SMTP_HOST ?? ''))?.key ?? 'anderer'),
   host: p?.host ?? process.env.SMTP_HOST ?? '',
@@ -69,12 +70,12 @@ const fd = (iso: string | null) => {
       <label>Benutzername <input id="benutzer" value={vor.benutzer} autocomplete="off" placeholder="name@anbieter.de" disabled={!schluessel} /></label>
       <label>Passwort
         <input id="passwort" type="password" autocomplete="new-password" disabled={!schluessel}
-          placeholder={stand.quelle === 'admin' ? 'leer lassen = gespeichertes Passwort behalten' : 'App-Passwort des Anbieters'} />
+          placeholder={stand.quelle === 'admin' ? 'leer lassen = gespeichertes Passwort behalten' : stand.eintrag ? 'Passwort bitte neu eintragen' : 'App-Passwort des Anbieters'} />
       </label>
       <p class="klein">{stand.passwortAm ? `Passwort gespeichert am ${fd(stand.passwortAm)}.` : 'Noch kein Passwort hier gespeichert.'} Beim Speichern meldet sich die Website zuerst beim Mail-Server an; klappt das nicht, wird nichts geändert.</p>
       <p id="meldung-postausgang" role="alert" class="meldung"></p>
       <div class="knoepfe">
-        {stand.quelle === 'admin' && <button type="button" id="zuruecksetzen" class="zweit">Zur Server-Einstellung zurück</button>}
+        {stand.eintrag && <button type="button" id="zuruecksetzen" class="zweit">Zur Server-Einstellung zurück</button>}
         <button type="button" id="speichern-postausgang" class="erst" disabled={!schluessel}>Anmelden und speichern</button>
       </div>
     </section>

@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
 import { setSiteSetting } from '../../../../lib/website-db';
 import { sendEmailMitGrund } from '../../../../lib/email';
-import { speicherePostausgang, loeschePostausgang } from '../../../../lib/mail-postausgang';
+import { speicherePostausgang, loeschePostausgang, vermerkeAbsender } from '../../../../lib/mail-postausgang';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const json = (daten: unknown, status = 200) =>
@@ -28,6 +28,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         await setSiteSetting(brand, 'email_from_name', name);
         // E3: leer = Benutzername des Postfachs.
         await setSiteSetting(brand, 'email_from_address', adresse);
+        await vermerkeAbsender(brand, session.email, name, adresse);
         return json({ ok: true });
       }
       case 'postausgang': {

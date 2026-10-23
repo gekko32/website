@@ -5,17 +5,26 @@ export interface MailFehler { grund: string; detail: string }
 
 interface SmtpFehler { code?: string; responseCode?: number; command?: string; message?: string; response?: string }
 
-export function uebersetzeMailFehler(err: unknown): MailFehler {
+const VERSCHLUESSELUNG = 'Die Verschlüsselung passt nicht zum Port. Bei Port 465 „SSL/TLS“, bei Port 587 „STARTTLS“ wählen.';
+
+/** `einstellung`: Port und Verschlüsselung des Versuchs, damit z. B. 465 mit STARTTLS richtig erkannt wird (Prüfung M1). */
+export function uebersetzeMailFehler(err: unknown, einstellung?: { port: number; sicherheit: string }): MailFehler {
   const e = (err ?? {}) as SmtpFehler;
   const detail = String(e.response || e.message || err || '').slice(0, 300);
   const text = `${e.message ?? ''} ${e.response ?? ''}`.toLowerCase();
   const rc = e.responseCode ?? 0;
 
+  // Prüfung M7: „530 Must issue a STARTTLS command first“ ist kein Passwortfehler.
+  if (rc === 530 && /starttls|tls/.test(text)) return { grund: VERSCHLUESSELUNG, detail };
+  // Prüfung M1: 465 erwartet sofort TLS; mit STARTTLS wartet der Client vergeblich auf die Begrüßung.
+  if (einstellung?.port === 465 && einstellung.sicherheit === 'starttls' && /greeting never received|timeout|timed out|etimedout/.test(text)) {
+    return { grund: VERSCHLUESSELUNG, detail };
+  }
   if (e.code === 'EAUTH' || rc === 535 || rc === 534 || rc === 530) {
     return { grund: 'Benutzername oder Passwort abgelehnt. Bei vielen Anbietern braucht es ein App-Passwort für Mailprogramme (bei mailbox.org: Art „IMAP und SMTP“).', detail };
   }
   if (/wrong version number|ssl3_get_record|unknown protocol|tls|certificate/.test(text) && e.code !== 'EENVELOPE') {
-    return { grund: 'Die Verschlüsselung passt nicht zum Port. Bei Port 465 „SSL/TLS“, bei Port 587 „STARTTLS“ wählen.', detail };
+    return { grund: VERSCHLUESSELUNG, detail };
   }
   if (['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'ECONNECTION', 'ECONNRESET'].includes(e.code ?? '')
     || /getaddrinfo|econnrefused|enotfound|etimedout|ehostunreach|enetunreach|timeout|timed out|greeting never received/.test(text)) {
