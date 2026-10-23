@@ -205,7 +205,7 @@ const feld = 'zfeld';
     <section id="mail" hidden class="border border-gold/60 rounded-xl p-4 mb-6">
       <h2 class="text-sm font-semibold text-gold mb-3">E-Mail mit Rechnung {kopf.number}</h2>
       <div class="grid gap-3 text-sm">
-        <label class="text-xs text-muted">An <input id="mail-an" type="email" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
+        <label class="text-xs text-muted">An <input id="mail-an" type="email" autocomplete="off" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
         <p class="text-xs text-muted">Von: <span id="mail-von" class="text-light"></span>
           <span class="ml-1">(Absender des Postausgangs; Absenderdaten auf der Rechnung unter <a class="underline" href="/admin/einstellungen/rechnungen">Einstellungen → Rechnungen</a>)</span></p>
         <label class="text-xs text-muted">Betreff <input id="mail-betreff" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>

@@ -16,7 +16,9 @@ export interface MailVorschlag {
   an: string; von: string; betreff: string; text: string; anhaenge: string[]; nummer: string;
 }
 
-const ersetze = (t: string, vars: Record<string, string>) => t.replace(/\{\{(\w+)\}\}/g, (_, k: string) => vars[k] ?? '');
+// Handtest 23.10.2026: Die Vorlage schreibt „{{gross_amount}} €“, der Betrag bringt sein € schon mit → kein „€ €“.
+const ersetze = (t: string, vars: Record<string, string>) =>
+  t.replace(/\{\{(\w+)\}\}/g, (_, k: string) => vars[k] ?? '').replace(/€\s*€/g, '€');
 const datumDe = (d: unknown) => {
   const s = d instanceof Date ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : String(d ?? '').slice(0, 10);
   return s.split('-').reverse().join('.');
