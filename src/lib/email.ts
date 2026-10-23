@@ -332,3 +332,8 @@ Mit freundlichen Grüßen
 ${FROM_NAME}`,
   }, request);
 }
+
+/** Rechnungswesen (Handtest 23.10.2026): Absender, wie er in Rechnungs-E-Mails steht – zur Anzeige vor dem Versand. */
+export function absenderAnzeige(): string {
+  return FROM_EMAIL ? `${FROM_NAME} <${FROM_EMAIL}>` : FROM_NAME;
+}

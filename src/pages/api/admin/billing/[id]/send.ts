@@ -3,18 +3,13 @@ import { getSession, isAdmin } from '../../../../../lib/auth';
 import { finalizeInvoice, getCustomerById } from '../../../../../lib/native-billing';
 import { generateInvoicePdf, type InvoicePdfSeller } from '../../../../../lib/invoice-pdf';
 import { generateFacturX } from '../../../../../lib/einvoice/factur-x';
-import { sendEmail } from '../../../../../lib/email';
 import { pool, getSiteSetting, initBillingTables } from '../../../../../lib/website-db';
 import { ladeAbsender } from '../../../../../lib/billing-absender';
-import { errorResponse } from '../../../_errors';
 import { pruefeZahlungsziel } from '../../../../../lib/billing-regeln';
 import { hatEchteEmail, pruefeVersandweg } from '../../../../../lib/billing-versand';
 import { logBillingEvent } from '../../../../../lib/billing-audit';
 import { aktuellerEmpfaenger, AnschriftFehlt, alsKunde, fehlendeAngaben, kaeuferName } from '../../../../../lib/billing-empfaenger';
 
-function interpolate(t: string, vars: Record<string, string>) {
-  return t.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '');
-}
 
 export const POST: APIRoute = async ({ request, params , locals }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -213,54 +208,11 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
     });
   }
 
-  // Interpolate and send email
-  const vars = {
-    number: finalized.number,
-    gross_amount: finalized.grossAmount.toFixed(2).replace('.', ',') + ' €',
-    due_date: finalized.dueDate.split('-').reverse().join('.'),
-    payment_reference: finalized.paymentReference ?? finalized.number,
-    customer_name: customer.name,
-    seller_name: seller.name,
-  };
-  const subject = interpolate(tmpl.invoice_email_subject || 'Rechnung {{number}}', vars);
-  const body = interpolate(
-    tmpl.invoice_email_body ||
-    'Sehr geehrte/r {{customer_name}},\n\nanbei Rechnung {{number}} über {{gross_amount}}.\n\nMit freundlichen Grüßen\n{{seller_name}}',
-    vars
-  );
-
-  // Das PDF entstand beim Festschreiben (erzeugeDokumente); ohne es kein Versand.
-  const pdfAnhang = pdf as Buffer | null;
-  if (!pdfAnhang) return new Response('PDF fehlt nach dem Festschreiben', { status: 500 });
-  const attachments: { filename: string; content: Buffer; contentType?: string }[] = [
-    { filename: `${finalized.number}.pdf`, content: pdfAnhang },
-  ];
-  if (finalized.leitwegId) {
-    const r = await pool.query<{ content: Buffer | null }>(`SELECT content FROM billing_invoice_documents WHERE invoice_id=$1 AND format='xrechnung'`, [id]);
-    if (r.rows[0]?.content) {
-      attachments.push({
-        filename: `xrechnung-${finalized.number}.xml`,
-        content: r.rows[0].content,
-        contentType: 'application/xml',
-      });
-    }
-  }
-
-  const sent = await sendEmail({
-    to: customer.email,
-    subject,
-    text: body,
-    attachments,
-  });
-
-  if (!sent) {
-    locals.requestLogger.error({ invoiceNumber: finalized.number }, '[billing/send] Email delivery failed for invoice');
-    return errorResponse('EMAIL_DELIVERY_FAILED', locals.requestId, 502);
-  }
-
-  await vermerkeVersand(id, 'email', session.email);
-  return new Response(JSON.stringify({ ok: true, number: finalized.number, versand: 'email' }), {
-    headers: { 'Content-Type': 'application/json' }
+  // Handtest 23.10.2026: Festschreiben und E-Mail sind getrennt. Die E-Mail (Empfänger, Betreff, Text
+  // anpassbar) geht über /api/admin/billing/[id]/mail – auch später und erneut. Scheitert sie, bleibt
+  // die Rechnung festgeschrieben.
+  return new Response(JSON.stringify({ ok: true, number: finalized.number, versand: 'email', mail: true }), {
+    headers: { 'Content-Type': 'application/json' },
   });
 };
 

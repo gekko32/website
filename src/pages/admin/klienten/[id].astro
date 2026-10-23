@@ -257,7 +257,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
             <td class="py-1 pr-3 text-muted whitespace-nowrap align-top">{ZUSTAND_TEXT[p.zustand]}
               {p.invoiceId && rechnungNummer.has(p.invoiceId) && (p.zustand === 'auf_entwurf'
                 ? <a class="block text-xs font-mono text-gold underline" href={`/admin/rechnungen/entwurf/${p.invoiceId}`} title="Entwurf prüfen, ändern, verschicken">{rechnungNummer.get(p.invoiceId)} ›</a>
-                : <span class="block text-xs font-mono">{rechnungNummer.get(p.invoiceId)}</span>)}</td>
+                : <a class="block text-xs font-mono hover:underline" href={`/admin/rechnungen/entwurf/${p.invoiceId}`} title="Rechnung öffnen: PDF, per E-Mail senden">{rechnungNummer.get(p.invoiceId)} ›</a>)}</td>
             <td class="py-1 text-right whitespace-nowrap align-top">
               {aenderbar && <span class="bearbeiten">
                 <form id={f} method="POST" action="/api/admin/posten" autocomplete="off" class="merk-ungespeichert inline">
@@ -595,7 +595,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
           <tr class="border-t border-dark-lighter">
             <td class="py-1 pr-3 font-mono">{r.status === 'draft'
               ? <a class="text-gold underline" href={`/admin/rechnungen/entwurf/${r.id}`} title="Entwurf prüfen, ändern, verschicken">{r.number} ›</a>
-              : <a class="hover:underline" href={`/admin/billing/${r.id}/drucken`} target="_blank" rel="noopener">{r.number}</a>}</td>
+              : <a class="hover:underline" href={`/admin/rechnungen/entwurf/${r.id}`} title="Rechnung öffnen: PDF, per E-Mail senden (auch erneut)">{r.number} ›</a>}</td>
             <td class="py-1 pr-3">{datum(r.issue_date)}</td>
             <td class="py-1 pr-3 text-right">{euro(r.gross_amount)}</td>
             <td class="py-1 pr-3 text-muted">{STATUS[r.status] ?? r.status}

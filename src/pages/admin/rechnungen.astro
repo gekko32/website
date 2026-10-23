@@ -306,6 +306,11 @@ const STATUS_TABS = [
                     >Zahlung ↑</button>
                   )}
                   <a
+                    href={`/admin/rechnungen/entwurf/${inv.id}`}
+                    class="ml-2 text-xs text-yellow-400 hover:underline"
+                    title="Rechnung öffnen: PDF, per E-Mail senden (auch erneut)"
+                  >Öffnen ›</a>
+                  <a
                     href={`/admin/billing/${inv.id}/drucken`}
                     target="_blank"
                     rel="noopener"

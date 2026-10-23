@@ -7,7 +7,7 @@ import AdminPageHeader from '../../../../components/admin/ui/AdminPageHeader.sve
 import { getSession, getLoginUrl, isAdmin } from '../../../../lib/auth';
 import { pool, initBillingTables } from '../../../../lib/website-db';
 import { getKlient } from '../../../../lib/klientenakte';
-import { aktuellerEmpfaenger, fehlendeAngaben } from '../../../../lib/billing-empfaenger';
+import { aktuellerEmpfaenger, empfaengerDerRechnung, fehlendeAngaben } from '../../../../lib/billing-empfaenger';
 import { anzeigeEmail, versandwege } from '../../../../lib/billing-versand';
 import { ladeZahlungsziel } from '../../../../lib/billing-regeln';
 import { ladeEinheiten } from '../../../../lib/billing-einheiten';
@@ -22,11 +22,16 @@ const brand = process.env.BRAND || 'mentolder';
 await initBillingTables();
 const id = Astro.params.id ?? '';
 const kopf = (await pool.query(
-  `SELECT id, number, status, customer_id, klient_id::text AS klient_id, zahlungsziel_tage, net_amount::float AS netto, notes
+  `SELECT id, number, status, customer_id, klient_id::text AS klient_id, zahlungsziel_tage, net_amount::float AS netto, notes,
+          versandweg, versendet_am::text AS versendet_am, issue_date::text AS datum, due_date::text AS faellig
      FROM billing_invoices WHERE id = $1 AND brand = $2`, [id, brand])).rows[0];
 if (!kopf) return Astro.redirect('/admin/rechnungen');
-// Festgeschrieben: nur noch ansehen (GoBD).
-if (kopf.status !== 'draft') return Astro.redirect(`/admin/billing/${id}/drucken`);
+// Festgeschrieben: dieselbe Seite schreibgeschützt (GoBD) – mit „Per E-Mail senden“ (auch erneut).
+const entwurf = kopf.status === 'draft';
+// Kein Zwischenspeichern: „Zurück“ im Browser zeigt immer den aktuellen Stand (Handtest 23.10.2026).
+Astro.response.headers.set('Cache-Control', 'no-store');
+const STATUS_TEXT: Record<string, string> = { open: 'offen (nicht bezahlt)', paid: 'bezahlt', partially_paid: 'teilweise bezahlt', cancelled: 'storniert', overdue: 'überfällig', uncollectible: 'uneinbringlich' };
+const fd = (iso: string | null) => (iso ? iso.slice(0, 10).split('-').reverse().join('.') : '–');
 
 const zeilen = (await pool.query(
   `SELECT id::text AS id, description, quantity::float AS menge, unit, unit_price::float AS preis, net_amount::float AS betrag,
@@ -38,7 +43,8 @@ const klient = kopf.klient_id ? await getKlient(kopf.klient_id) : null;
 const alle: Posten[] = klient ? await postenDesKlienten(brand, klient.id).catch(() => []) : [];
 const postenVon = new Map(alle.map((p) => [p.id, p]));
 const hinzufuegbar = alle.filter((p) => p.zustand === 'offen' && p.einzelpreis !== null);
-const empfaenger = await aktuellerEmpfaenger(brand, kopf.customer_id, { klientId: kopf.klient_id });
+// Entwurf: heutiger Stand der Akte; festgeschrieben: die gespeicherte Kopie (K31).
+const empfaenger = entwurf ? await aktuellerEmpfaenger(brand, kopf.customer_id, { klientId: kopf.klient_id }) : await empfaengerDerRechnung(id);
 const fehlt = empfaenger ? fehlendeAngaben(empfaenger) : ['Empfänger'];
 const wege = versandwege(empfaenger?.email);
 const standardZiel = await ladeZahlungsziel(brand);
@@ -53,14 +59,18 @@ const zurueck = `/admin/rechnungen/entwurf/${id}`;
 const feld = 'zfeld';
 ---
 
-<AdminLayout title={`Rechnungsentwurf ${kopf.number}`}>
+<AdminLayout title={entwurf ? `Rechnungsentwurf ${kopf.number}` : `Rechnung ${kopf.number}`}>
   <div style="padding:2rem;max-width:1000px;">
     <p class="text-xs text-muted mb-2">
       {klient && <a class="hover:underline" href={`/admin/klienten/${klient.id}#abrechnung`}>← Zur Klientenakte {klient.name}</a>}
       <span class="mx-2">·</span><a class="hover:underline" href="/admin/rechnungen">Alle Rechnungen und Entwürfe</a>
     </p>
-    <AdminPageHeader title={`Rechnungsentwurf ${kopf.number}`}
-      description="Noch nichts verschickt. Bis zum Festschreiben lässt sich hier alles ändern." />
+    <AdminPageHeader title={entwurf ? `Rechnungsentwurf ${kopf.number}` : `Rechnung ${kopf.number}`}
+      description={entwurf ? 'Noch nichts verschickt. Bis zum Festschreiben lässt sich hier alles ändern.'
+        : `Festgeschrieben – unveränderlich (GoBD). Datum ${fd(kopf.datum)} · fällig ${fd(kopf.faellig)} · ${STATUS_TEXT[kopf.status] ?? kopf.status}`} />
+    {!entwurf && <p class="text-sm mb-3">{kopf.versendet_am
+      ? <span class="text-green-400">Verschickt {kopf.versandweg === 'post' ? 'per Post/persönlich' : 'per E-Mail'} am {fd(kopf.versendet_am)}.</span>
+      : <span class="text-gold">Noch nicht verschickt.</span>}</p>}
 
     {q.get('neu') === '1' && <p class="text-sm text-green-400 mb-3">Entwurf angelegt. Bitte prüfen – Positionen lassen sich hier noch ändern oder herausnehmen.</p>}
     {q.get('gespeichert') === '1' && <p class="text-sm text-green-400 mb-3">Gespeichert. Der Entwurf ist aktualisiert.</p>}
@@ -74,12 +84,12 @@ const feld = 'zfeld';
           <br /><span class="text-muted">{[empfaenger.addressLine1, [empfaenger.postalCode, empfaenger.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Anschrift fehlt'} · {anzeigeEmail(empfaenger.email)}</span>
         </p>
       ) : <p class="text-sm text-red-400">Empfänger nicht gefunden.</p>}
-      {fehlt.length > 0 && <p class="text-sm text-red-400 mt-1">Festschreiben erst möglich, wenn die Anschrift vollständig ist. Es fehlt: {fehlt.join(', ')}.
+      {entwurf && fehlt.length > 0 && <p class="text-sm text-red-400 mt-1">Festschreiben erst möglich, wenn die Anschrift vollständig ist. Es fehlt: {fehlt.join(', ')}.
         {klient && <a class="underline ml-1" href={`/admin/klienten/${klient.id}`}>In der Akte ergänzen</a>}</p>}
     </section>
 
     {/* Links anlegen: weitere offene Posten dieses Klienten hinzufügen. */}
-    {hinzufuegbar.length > 0 && (
+    {entwurf && hinzufuegbar.length > 0 && (
       <details class="mb-3">
         <summary class="cursor-pointer inline-block px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Weitere offene Posten hinzufügen ({hinzufuegbar.length})</summary>
         <form method="POST" action="/api/admin/posten" class="mt-2 border border-dark-lighter rounded-xl p-3">
@@ -132,7 +142,7 @@ const feld = 'zfeld';
               </span></span>
             </td>
             <td class="py-1 pr-2 text-right whitespace-nowrap align-top">{euro(z.betrag)}</td>
-            <td class="py-1 text-right whitespace-nowrap align-top">
+            <td class="py-1 text-right whitespace-nowrap align-top">{entwurf && <>
               <span class="bearbeiten">
                 <form id={f} method="POST" action="/api/admin/posten" class="inline">
                   <input type="hidden" name="zurueck" value={zurueck} />
@@ -152,7 +162,7 @@ const feld = 'zfeld';
                   <button type="submit" class="px-2 py-1 rounded border border-red-400 text-red-300 text-xs">Herausnehmen</button>
                 </form>
               </span>
-            </td>
+            </>}</td>
           </tr>
           ); })}
           <tr class="border-t-2 border-dark-lighter font-semibold"><td class="py-1" colspan="3">Gesamt</td><td class="py-1 pr-2 text-right">{euro(summe)}</td><td></td></tr>
@@ -161,6 +171,7 @@ const feld = 'zfeld';
       {kopf.notes && <p class="text-xs text-muted mt-2">Vermerk auf der Rechnung: {kopf.notes}</p>}
     </section>
 
+    {entwurf ? (
     <section class="border border-dark-lighter rounded-xl p-4 mb-6">
       <label class="block text-sm text-light mb-3">Zahlungsziel in Tagen
         <input id="zahlungsziel" type="number" min="0" max="365" step="1" value={kopf.zahlungsziel_tage ?? standardZiel}
@@ -172,10 +183,53 @@ const feld = 'zfeld';
         <button type="button" id="verwerfen" class="px-3 py-2 rounded-lg border border-red-400 text-red-300 text-sm">Entwurf verwerfen</button>
         <a href={`/admin/billing/${id}/drucken`} target="_blank" rel="noopener" class="px-3 py-2 rounded-lg border border-light/40 text-light text-sm hover:border-gold">Ansehen ↗</a>
         <button type="button" data-weg="post" disabled={fehlt.length > 0 || zeilen.length === 0} class="festschreiben px-3 py-2 rounded-lg border border-gold text-gold text-sm disabled:opacity-40">Festschreiben ohne E-Mail (Post/persönlich)</button>
-        {wege.includes('email') && <button type="button" data-weg="email" disabled={fehlt.length > 0 || zeilen.length === 0} class="festschreiben px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold disabled:opacity-40">Festschreiben und per E-Mail senden</button>}
+        {wege.includes('email') && <button type="button" data-weg="email" disabled={fehlt.length > 0 || zeilen.length === 0} class="festschreiben px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold disabled:opacity-40">Festschreiben und E-Mail vorbereiten</button>}
       </div>
-      {!wege.includes('email') && <p class="text-xs text-muted mt-2">Keine E-Mail-Adresse: nur Versand per Post/persönlich.</p>}
+      <p class="text-xs text-muted mt-2">{wege.includes('email')
+        ? 'Beim Festschreiben bekommt die Rechnung ihre Nummer. Danach siehst du die E-Mail (Empfänger, Betreff, Text) und kannst sie vor dem Senden anpassen.'
+        : 'Keine E-Mail-Adresse: nur Versand per Post/persönlich.'}</p>
     </section>
+    ) : (
+    <section class="border border-dark-lighter rounded-xl p-4 mb-6">
+      <p id="meldung" role="alert" class="text-sm text-red-400 mb-3"></p>
+      <div class="flex flex-wrap gap-2 justify-end">
+        <a href={`/api/billing/invoice/${id}/pdf`} class="px-3 py-2 rounded-lg border border-light/40 text-light text-sm hover:border-gold">PDF herunterladen</a>
+        <a href={`/admin/billing/${id}/drucken`} target="_blank" rel="noopener" class="px-3 py-2 rounded-lg border border-light/40 text-light text-sm hover:border-gold">Ansehen ↗</a>
+        {kopf.status !== 'cancelled' && <button type="button" id="mail-oeffnen" class="px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">{kopf.versendet_am ? 'Erneut per E-Mail senden' : 'Per E-Mail senden'}</button>}
+      </div>
+    </section>
+    )}
+
+    {/* E-Mail vor dem Senden prüfen und anpassen (Handtest 23.10.2026). */}
+    {!entwurf && (
+    <section id="mail" hidden class="border border-gold/60 rounded-xl p-4 mb-6">
+      <h2 class="text-sm font-semibold text-gold mb-3">E-Mail mit Rechnung {kopf.number}</h2>
+      <div class="grid gap-3 text-sm">
+        <label class="text-xs text-muted">An <input id="mail-an" type="email" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
+        <p class="text-xs text-muted">Von: <span id="mail-von" class="text-light"></span>
+          <span class="ml-1">(Absender des Postausgangs; Absenderdaten auf der Rechnung unter <a class="underline" href="/admin/einstellungen/rechnungen">Einstellungen → Rechnungen</a>)</span></p>
+        <label class="text-xs text-muted">Betreff <input id="mail-betreff" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
+        <label class="text-xs text-muted">Text <textarea id="mail-text" rows="9" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light"></textarea></label>
+        <p class="text-xs text-muted">Anhang: <span id="mail-anhaenge" class="text-light"></span> · Vorlage für alle Rechnungen: <a class="underline" href="/admin/einstellungen/rechnungstexte">Einstellungen → Rechnungstexte</a></p>
+        <p id="mail-meldung" role="alert" class="text-sm"></p>
+        <div class="flex gap-2 justify-end">
+          <button type="button" id="mail-abbrechen" class="px-3 py-2 rounded-lg border border-dark-lighter text-sm">Abbrechen</button>
+          <button type="button" id="mail-senden" class="px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">E-Mail senden</button>
+        </div>
+      </div>
+    </section>
+    )}
+
+    {/* Rückfrage auf der Seite statt Browser-Fenster. */}
+    <div id="rueckfrage" hidden class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div class="bg-surface border border-gold/60 rounded-xl p-5 max-w-md w-full shadow-xl">
+        <p id="rueckfrage-text" class="text-sm text-light mb-4"></p>
+        <div class="flex gap-2 justify-end">
+          <button type="button" id="rueckfrage-nein" class="px-3 py-2 rounded-lg border border-dark-lighter text-sm">Abbrechen</button>
+          <button type="button" id="rueckfrage-ja" class="px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">Ja</button>
+        </div>
+      </div>
+    </div>
   </div>
 </AdminLayout>
 
@@ -192,38 +246,97 @@ const feld = 'zfeld';
 </style>
 
 <script define:vars={{ id }}>
+  // Rückfrage auf der Seite (statt Browser-Fenster „JavaScript von …“).
+  const box = document.getElementById('rueckfrage');
+  function frage(text, ja = 'Ja') {
+    return new Promise((fertig) => {
+      document.getElementById('rueckfrage-text').textContent = text;
+      document.getElementById('rueckfrage-ja').textContent = ja;
+      box.hidden = false;
+      const schliessen = (wert) => { box.hidden = true; jaK.onclick = null; neinK.onclick = null; fertig(wert); };
+      const jaK = document.getElementById('rueckfrage-ja');
+      const neinK = document.getElementById('rueckfrage-nein');
+      jaK.onclick = () => schliessen(true);
+      neinK.onclick = () => schliessen(false);
+    });
+  }
+  const meldung = document.getElementById('meldung');
+  const zeige = (el, text, gut) => { if (el) { el.className = `text-sm mb-3 ${gut ? 'text-green-400' : 'text-red-400'}`; el.textContent = text; } };
+
   document.querySelectorAll('.zeile-aendern').forEach((b) => b.addEventListener('click', () => b.closest('.zeile')?.classList.add('im-bearbeiten')));
   document.querySelectorAll('.zeile-abbrechen').forEach((b) => b.addEventListener('click', () => {
     document.getElementById(b.dataset.form)?.reset();
     b.closest('.zeile')?.classList.remove('im-bearbeiten');
   }));
-  document.querySelectorAll('form.rausnehmen').forEach((f) => f.addEventListener('submit', (e) => {
-    if (!confirm(f.dataset.frage)) e.preventDefault();
+  document.querySelectorAll('form.rausnehmen').forEach((f) => f.addEventListener('submit', async (e) => {
+    if (f.dataset.bestaetigt === '1') return;
+    e.preventDefault();
+    if (await frage(f.dataset.frage, 'Herausnehmen')) { f.dataset.bestaetigt = '1'; f.requestSubmit(); }
   }));
-  const meldung = document.getElementById('meldung');
+
   document.getElementById('verwerfen')?.addEventListener('click', async () => {
-    if (!confirm('Entwurf verwerfen? Seine Posten sind danach in der Akte wieder offen.')) return;
+    if (!(await frage('Entwurf verwerfen? Seine Posten sind danach in der Akte wieder offen.', 'Verwerfen'))) return;
     const res = await fetch(`/api/admin/billing/${id}/discard`, { method: 'POST' });
-    if (res.ok) window.location.href = '/admin/rechnungen'; else if (meldung) meldung.textContent = 'Verwerfen fehlgeschlagen.';
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) window.location.href = '/admin/rechnungen';
+    else { zeige(meldung, data.error ?? 'Verwerfen fehlgeschlagen.', false); setTimeout(() => window.location.reload(), 2500); }
   });
+
   document.querySelectorAll('button.festschreiben').forEach((b) => b.addEventListener('click', async () => {
     const weg = b.dataset.weg;
-    const frage = weg === 'email'
-      ? 'Rechnung jetzt festschreiben und per E-Mail senden? Danach lässt sie sich nur noch stornieren.'
-      : 'Rechnung jetzt festschreiben, ohne E-Mail? Das PDF wird zum Drucken heruntergeladen. Danach lässt sie sich nur noch stornieren.';
-    if (!confirm(frage)) return;
+    const text = weg === 'email'
+      ? 'Rechnung jetzt festschreiben? Sie bekommt ihre Nummer und ist danach unveränderlich (nur noch Storno). Anschließend siehst du die E-Mail und kannst sie vor dem Senden anpassen.'
+      : 'Rechnung jetzt festschreiben, ohne E-Mail? Sie bekommt ihre Nummer und ist danach unveränderlich (nur noch Storno). Das PDF wird zum Drucken heruntergeladen. Per E-Mail senden kannst du sie später trotzdem noch.';
+    if (!(await frage(text, 'Festschreiben'))) return;
     b.disabled = true;
     const res = await fetch(`/api/admin/billing/${id}/send`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ zahlungszielTage: document.getElementById('zahlungsziel')?.value, versand: weg }),
     });
-    if (!res.ok) { b.disabled = false; if (meldung) meldung.textContent = `Nicht festgeschrieben: ${(await res.text().catch(() => '')) || 'Fehler'} (${res.status})`; return; }
+    if (!res.ok) { b.disabled = false; zeige(meldung, `Nicht festgeschrieben: ${(await res.text().catch(() => '')) || 'Fehler'}`, false); return; }
     const data = await res.json().catch(() => ({}));
     if (data.pdfUrl) {
       const link = document.createElement('a');
       link.href = data.pdfUrl; link.download = `${data.number ?? 'Rechnung'}.pdf`;
       document.body.appendChild(link); link.click(); link.remove();
     }
-    setTimeout(() => { window.location.href = `/admin/billing/${id}/drucken`; }, data.pdfUrl ? 1500 : 0);
+    // Dieselbe Seite zeigt jetzt die festgeschriebene Rechnung; bei E-Mail gleich mit geöffneter Mail.
+    setTimeout(() => { window.location.href = `/admin/rechnungen/entwurf/${id}${weg === 'email' ? '?mail=1' : ''}`; }, data.pdfUrl ? 1500 : 0);
   }));
+
+  // E-Mail vorbereiten und senden (festgeschriebene Rechnung).
+  const mail = document.getElementById('mail');
+  const mailMeldung = document.getElementById('mail-meldung');
+  async function mailOeffnen() {
+    if (!mail) return;
+    mail.hidden = false;
+    mail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const res = await fetch(`/api/admin/billing/${id}/mail`);
+    const v = await res.json().catch(() => ({}));
+    if (!res.ok) { zeige(mailMeldung, v.error ?? 'E-Mail-Vorschlag nicht geladen.', false); return; }
+    document.getElementById('mail-an').value = v.an ?? '';
+    document.getElementById('mail-von').textContent = v.von ?? '';
+    document.getElementById('mail-betreff').value = v.betreff ?? '';
+    document.getElementById('mail-text').value = v.text ?? '';
+    document.getElementById('mail-anhaenge').textContent = (v.anhaenge ?? []).join(', ');
+  }
+  document.getElementById('mail-oeffnen')?.addEventListener('click', mailOeffnen);
+  document.getElementById('mail-abbrechen')?.addEventListener('click', () => { if (mail) mail.hidden = true; });
+  document.getElementById('mail-senden')?.addEventListener('click', async (e) => {
+    const knopf = e.currentTarget;
+    const an = document.getElementById('mail-an').value;
+    if (!(await frage(`E-Mail jetzt an ${an} senden?`, 'Senden'))) return;
+    knopf.disabled = true;
+    zeige(mailMeldung, 'Wird gesendet …', true);
+    const res = await fetch(`/api/admin/billing/${id}/mail`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ an, betreff: document.getElementById('mail-betreff').value, text: document.getElementById('mail-text').value }),
+    });
+    const data = await res.json().catch(() => ({}));
+    knopf.disabled = false;
+    if (!res.ok) { zeige(mailMeldung, data.error ?? 'E-Mail nicht gesendet.', false); knopf.textContent = 'Nochmal versuchen'; return; }
+    zeige(mailMeldung, 'E-Mail gesendet.', true);
+    setTimeout(() => window.location.reload(), 1200);
+  });
+  if (new URLSearchParams(location.search).get('mail') === '1') void mailOeffnen();
 </script>
