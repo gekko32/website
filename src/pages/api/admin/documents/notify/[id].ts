@@ -3,7 +3,7 @@ import { getSession, isAdmin } from '../../../../../lib/auth';
 import { getDocumentAssignmentById } from '../../../../../lib/documents-db';
 import { getCustomerByEmail } from '../../../../../lib/projects-db';
 import { logSigningEvent } from '../../../../../lib/signing/audit';
-import nodemailer from 'nodemailer';
+import { sendEmailMitGrund } from '../../../../../lib/email';
 
 export const POST: APIRoute = async ({ params, request }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -27,21 +27,13 @@ export const POST: APIRoute = async ({ params, request }) => {
     ? `https://web.${PROD_DOMAIN}/portal/sign/${id}`
     : `/portal/sign/${id}`;
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST ?? 'mailpit.workspace.svc.cluster.local',
-    port: Number(process.env.SMTP_PORT ?? 1025),
-    secure: false,
-    auth: process.env.SMTP_USER
-      ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-      : undefined,
-  });
-
-  await transporter.sendMail({
-    from: process.env.CONTACT_EMAIL ?? 'noreply@mentolder.de',
+  // E-Mail-Versand im Adminbereich (K77): derselbe Postausgang und Absender wie alle Mails der Website.
+  const gesendet = await sendEmailMitGrund({
     to: customer.email,
     subject: `Bitte unterschreiben: ${assignment.template_title}`,
     text: `Hallo ${customer.name ?? ''},\n\nbitte unterschreiben Sie das folgende Dokument:\n\n${signingUrl}\n\nBei Fragen stehen wir gerne zur Verfügung.`,
   });
+  if (!gesendet.ok) return new Response(JSON.stringify({ error: gesendet.grund, detail: gesendet.detail }), { status: 502 });
 
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '0.0.0.0';
   await logSigningEvent(id, 'email_sent', ip, null, session.email ?? null);

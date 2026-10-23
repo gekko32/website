@@ -3,7 +3,7 @@
 // festgeschriebene Rechnung lässt sich jederzeit (auch erneut, auch nach „Post“) per E-Mail senden;
 // an der Rechnung selbst ändert das nichts.
 import { pool } from './website-db';
-import { sendEmail, absenderAnzeige } from './email';
+import { sendEmailMitGrund, absenderAnzeige } from './email';
 import { ladeRechnungstexte } from './billing-rechnungstexte';
 import { ladeAbsender } from './billing-absender';
 import { empfaengerDerRechnung, kaeuferName } from './billing-empfaenger';
@@ -28,7 +28,7 @@ export async function rechnungsMailVorschlag(brand: string, invoiceId: string): 
     `SELECT number, status, gross_amount, due_date, payment_reference, leitweg_id FROM billing_invoices WHERE id = $1 AND brand = $2`,
     [invoiceId, brand])).rows[0];
   if (!r || r.status === 'draft') return null;
-  const [texte, absender, empfaenger] = await Promise.all([ladeRechnungstexte(brand), ladeAbsender(brand), empfaengerDerRechnung(invoiceId)]);
+  const [texte, absender, empfaenger, von] = await Promise.all([ladeRechnungstexte(brand), ladeAbsender(brand), empfaengerDerRechnung(invoiceId), absenderAnzeige()]);
   const vars = {
     number: r.number as string,
     gross_amount: Number(r.gross_amount).toFixed(2).replace('.', ',') + ' €',
@@ -39,7 +39,7 @@ export async function rechnungsMailVorschlag(brand: string, invoiceId: string): 
   };
   return {
     an: empfaenger && hatEchteEmail(empfaenger.email) ? empfaenger.email : '',
-    von: absenderAnzeige(),
+    von,
     betreff: ersetze(texte.invoice_email_subject || 'Rechnung {{number}}', vars),
     text: ersetze(texte.invoice_email_body, vars),
     anhaenge: [`${r.number}.pdf`, ...(r.leitweg_id ? [`xrechnung-${r.number}.xml`] : [])],
@@ -65,15 +65,15 @@ export async function sendeRechnungsMail(
   const pdf = docs.find((d: { format: string }) => d.format === 'pdf')?.content as Buffer | undefined;
   if (!pdf) return { ok: false, status: 409, fehler: 'Zu dieser Rechnung ist kein PDF gespeichert.' };
   const xr = docs.find((d: { format: string }) => d.format === 'xrechnung')?.content as Buffer | undefined;
-  const ok = await sendEmail({
+  const gesendet = await sendEmailMitGrund({
     to: an, subject: m.betreff.trim(), text: m.text,
     attachments: [
       { filename: `${r.number}.pdf`, content: pdf },
       ...(r.leitweg_id && xr ? [{ filename: `xrechnung-${r.number}.xml`, content: xr }] : []),
     ],
   });
-  if (!ok) {
-    return { ok: false, status: 502, fehler: `Die E-Mail konnte vom Server nicht verschickt werden (Postausgang ${absenderAnzeige()}). Die Rechnung ${r.number} bleibt festgeschrieben – bitte später erneut senden oder das PDF selbst verschicken.` };
+  if (!gesendet.ok) {
+    return { ok: false, status: 502, fehler: `${gesendet.grund} Die Rechnung ${r.number} bleibt festgeschrieben – bitte später erneut senden oder das PDF selbst verschicken. (Server: ${gesendet.detail})` };
   }
   await pool.query('UPDATE billing_invoices SET versandweg = $2, versendet_am = now() WHERE id = $1', [invoiceId, 'email']);
   await logBillingEvent({ invoiceId, action: 'versand', actor: { email: wer }, metadata: { weg: 'email', an } }).catch(() => {});

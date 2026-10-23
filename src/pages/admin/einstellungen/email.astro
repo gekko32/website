@@ -1,65 +1,216 @@
 ---
+// E-Mail-Versand im Adminbereich (SPEZ-EMAIL-VERSAND, K71–K82): Postausgang und Absender für alle
+// Mails der Website. Das Passwort wird nie angezeigt (K73, K80).
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
 import AdminEinstellungenTabs from '../../../components/AdminEinstellungenTabs.astro';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getSiteSetting } from '../../../lib/website-db';
+import { ANBIETER, ladePostausgang, letzteAenderungen, schluesselVorhanden } from '../../../lib/mail-postausgang';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
 if (!isAdmin(session)) return Astro.redirect('/admin');
+Astro.response.headers.set('Cache-Control', 'no-store');
 
 const BRAND = process.env.BRAND || 'mentolder';
-const saved = Astro.url.searchParams.get('saved') === '1';
-
-const [fromName, fromAddress] = await Promise.all([
+const [fromName, fromAddress, stand, verlauf] = await Promise.all([
   getSiteSetting(BRAND, 'email_from_name'),
   getSiteSetting(BRAND, 'email_from_address'),
+  ladePostausgang(BRAND),
+  letzteAenderungen(BRAND),
 ]);
+const schluessel = schluesselVorhanden();
+// Vorbelegung: gespeicherter Eintrag, sonst die Server-Einstellung.
+const p = stand.postausgang;
+const vor = {
+  anbieter: stand.anbieter ?? (ANBIETER.find((a) => a.host === (process.env.SMTP_HOST ?? ''))?.key ?? 'anderer'),
+  host: p?.host ?? process.env.SMTP_HOST ?? '',
+  port: p?.port ?? Number(process.env.SMTP_PORT ?? 587),
+  sicherheit: p?.sicherheit ?? (process.env.SMTP_SECURE === 'true' ? 'ssl' : 'starttls'),
+  benutzer: p?.benutzer ?? process.env.SMTP_USER ?? '',
+};
+const fd = (iso: string | null) => {
+  if (!iso) return '–';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? iso : d.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Berlin' });
+};
 ---
 
 <AdminLayout title="E-Mail">
   <AdminEinstellungenTabs current={Astro.url.pathname} />
-  <div class="admin-form-wide" style="padding: 2rem; max-width: 640px;">
-<AdminPageHeader title="E-Mail" />
+  <div class="admin-form-wide" style="padding: 2rem; max-width: 720px;">
+    <AdminPageHeader title="E-Mail" description="Über welches Postfach die Website verschickt (Rechnungen, Mahnungen, Angebote, Links zum Unterschreiben, Benachrichtigungen, Newsletter)." />
 
-    {saved && (
-      <div style="background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.5rem; color: #86efac; font-size: 0.875rem;">
-        Einstellungen gespeichert.
+    <p class="stand">
+      Gilt gerade: <strong>{stand.quelle === 'admin' ? `hier eingestellt (${stand.host}, ${stand.benutzer}), geändert ${fd(stand.geaendertAm)}` : `Server-Einstellung (${stand.host || 'nicht gesetzt'}${stand.benutzer ? `, ${stand.benutzer}` : ''})`}</strong>
+    </p>
+    {stand.hinweis && <p class="warn">{stand.hinweis}</p>}
+    {!schluessel && <p class="warn">Auf dem Server fehlt noch der Schlüssel <code>MAIL_SETTINGS_KEY</code>. Ohne ihn lässt sich hier nichts speichern; es gilt die Server-Einstellung.</p>}
+
+    <section class="karte">
+      <h2>Postausgang</h2>
+      <label>Anbieter
+        <select id="anbieter" disabled={!schluessel}>
+          {ANBIETER.map((a) => <option value={a.key} data-host={a.host} data-port={a.port} data-sicherheit={a.sicherheit} selected={a.key === vor.anbieter}>{a.name}</option>)}
+        </select>
+      </label>
+      <p class="klein">Tuta lässt sich nicht eintragen: Tuta bietet keinen Postausgang (SMTP) für Programme an.</p>
+      <div class="zwei">
+        <label>Server <input id="host" value={vor.host} placeholder="smtp.beispiel.de" disabled={!schluessel} /></label>
+        <label>Port <input id="port" type="number" min="1" max="65535" value={vor.port} disabled={!schluessel} /></label>
       </div>
+      <label>Verschlüsselung
+        <select id="sicherheit" disabled={!schluessel}>
+          <option value="starttls" selected={vor.sicherheit === 'starttls'}>STARTTLS (meist Port 587)</option>
+          <option value="ssl" selected={vor.sicherheit === 'ssl'}>SSL/TLS (meist Port 465)</option>
+        </select>
+      </label>
+      <label>Benutzername <input id="benutzer" value={vor.benutzer} autocomplete="off" placeholder="name@anbieter.de" disabled={!schluessel} /></label>
+      <label>Passwort
+        <input id="passwort" type="password" autocomplete="new-password" disabled={!schluessel}
+          placeholder={stand.quelle === 'admin' ? 'leer lassen = gespeichertes Passwort behalten' : 'App-Passwort des Anbieters'} />
+      </label>
+      <p class="klein">{stand.passwortAm ? `Passwort gespeichert am ${fd(stand.passwortAm)}.` : 'Noch kein Passwort hier gespeichert.'} Beim Speichern meldet sich die Website zuerst beim Mail-Server an; klappt das nicht, wird nichts geändert.</p>
+      <p id="meldung-postausgang" role="alert" class="meldung"></p>
+      <div class="knoepfe">
+        {stand.quelle === 'admin' && <button type="button" id="zuruecksetzen" class="zweit">Zur Server-Einstellung zurück</button>}
+        <button type="button" id="speichern-postausgang" class="erst" disabled={!schluessel}>Anmelden und speichern</button>
+      </div>
+    </section>
+
+    <section class="karte">
+      <h2>Absender</h2>
+      <label>Absendername <input id="absender-name" value={fromName || (process.env.FROM_NAME ?? process.env.BRAND_NAME ?? '')} disabled={!schluessel} /></label>
+      <label>Absenderadresse
+        <input id="absender-adresse" type="email" value={fromAddress ?? ''} placeholder={`leer = Benutzername des Postfachs (${vor.benutzer || '–'})`} disabled={!schluessel} />
+      </label>
+      <p class="klein">Viele Anbieter nehmen nur den Benutzernamen des Postfachs oder dort eingerichtete Aliasse als Absender an. Die Testmail zeigt es.</p>
+      <p id="meldung-absender" role="alert" class="meldung"></p>
+      <div class="knoepfe"><button type="button" id="speichern-absender" class="erst" disabled={!schluessel}>Absender speichern</button></div>
+    </section>
+
+    <section class="karte">
+      <h2>Testmail</h2>
+      <label>An <input id="test-an" type="email" value={session.email ?? ''} /></label>
+      <p id="meldung-test" role="alert" class="meldung"></p>
+      <div class="knoepfe"><button type="button" id="testmail" class="erst">Testmail senden</button></div>
+    </section>
+
+    {verlauf.length > 0 && (
+      <section class="karte">
+        <h2>Letzte Änderungen</h2>
+        <table class="verlauf"><tbody>{verlauf.map((v) => (
+          <tr><td>{fd(v.am)}</td><td>{v.wer ?? '–'}</td><td>{v.aktion}</td><td>{[v.host, v.benutzer].filter(Boolean).join(', ')}</td></tr>
+        ))}</tbody></table>
+      </section>
     )}
 
-    <form method="POST" action="/api/admin/einstellungen/email">
-      <div style="margin-bottom: 1.25rem;">
-        <label style="display: block; font-family: var(--font-mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--mute-2); margin-bottom: 0.5rem;">
-          Absendername
-        </label>
-        <input
-          type="text"
-          name="email_from_name"
-          value={fromName ?? (process.env.FROM_NAME ?? process.env.BRAND_NAME ?? '')}
-          style="width: 100%; background: var(--ink-800); border: 1px solid var(--line); border-radius: 8px; padding: 0.625rem 0.875rem; color: var(--fg); font-family: var(--font-mono); font-size: 0.875rem; outline: none;"
-        />
+    {/* Rückfrage auf der Seite statt Browser-Fenster (wie Rechnungsseite). */}
+    <div id="rueckfrage" hidden class="rueckfrage">
+      <div class="karte">
+        <p id="rueckfrage-text"></p>
+        <div class="knoepfe">
+          <button type="button" id="rueckfrage-nein" class="zweit">Abbrechen</button>
+          <button type="button" id="rueckfrage-ja" class="erst">Ja</button>
+        </div>
       </div>
-
-      <div style="margin-bottom: 2rem;">
-        <label style="display: block; font-family: var(--font-mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--mute-2); margin-bottom: 0.5rem;">
-          Absender-Adresse (From)
-        </label>
-        <input
-          type="email"
-          name="email_from_address"
-          value={fromAddress ?? (process.env.FROM_EMAIL ?? process.env.CONTACT_EMAIL ?? '')}
-          style="width: 100%; background: var(--ink-800); border: 1px solid var(--line); border-radius: 8px; padding: 0.625rem 0.875rem; color: var(--fg); font-family: var(--font-mono); font-size: 0.875rem; outline: none;"
-        />
-      </div>
-
-      <button
-        type="submit"
-        style="background: var(--brass); color: var(--ink-900); border: none; border-radius: 8px; padding: 0.625rem 1.5rem; font-size: 0.875rem; font-weight: 600; cursor: pointer;"
-      >
-        Speichern
-      </button>
-    </form>
+    </div>
   </div>
 </AdminLayout>
+
+<style>
+  .stand { font-size: 0.875rem; margin-bottom: 0.75rem; color: var(--fg); }
+  .warn { font-size: 0.875rem; margin-bottom: 1rem; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid rgba(250, 204, 21, 0.4); background: rgba(250, 204, 21, 0.08); color: #fde68a; }
+  .karte { border: 1px solid var(--line); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; background: var(--ink-850, transparent); }
+  h2 { font-size: 0.95rem; font-weight: 600; color: var(--brass); margin-bottom: 0.9rem; }
+  label { display: block; font-family: var(--font-mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--mute-2); margin-bottom: 0.9rem; }
+  input, select { display: block; width: 100%; margin-top: 0.4rem; background: var(--ink-800); border: 1px solid var(--line); border-radius: 8px; padding: 0.55rem 0.8rem; color: var(--fg); font-family: var(--font-mono); font-size: 0.875rem; text-transform: none; letter-spacing: normal; }
+  input:disabled, select:disabled, button:disabled { opacity: 0.45; }
+  .zwei { display: grid; grid-template-columns: 1fr 7rem; gap: 0.75rem; }
+  .klein { font-size: 0.78rem; color: var(--mute-2); margin: -0.4rem 0 0.9rem; }
+  .meldung { font-size: 0.85rem; min-height: 1.1em; margin-bottom: 0.6rem; white-space: pre-line; }
+  .meldung.gut { color: #86efac; } .meldung.schlecht { color: #fca5a5; }
+  .knoepfe { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; }
+  .erst { background: var(--brass); color: var(--ink-900); border: none; border-radius: 8px; padding: 0.55rem 1.2rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+  .zweit { background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 0.55rem 1.2rem; font-size: 0.875rem; cursor: pointer; }
+  .verlauf { width: 100%; font-size: 0.8rem; } .verlauf td { padding: 0.25rem 0.5rem 0.25rem 0; border-top: 1px solid var(--line); vertical-align: top; }
+  .rueckfrage { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); padding: 1rem; }
+  .rueckfrage[hidden] { display: none; }
+  .rueckfrage .karte { max-width: 28rem; width: 100%; background: var(--ink-900, #111); }
+  @media (max-width: 520px) { .zwei { grid-template-columns: 1fr; } }
+</style>
+
+<script>
+  const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+  const wert = (id: string) => ($<HTMLInputElement>(id)?.value ?? '').trim();
+  function zeige(id: string, text: string, gut: boolean) {
+    const el = $(id);
+    el.textContent = text;
+    el.className = `meldung ${gut ? 'gut' : 'schlecht'}`;
+  }
+  function frage(text: string, ja: string): Promise<boolean> {
+    const box = $('rueckfrage');
+    $('rueckfrage-text').textContent = text;
+    $('rueckfrage-ja').textContent = ja;
+    box.hidden = false;
+    return new Promise((fertig) => {
+      const zu = (w: boolean) => { box.hidden = true; $('rueckfrage-ja').onclick = null; $('rueckfrage-nein').onclick = null; fertig(w); };
+      $('rueckfrage-ja').onclick = () => zu(true);
+      $('rueckfrage-nein').onclick = () => zu(false);
+    });
+  }
+  async function senden(daten: Record<string, unknown>) {
+    const res = await fetch('/api/admin/einstellungen/email', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(daten),
+    });
+    const antwort = await res.json().catch(() => ({}));
+    return { ok: res.ok, ...antwort } as { ok: boolean; error?: string; detail?: string };
+  }
+  const fehlerText = (r: { error?: string; detail?: string }) => `${r.error ?? 'Fehler.'}${r.detail ? `\nMeldung des Servers: ${r.detail}` : ''}`;
+
+  // K71: Anbieter belegt Server, Port und Verschlüsselung vor.
+  $<HTMLSelectElement>('anbieter')?.addEventListener('change', (e) => {
+    const o = (e.target as HTMLSelectElement).selectedOptions[0];
+    if (!o?.dataset.host) return;
+    $<HTMLInputElement>('host').value = o.dataset.host;
+    $<HTMLInputElement>('port').value = o.dataset.port ?? '587';
+    $<HTMLSelectElement>('sicherheit').value = o.dataset.sicherheit ?? 'starttls';
+  });
+
+  $('speichern-postausgang')?.addEventListener('click', async (e) => {
+    const knopf = e.currentTarget as HTMLButtonElement;
+    knopf.disabled = true;
+    zeige('meldung-postausgang', 'Melde mich beim Mail-Server an …', true);
+    const r = await senden({
+      aktion: 'postausgang', anbieter: wert('anbieter'), host: wert('host'), port: wert('port'),
+      sicherheit: wert('sicherheit'), benutzer: wert('benutzer'), passwort: $<HTMLInputElement>('passwort').value,
+    });
+    knopf.disabled = false;
+    if (!r.ok) { zeige('meldung-postausgang', fehlerText(r), false); return; }
+    $<HTMLInputElement>('passwort').value = '';
+    zeige('meldung-postausgang', 'Anmeldung geglückt, gespeichert. Ab jetzt gehen alle Mails über diesen Postausgang. Jetzt am besten eine Testmail senden.', true);
+    setTimeout(() => window.location.reload(), 2500);
+  });
+
+  $('zuruecksetzen')?.addEventListener('click', async () => {
+    if (!(await frage('Den hier eingestellten Postausgang löschen? Danach gilt wieder die Server-Einstellung.', 'Zurücksetzen'))) return;
+    const r = await senden({ aktion: 'zuruecksetzen' });
+    if (!r.ok) { zeige('meldung-postausgang', fehlerText(r), false); return; }
+    window.location.reload();
+  });
+
+  $('speichern-absender')?.addEventListener('click', async () => {
+    const r = await senden({ aktion: 'absender', name: wert('absender-name'), adresse: wert('absender-adresse') });
+    zeige('meldung-absender', r.ok ? 'Absender gespeichert. Die Testmail zeigt, ob der Anbieter ihn annimmt.' : fehlerText(r), r.ok);
+  });
+
+  $('testmail')?.addEventListener('click', async (e) => {
+    const knopf = e.currentTarget as HTMLButtonElement;
+    knopf.disabled = true;
+    zeige('meldung-test', 'Wird gesendet …', true);
+    const r = await senden({ aktion: 'testmail', an: wert('test-an') });
+    knopf.disabled = false;
+    zeige('meldung-test', r.ok ? `Testmail an ${wert('test-an')} gesendet. Bitte im Posteingang nachsehen.` : fehlerText(r), r.ok);
+  });
+</script>

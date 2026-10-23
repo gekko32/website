@@ -3,6 +3,7 @@
 
 import nodemailer from 'nodemailer';
 import { isE2ETestRequest } from './e2e-marker';
+import { uebersetzeMailFehler, type MailFehler } from './mail-fehler';
 import { renderNewsletterEmail, renderNewsletterText } from './newsletter-template';
 import { logger } from './logger';
 
@@ -42,13 +43,50 @@ interface SendEmailParams {
   attachments?: EmailAttachment[];
 }
 
-export async function sendEmail(params: SendEmailParams, request?: Request): Promise<boolean> {
-  if (request && isE2ETestRequest(request)) {
-    return true;
-  }
+// E-Mail-Versand im Adminbereich (SPEZ-EMAIL-VERSAND, K77): Postausgang und Absender kommen bei
+// jedem Versand aus den Einstellungen (eine Abfrage). Ohne Schlüssel MAIL_SETTINGS_KEY auf dem Server,
+// ohne Eintrag oder bei einem Datenbankfehler gilt die Server-Einstellung wie bisher.
+let gemerkt: { k: string; t: typeof transporter } | null = null;
+
+async function aktiverVersand(): Promise<{ t: typeof transporter; from: string }> {
+  const standard = { t: transporter, from: `"${FROM_NAME}" <${FROM_EMAIL}>` };
+  if (!process.env.MAIL_SETTINGS_KEY) return standard;
   try {
-    await transporter.sendMail({
-      from: params.from ?? `"${FROM_NAME}" <${FROM_EMAIL}>`,
+    const { ladePostausgang, transportOptionen } = await import('./mail-postausgang');
+    const { getSiteSetting } = await import('./website-db');
+    const brand = process.env.BRAND || 'mentolder';
+    const [stand, name, adresse] = await Promise.all([
+      ladePostausgang(brand), getSiteSetting(brand, 'email_from_name'), getSiteSetting(brand, 'email_from_address'),
+    ]);
+    let t = transporter;
+    if (stand.postausgang) {
+      const k = JSON.stringify(stand.postausgang);
+      if (gemerkt?.k !== k) {
+        gemerkt?.t.close();
+        gemerkt = { k, t: nodemailer.createTransport(transportOptionen(stand.postausgang)) };
+      }
+      t = gemerkt.t;
+    }
+    // E3: ohne eingetragene Absenderadresse der Benutzername des Postfachs.
+    const absender = adresse || (stand.quelle === 'admin' ? stand.benutzer : FROM_EMAIL);
+    return { t, from: `"${(name || FROM_NAME).replace(/"/g, "'")}" <${absender}>` };
+  } catch (err) {
+    logger.warn({ err }, '[email] Postausgang aus den Einstellungen nicht geladen, Server-Einstellung gilt');
+    return standard;
+  }
+}
+
+export type VersandErgebnis = { ok: true } | ({ ok: false } & MailFehler);
+
+/** Wie sendEmail, aber mit dem Grund auf Deutsch, wenn es nicht klappt (K76). */
+export async function sendEmailMitGrund(params: SendEmailParams, request?: Request): Promise<VersandErgebnis> {
+  if (request && isE2ETestRequest(request)) {
+    return { ok: true };
+  }
+  const v = await aktiverVersand();
+  try {
+    await v.t.sendMail({
+      from: params.from ?? v.from,
       to: params.to,
       subject: params.subject,
       text: params.text,
@@ -58,11 +96,15 @@ export async function sendEmail(params: SendEmailParams, request?: Request): Pro
       headers: params.headers,
       attachments: params.attachments,
     });
-    return true;
+    return { ok: true };
   } catch (err) {
     logger.error({ err }, '[email] Failed to send');
-    return false;
+    return { ok: false, ...uebersetzeMailFehler(err) };
   }
+}
+
+export async function sendEmail(params: SendEmailParams, request?: Request): Promise<boolean> {
+  return (await sendEmailMitGrund(params, request)).ok;
 }
 
 export async function sendRegistrationConfirmation(email: string, name: string, request?: Request): Promise<boolean> {
@@ -333,7 +375,7 @@ ${FROM_NAME}`,
   }, request);
 }
 
-/** Rechnungswesen (Handtest 23.10.2026): Absender, wie er in Rechnungs-E-Mails steht – zur Anzeige vor dem Versand. */
-export function absenderAnzeige(): string {
-  return FROM_EMAIL ? `${FROM_NAME} <${FROM_EMAIL}>` : FROM_NAME;
+/** Absender, wie er in den E-Mails steht – zur Anzeige vor dem Versand (Handtest 23.10.2026, K78). */
+export async function absenderAnzeige(): Promise<string> {
+  return (await aktiverVersand()).from.replace(/"/g, '');
 }
