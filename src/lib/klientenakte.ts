@@ -233,7 +233,9 @@ export async function updateKlient(id: string, input: KlientEingabe): Promise<{ 
 
 export interface AkteSitzung { id: string; title: string; status: string; created_at: string }
 export interface AkteTermin { id: string; meeting_type: string; scheduled_at: string | null; status: string }
-export interface AkteRechnung { id: string; number: string; issue_date: string; gross_amount: number; status: string; empfaenger: string }
+export interface AkteRechnung { id: string; number: string; issue_date: string; gross_amount: number; status: string; empfaenger: string;
+  /** Stufe 4 (K58): Versandweg und -zeitpunkt, leer bei älteren Rechnungen und Entwürfen. */
+  versandweg?: string | null; versendet_am?: string | null }
 
 /** Termine, Coaching-Sitzungen und Rechnungen einer Akte. */
 export async function akteVerlauf(klient: Pick<Klient, 'id' | 'email'>, brand: string): Promise<{
@@ -252,7 +254,7 @@ export async function akteVerlauf(klient: Pick<Klient, 'id' | 'email'>, brand: s
     ).catch(() => ({ rows: [] })),
     // Verknüpft über customers_id; ältere Rechnungen ohne Verknüpfung über die E-Mail.
     pool.query(
-      `SELECT i.id, i.number, i.issue_date, i.gross_amount::float AS gross_amount, i.status,
+      `SELECT i.id, i.number, i.issue_date, i.gross_amount::float AS gross_amount, i.status, i.versandweg, i.versendet_am,
               COALESCE(bc.company, bc.name) AS empfaenger
          FROM billing_invoices i JOIN billing_customers bc ON bc.id = i.customer_id
         WHERE i.brand = $3 AND i.is_test_data = false

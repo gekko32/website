@@ -12,7 +12,7 @@ import { verbucheUndEntwerfe, wirksameAbrechnungsart } from '../../../lib/billin
 import { angeboteDesKlienten, ANGEBOT_STAND_TEXT, type Angebot } from '../../../lib/billing-angebot';
 import { ladeRegeln } from '../../../lib/billing-regeln';
 import { anzeigeEmail, hatEchteEmail } from '../../../lib/billing-versand';
-import { postenDesKlienten, postenBetrag, AUFTRAG_STAND_TEXT, auftraegeDesKlienten, postenAenderbar, terminAbgesagt, postenLoeschbar, auftragLoeschbar, leistungszeitraum, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
+import { postenDesKlienten, postenBetrag, AUFTRAG_STAND_TEXT, auftragMitAngebotLoeschbar, auftraegeDesKlienten, postenAenderbar, terminAbgesagt, postenLoeschbar, auftragLoeschbar, leistungszeitraum, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -343,7 +343,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
               <span class="ml-auto flex gap-1 text-xs">
                 <span class="ansicht flex gap-1">
                   <button type="button" class="zeile-aendern px-2 py-0.5 rounded border border-gold text-gold">Umbenennen</button>
-                  {auftragLoeschbar(pos.map((p) => p.zustand)) && (
+                  {auftragLoeschbar(pos.map((p) => p.zustand)) && auftragMitAngebotLoeschbar(a.stand) && (
                     <form method="POST" action="/api/admin/posten" class="posten-loeschen" data-frage={`Auftrag „${a.titel}“ mit allen ${pos.length} Positionen löschen?`}>
                       <input type="hidden" name="aktion" value="auftrag_loeschen" />
                       <input type="hidden" name="auftragId" value={a.id} />
@@ -382,7 +382,8 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                 )}
               </div>
             )}
-            <details class="mb-3">
+            {a.stand === 'angeboten' && <p class="text-xs text-gold mb-2">Angebot verschickt: Positionen sind gesperrt, bis die Antwort vermerkt ist. Änderungen über „Neue Fassung“ auf der Angebotsseite.</p>}
+            <details class="mb-3" hidden={a.stand === 'angeboten'}>
               <summary class="cursor-pointer inline-block px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Neue Position mit Preis</summary>
             <form method="POST" action="/api/admin/posten" autocomplete="off" class="mt-2 p-3 rounded-lg border border-gold/60 bg-dark merk-ungespeichert">
               <p class="text-xs text-muted mb-2"><a href="/admin/einstellungen/regeln" class="hover:underline">Einheiten-Liste pflegen</a></p>
@@ -433,7 +434,8 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                   <th class="py-1 pr-2 font-normal text-right">Betrag</th><th></th>
                 </tr></thead>
                 <tbody>{pos.map((p) => {
-                  const aenderbar = postenAenderbar(p.zustand);
+                  // Prüfung Stufe 4 (B1): bei verschicktem Angebot gesperrt.
+                  const aenderbar = postenAenderbar(p.zustand) && a.stand !== 'angeboten';
                   const f = `f-${p.id}`;
                   return (
                   <tr class="zeile border-t border-dark-lighter">
@@ -590,7 +592,8 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
             <td class="py-1 pr-3 font-mono"><a class="hover:underline" href={`/admin/billing/${r.id}/drucken`} target="_blank" rel="noopener">{r.number}</a></td>
             <td class="py-1 pr-3">{datum(r.issue_date)}</td>
             <td class="py-1 pr-3 text-right">{euro(r.gross_amount)}</td>
-            <td class="py-1 pr-3 text-muted">{STATUS[r.status] ?? r.status}</td>
+            <td class="py-1 pr-3 text-muted">{STATUS[r.status] ?? r.status}
+              {r.versendet_am && <span class="block text-xs">verschickt {r.versandweg === 'post' ? 'per Post' : 'per E-Mail'} am {datum(r.versendet_am)}</span>}</td>
             <td class="py-1 text-muted">{r.empfaenger}</td>
           </tr>))}</tbody></table>}
       </details>

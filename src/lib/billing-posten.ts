@@ -258,6 +258,17 @@ export function pruefePosition(e: PositionEingabe): { werte: PositionWerte | nul
   return { werte: { datum, datumBis, text: t, menge: menge!, einheit, einzelpreis: preis! }, fehler };
 }
 
+/**
+ * Prüfung Stufe 4 (B1, K49): Solange das Angebot eines Auftrags verschickt ist, sind seine
+ * Positionen gesperrt – Änderungen nur über eine neue Fassung.
+ */
+const NICHT_ANGEBOTEN_SQL = `NOT EXISTS (SELECT 1 FROM auftraege au WHERE au.id = abrechnungsposten.auftrag_id AND au.stand = 'angeboten')`;
+
+/** Prüfung Stufe 4 (B6, K54): Aufträge mit verschicktem oder beantwortetem Angebot bleiben als Verlauf. */
+export function auftragMitAngebotLoeschbar(stand: AuftragStand | null): boolean {
+  return stand === null || stand === 'geplant';
+}
+
 /** K10: Posten lassen sich nur ändern, solange sie auf keiner Rechnung stehen und nicht erlassen sind. */
 export function postenAenderbar(zustand: PostenZustand): boolean {
   return zustand === 'offen' || zustand === 'nicht_abrechnen' || zustand === 'geplant';
@@ -580,7 +591,7 @@ export async function setzePostenPreis(brand: string, postenId: string, preis: n
     `UPDATE abrechnungsposten SET einzelpreis = $3,
        notiz = CASE WHEN notiz = 'Preis fehlt – bitte eintragen' THEN NULL ELSE notiz END,
        updated_at = now()
-      WHERE brand = $1 AND id = $2 AND zustand IN ('offen','nicht_abrechnen','geplant')`,
+      WHERE brand = $1 AND id = $2 AND zustand IN ('offen','nicht_abrechnen','geplant') AND ${NICHT_ANGEBOTEN_SQL}`,
     [brand, postenId, preis]);
   return (rowCount ?? 0) > 0;
 }
@@ -643,7 +654,7 @@ export async function aenderePosition(brand: string, postenId: string, w: Positi
   const { rowCount } = await pool.query(
     `UPDATE abrechnungsposten SET datum=$3, text=$4, menge=$5, einheit=$6, einzelpreis=$7, datum_bis=$8,
        notiz = CASE WHEN notiz = 'Preis fehlt – bitte eintragen' THEN NULL ELSE notiz END, updated_at=now()
-      WHERE brand=$1 AND id=$2 AND zustand IN ('offen','nicht_abrechnen','geplant') AND NOT ${ABGESAGT_SQL}`,
+      WHERE brand=$1 AND id=$2 AND zustand IN ('offen','nicht_abrechnen','geplant') AND NOT ${ABGESAGT_SQL} AND ${NICHT_ANGEBOTEN_SQL}`,
     [brand, postenId, w.datum, w.text, w.menge, w.einheit, w.einzelpreis, w.datumBis]);
   return (rowCount ?? 0) > 0;
 }
@@ -660,11 +671,19 @@ export async function loescheAuftrag(brand: string, auftragId: string): Promise<
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const kopf = await client.query('SELECT stand FROM auftraege WHERE brand=$1 AND id=$2 FOR UPDATE', [brand, auftragId]);
     const { rows } = await client.query(
       'SELECT zustand FROM abrechnungsposten WHERE brand=$1 AND auftrag_id=$2 FOR UPDATE', [brand, auftragId]);
-    if (!auftragLoeschbar(rows.map((r: { zustand: PostenZustand }) => r.zustand))) {
+    if (!auftragLoeschbar(rows.map((r: { zustand: PostenZustand }) => r.zustand))
+        || !auftragMitAngebotLoeschbar((kopf.rows[0]?.stand as AuftragStand | null) ?? null)) {
       await client.query('ROLLBACK');
       return false;
+    }
+    // Ein noch nicht verschickter Angebotsentwurf geht mit (billing_quotes stammt aus initBillingTables).
+    const angebotSpalte = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_name = 'billing_quotes' AND column_name = 'auftrag_id'`);
+    if (angebotSpalte.rows[0]) {
+      await client.query(`DELETE FROM billing_quotes WHERE brand=$1 AND auftrag_id=$2 AND status='entwurf'`, [brand, auftragId]);
     }
     await client.query('DELETE FROM abrechnungsposten WHERE brand=$1 AND auftrag_id=$2', [brand, auftragId]);
     const del = await client.query('DELETE FROM auftraege WHERE brand=$1 AND id=$2', [brand, auftragId]);
@@ -683,7 +702,7 @@ export async function loeschePosten(brand: string, postenId: string): Promise<bo
   await initPostenTabelle();
   const { rowCount } = await pool.query(
     `DELETE FROM abrechnungsposten
-      WHERE brand=$1 AND id=$2 AND herkunft IN ('hand','auftrag') AND zustand IN ('offen','nicht_abrechnen','geplant')`,
+      WHERE brand=$1 AND id=$2 AND herkunft IN ('hand','auftrag') AND zustand IN ('offen','nicht_abrechnen','geplant') AND ${NICHT_ANGEBOTEN_SQL}`,
     [brand, postenId]);
   return (rowCount ?? 0) > 0;
 }

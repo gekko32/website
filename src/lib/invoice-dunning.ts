@@ -258,3 +258,27 @@ export async function sendDunning(id: string, actorEmail: string): Promise<false
   return { weg: 'email', pdfPath: (row.pdf_path as string | null) ?? null };
 }
 
+
+/**
+ * Prüfung Stufe 4 (B3, K60): PDF einer Mahnung zum Drucken (z. B. Versand per Post). Erzeugt aus
+ * den gespeicherten Werten der Mahnung und dem festgeschriebenen Empfänger der Rechnung.
+ */
+export async function mahnungsPdf(brand: string, dunningId: string): Promise<{ pdf: Buffer; dateiname: string } | null> {
+  await initBillingTables();
+  const r = await pool.query(
+    `SELECT d.level, d.fee_amount, d.interest_amount, d.outstanding_at_generation, d.invoice_id, i.customer_id, i.number, i.empfaenger
+       FROM billing_invoice_dunnings d JOIN billing_invoices i ON i.id = d.invoice_id
+      WHERE d.id = $1 AND d.brand = $2`, [dunningId, brand]);
+  const row = r.rows[0];
+  if (!row) return null;
+  const invoice = await getInvoice(row.invoice_id as string);
+  const rechnungskunde = await getCustomerById(brand, row.customer_id as string);
+  if (!invoice || !rechnungskunde) return null;
+  const kopie = leseEmpfaenger(row.empfaenger);
+  const pdf = await buildDunningPdf({
+    brand, invoice, customer: kopie ? alsKunde(rechnungskunde, kopie) : rechnungskunde,
+    level: Number(row.level), outstanding: Number(row.outstanding_at_generation),
+    feeAmount: Number(row.fee_amount), interestAmount: Number(row.interest_amount),
+  });
+  return { pdf, dateiname: `Mahnung-${row.level}-${row.number}.pdf` };
+}

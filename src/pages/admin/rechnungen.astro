@@ -273,6 +273,7 @@ const STATUS_TABS = [
                   <span class={`text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${STATUS_CLS[inv.status] ?? ''}`}>
                     {inv.statusLabel}
                   </span>
+                  {inv.versandVermerk && <div class="text-xs text-muted mt-1">{inv.versandVermerk}</div>}
                 </td>
                 <td class="px-4 py-3 text-sm text-muted whitespace-nowrap" data-label="Datum">{fmtDate(inv.date)}</td>
                 <td class={`px-4 py-3 text-sm whitespace-nowrap font-medium ${inv.status === 'uncollectible' ? 'text-red-400' : 'text-muted'}`} data-label="Fällig">
@@ -423,7 +424,14 @@ const STATUS_TABS = [
         if (res.ok) {
           // Stufe 4 T14 (K60): ohne E-Mail-Adresse als Post vermerkt – PDF aus der Ablage drucken.
           const data = await res.json().catch(() => ({})) as { versand?: string; pdfPath?: string | null };
-          if (data.versand === 'post') alert(`Keine E-Mail-Adresse: Mahnung als „per Post“ vermerkt. Bitte drucken und verschicken – PDF in der Ablage: ${data.pdfPath ?? 'Rechnungsablage in Nextcloud'}`);
+          if (data.versand === 'post') {
+            // Prüfung Stufe 4 (B3): PDF direkt zum Drucken herunterladen.
+            alert('Keine E-Mail-Adresse: Mahnung als „per Post“ vermerkt. Das PDF wird jetzt heruntergeladen – bitte drucken und verschicken.');
+            const link = document.createElement('a');
+            link.href = `/api/admin/billing/dunning/${id}/pdf`; link.download = '';
+            document.body.appendChild(link); link.click(); link.remove();
+            await new Promise((r) => setTimeout(r, 1200));
+          }
           window.location.reload();
         } else {
           alert('Fehler beim Versenden der Mahnung.');

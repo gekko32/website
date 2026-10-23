@@ -209,6 +209,13 @@ export async function angebotVorschau(brand: string, a: Angebot): Promise<{ posi
   };
 }
 
+/** Prüfung Stufe 4 (B5, K48): „gültig bis“ eines Entwurfs sofort speichern (Vorschau zeigt es dann). */
+export async function setzeGueltigBis(brand: string, id: string, gueltigBis: string): Promise<boolean> {
+  await initAngebotTabelle();
+  const r = await pool.query(`UPDATE billing_quotes SET valid_until=$3 WHERE brand=$1 AND id=$2 AND status='entwurf'`, [brand, id, gueltigBis]);
+  return (r.rowCount ?? 0) > 0;
+}
+
 /** K51: Entwurf verwerfen – Positionen bleiben geplant; bei einer Fassung gilt die vorige wieder. */
 export async function verwirfAngebot(brand: string, id: string): Promise<boolean> {
   await initAngebotTabelle();

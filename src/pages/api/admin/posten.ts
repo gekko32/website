@@ -5,7 +5,7 @@ import { getSession, isAdmin } from '../../../lib/auth';
 import { getKlient } from '../../../lib/klientenakte';
 import { holeLeistung } from '../../../lib/billing-leistungen';
 import {
-  aenderePosition, loeschePosten, rechnungDesPostens, klientDesAuftrags, benenneAuftragUm, loescheAuftrag, klientDesPostens, legeAuftragAn, legePositionAn, legeSitzungAn,
+  aenderePosition, loeschePosten, rechnungDesPostens, holeAuftrag, klientDesAuftrags, benenneAuftragUm, loescheAuftrag, klientDesPostens, legeAuftragAn, legePositionAn, legeSitzungAn,
   pruefeAuftragTitel, pruefePosition, pruefePreis, pruefeSitzung, setzeAbrechnen, setzePostenPreis,
 } from '../../../lib/billing-posten';
 import { erlasseAusfall, vermerkeAbsage } from '../../../lib/billing-ausfall';
@@ -152,6 +152,10 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       if (!/^[0-9a-f-]{36}$/i.test(auftragId)) return new Response('Auftrag nicht gefunden', { status: 404 });
       klientId = await klientDesAuftrags(brand, auftragId);
       if (!klientId) return new Response('Auftrag nicht gefunden', { status: 404 });
+      // Prüfung Stufe 4 (B1): verschicktes Angebot – Positionen nur über eine neue Fassung ändern.
+      if ((await holeAuftrag(brand, auftragId))?.stand === 'angeboten') {
+        return redirect(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent('Das Angebot ist verschickt. Für Änderungen auf der Angebotsseite eine neue Fassung anlegen.')}#auftraege`, 303);
+      }
       if (!werte) return redirect(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent(fehler.map((f) => f.meldung).join(' '))}#auftraege`, 303);
       await legePositionAn(brand, klientId, auftragId, werte);
     } else {

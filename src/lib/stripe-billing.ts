@@ -39,6 +39,7 @@ export interface BillingInvoice {
 }
 
 export interface AdminBillingInvoice extends BillingInvoice {
+  versandVermerk?: string | null;
   customerName: string;
   customerEmail: string;
 }
@@ -117,6 +118,10 @@ function mapAdminRow(row: Record<string, unknown>): AdminBillingInvoice {
     ...mapRow(row),
     customerName:  (row.customer_name as string)  ?? '',
     customerEmail: anzeigeEmail(row.customer_email as string),
+    // Stufe 4 (K58): „verschickt per Post/E-Mail am …“
+    versandVermerk: row.versendet_am
+      ? `verschickt ${row.versandweg === 'post' ? 'per Post' : 'per E-Mail'} am ${String(row.versendet_am).slice(0, 10).split('-').reverse().join('.')}`
+      : null,
   };
 }
 
@@ -139,9 +144,11 @@ export async function getAllBillingInvoices(params?: {
   const limit = params?.perPage ?? 200;
   const statusFilter = params?.status ? `AND i.status = '${params.status.replace(/'/g,"''")}'` : '';
   const r = await pool.query(
-    `SELECT i.*, c.name AS customer_name, c.email AS customer_email
+    `SELECT i.*, c.name AS customer_name, c.email AS customer_email,
+            b.versandweg, b.versendet_am::text AS versendet_am
      FROM v_billing_invoices_with_state i
      JOIN billing_customers c ON c.id = i.customer_id AND c.brand = $1
+     LEFT JOIN billing_invoices b ON b.id = i.id
      WHERE i.brand = $1 ${statusFilter}
      ORDER BY i.created_at DESC LIMIT $2`,
     [brand, limit]

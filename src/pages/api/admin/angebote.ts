@@ -5,7 +5,7 @@ import { getSession, isAdmin } from '../../../lib/auth';
 import { getKlient } from '../../../lib/klientenakte';
 import {
   erstelleAngebotsentwurf, holeAngebot, neueFassung, pruefeGueltigBis, verwirfAngebot, versendeAngebot, angebotVorschau,
-  pruefeAntwortDatum, vermerkeAnnahme, vermerkeAblehnung,
+  pruefeAntwortDatum, vermerkeAnnahme, vermerkeAblehnung, setzeGueltigBis,
 } from '../../../lib/billing-angebot';
 import { erzeugeAngebotsPdf, angebotsMail } from '../../../lib/billing-angebot-pdf';
 import { pruefeVersandweg } from '../../../lib/billing-versand';
@@ -23,6 +23,13 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
   // Versand kommt als JSON aus der Prüfseite, alles andere als Formular.
   if ((request.headers.get('content-type') ?? '').includes('application/json')) {
     const body = await request.json().catch(() => ({})) as { aktion?: string; id?: string; versand?: unknown; gueltigBis?: string };
+    if (body.aktion === 'gueltig_bis' && body.id) {
+      // Prüfung Stufe 4 (B5): „gültig bis“ des Entwurfs sofort speichern.
+      const heuteG = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+      const gb = pruefeGueltigBis(body.gueltigBis, heuteG);
+      if (!gb.wert) return json(422, { error: gb.fehler });
+      return (await setzeGueltigBis(brand, body.id, gb.wert)) ? json(200, { ok: true }) : json(409, { error: 'Nur bei Entwürfen änderbar.' });
+    }
     if (body.aktion !== 'versenden' || !body.id) return json(400, { error: 'Unbekannte Aktion' });
     const a = await holeAngebot(brand, body.id);
     if (!a) return json(404, { error: 'Angebot nicht gefunden' });
