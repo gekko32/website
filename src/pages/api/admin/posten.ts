@@ -12,6 +12,17 @@ import { erlasseAusfall, vermerkeAbsage } from '../../../lib/billing-ausfall';
 import { erstelleEntwurfAusPosten, verwirfEntwurf } from '../../../lib/billing-entwurf';
 import { isE2ETestRequest } from '../../../lib/e2e-marker';
 
+/** Prüfung Stufe 4 Runde 2 (N2): bei gesperrten Auftragspositionen den richtigen Grund nennen. */
+async function gesperrtGrund(brand: string, auftragId: string | null, sonst: string, auftragLoeschen = false): Promise<string> {
+  if (!auftragId) return sonst;
+  const a = await holeAuftrag(brand, auftragId);
+  if (a?.stand === 'angeboten') return 'Das Angebot ist verschickt: Positionen sind gesperrt. Für Änderungen auf der Angebotsseite eine neue Fassung anlegen.';
+  if (auftragLoeschen && a && a.modus === 'mit_angebot' && a.stand !== null) {
+    return 'Zu diesem Auftrag gibt es ein verschicktes Angebot. Er bleibt als Verlauf in der Akte und lässt sich nicht löschen.';
+  }
+  return sonst;
+}
+
 export const POST: APIRoute = async ({ request, redirect }) => {
   const session = await getSession(request.headers.get('cookie'));
   if (!session) return new Response('Nicht angemeldet', { status: 401 });
@@ -124,7 +135,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       await benenneAuftragUm(brand, auftragId, titel);
     } else {
       const ok = await loescheAuftrag(brand, auftragId);
-      if (!ok) return redirect(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent('Dieser Auftrag hat Positionen auf einer Rechnung und lässt sich nicht mehr löschen.')}#auftraege`, 303);
+      if (!ok) return redirect(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent(await gesperrtGrund(brand, auftragId, 'Dieser Auftrag hat Positionen auf einer Rechnung und lässt sich nicht mehr löschen.', true))}#auftraege`, 303);
     }
     return redirect(`/admin/klienten/${klientId}?gespeichert=1#auftraege`, 303);
   }
@@ -135,7 +146,8 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const klientId = await klientDesPostens(brand, postenId);
     if (!klientId) return new Response('Posten nicht gefunden', { status: 404 });
     const ok = await loeschePosten(brand, postenId);
-    const hinweis = ok ? 'gespeichert=1' : `auftragFehler=${encodeURIComponent('Diese Position steht schon auf einer Rechnung und lässt sich nicht mehr löschen.')}`;
+    const auftragDesPostens = ok ? null : (await rechnungDesPostens(brand, postenId))?.auftragId ?? null;
+    const hinweis = ok ? 'gespeichert=1' : `auftragFehler=${encodeURIComponent(await gesperrtGrund(brand, auftragDesPostens, 'Diese Position steht schon auf einer Rechnung und lässt sich nicht mehr löschen.'))}`;
     return redirect(`/admin/klienten/${klientId}?${hinweis}#auftraege`, 303);
   }
 
@@ -165,7 +177,11 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       if (!klientId) return new Response('Posten nicht gefunden', { status: 404 });
       if (!werte) return redirect(`/admin/klienten/${klientId}?${fehlerParam}=${encodeURIComponent(fehler.map((f) => f.meldung).join(' '))}${anker}`, 303);
       const ok = await aenderePosition(brand, postenId, werte);
-      if (!ok) return redirect(`/admin/klienten/${klientId}?${fehlerParam}=${encodeURIComponent('Dieser Posten steht schon auf einer Rechnung (oder der Termin wurde abgesagt) und lässt sich nicht mehr ändern.')}${anker}`, 303);
+      if (!ok) {
+        const auftragDesPostens = (await rechnungDesPostens(brand, postenId))?.auftragId ?? null;
+        const meldung = await gesperrtGrund(brand, auftragDesPostens, 'Dieser Posten steht schon auf einer Rechnung (oder der Termin wurde abgesagt) und lässt sich nicht mehr ändern.');
+        return redirect(`/admin/klienten/${klientId}?${fehlerParam}=${encodeURIComponent(meldung)}${anker}`, 303);
+      }
     }
     return redirect(`/admin/klienten/${klientId}?gespeichert=1${anker}`, 303);
   }

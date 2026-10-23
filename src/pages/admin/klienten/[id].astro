@@ -343,7 +343,8 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
               <span class="ml-auto flex gap-1 text-xs">
                 <span class="ansicht flex gap-1">
                   <button type="button" class="zeile-aendern px-2 py-0.5 rounded border border-gold text-gold">Umbenennen</button>
-                  {auftragLoeschbar(pos.map((p) => p.zustand)) && auftragMitAngebotLoeschbar(a.stand) && (
+                  {auftragLoeschbar(pos.map((p) => p.zustand)) && auftragMitAngebotLoeschbar(a.stand)
+                    && !angeboteVon(a.id).some((x) => x.status !== 'entwurf') && (
                     <form method="POST" action="/api/admin/posten" class="posten-loeschen" data-frage={`Auftrag „${a.titel}“ mit allen ${pos.length} Positionen löschen?`}>
                       <input type="hidden" name="aktion" value="auftrag_loeschen" />
                       <input type="hidden" name="auftragId" value={a.id} />

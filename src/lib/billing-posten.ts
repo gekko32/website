@@ -680,9 +680,13 @@ export async function loescheAuftrag(brand: string, auftragId: string): Promise<
       return false;
     }
     // Ein noch nicht verschickter Angebotsentwurf geht mit (billing_quotes stammt aus initBillingTables).
+    // Prüfung Stufe 4 Runde 2 (N1): Gibt es schon eine nummerierte Fassung, bleibt der Auftrag als Verlauf.
     const angebotSpalte = await client.query(
       `SELECT 1 FROM information_schema.columns WHERE table_name = 'billing_quotes' AND column_name = 'auftrag_id'`);
     if (angebotSpalte.rows[0]) {
+      const nummeriert = await client.query(
+        `SELECT 1 FROM billing_quotes WHERE brand=$1 AND auftrag_id=$2 AND status <> 'entwurf' LIMIT 1`, [brand, auftragId]);
+      if (nummeriert.rows[0]) { await client.query('ROLLBACK'); return false; }
       await client.query(`DELETE FROM billing_quotes WHERE brand=$1 AND auftrag_id=$2 AND status='entwurf'`, [brand, auftragId]);
     }
     await client.query('DELETE FROM abrechnungsposten WHERE brand=$1 AND auftrag_id=$2', [brand, auftragId]);
@@ -714,11 +718,11 @@ export async function klientDesPostens(brand: string, postenId: string): Promise
 }
 
 /** Akte, Zustand und Rechnung eines Postens (für „Entwurf verwerfen“ aus der Akte). */
-export async function rechnungDesPostens(brand: string, postenId: string): Promise<{ klientId: string; zustand: PostenZustand; invoiceId: string | null } | null> {
+export async function rechnungDesPostens(brand: string, postenId: string): Promise<{ klientId: string; zustand: PostenZustand; invoiceId: string | null; auftragId: string | null } | null> {
   await initPostenTabelle();
-  const { rows } = await pool.query('SELECT klient_id, zustand, invoice_id FROM abrechnungsposten WHERE brand = $1 AND id = $2', [brand, postenId]);
+  const { rows } = await pool.query('SELECT klient_id, zustand, invoice_id, auftrag_id FROM abrechnungsposten WHERE brand = $1 AND id = $2', [brand, postenId]);
   const r = rows[0];
-  return r ? { klientId: r.klient_id as string, zustand: r.zustand as PostenZustand, invoiceId: (r.invoice_id as string | null) ?? null } : null;
+  return r ? { klientId: r.klient_id as string, zustand: r.zustand as PostenZustand, invoiceId: (r.invoice_id as string | null) ?? null, auftragId: (r.auftrag_id as string | null) ?? null } : null;
 }
 
 // ── T10a: Posten und Rechnung (K23–K25) ─────────────────────────────────────
