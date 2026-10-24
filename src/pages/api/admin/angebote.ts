@@ -9,9 +9,9 @@ import {
 } from '../../../lib/billing-angebot';
 import { pruefeAuftragTitel } from '../../../lib/billing-posten';
 import { protokolliere, type ProtokollEintrag } from '../../../lib/akte-protokoll';
-import { erzeugeAngebotsPdf, angebotsMail } from '../../../lib/billing-angebot-pdf';
+import { erzeugeAngebotsPdf } from '../../../lib/billing-angebot-pdf';
+import { legeEintragAn, pruefeDatei, dateiAusFormular, istWeg, WEG_TEXT } from '../../../lib/akte-dokumente';
 import { pruefeVersandweg } from '../../../lib/billing-versand';
-import { sendEmail } from '../../../lib/email';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -46,25 +46,17 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
     const g = pruefeGueltigBis(body.gueltigBis ?? a.gueltigBis, heute);
     if (!g.wert) return json(422, { error: g.fehler });
+    // K100: bei E-Mail nur nummerieren; die Mail geht erst aus dem Mail-Fenster (`/angebote/[id]/mail`).
     const r = await versendeAngebot(brand, a.id, {
-      weg: versand.weg, gueltigBis: g.wert,
+      weg: versand.weg, gueltigBis: g.wert, ohneVersandvermerk: versand.weg === 'email',
       dokument: (fertig) => erzeugeAngebotsPdf(brand, fertig, fertig.positionen, fertig.empfaenger!),
     });
     if (!r.ok) return json(422, { error: r.fehler });
-    await log({ aktion: `Angebot verschickt (${versand.weg === 'post' ? 'Post/persönlich' : 'E-Mail'})`, klientId: a.klientId, objekt: r.angebot.number,
+    await log({ aktion: versand.weg === 'post' ? 'Angebot verschickt (Post/persönlich)' : 'Angebot nummeriert, E-Mail vorbereitet', klientId: a.klientId, objekt: r.angebot.number,
       nachher: { betrag: r.angebot.brutto, gueltigBis: r.angebot.gueltigBis } });
     const pdfUrl = `/api/admin/angebote/${a.id}/pdf`;
     if (versand.weg === 'post') return json(200, { ok: true, number: r.angebot.number, versand: 'post', pdfUrl });
-    const mail = await angebotsMail(brand, r.angebot, r.angebot.empfaenger!);
-    const ok = await sendEmail({
-      to: r.angebot.empfaenger!.email, subject: mail.betreff, text: mail.text,
-      attachments: r.pdf ? [{ filename: `${r.angebot.number}.pdf`, content: r.pdf }] : [],
-    });
-    if (!ok) {
-      locals.requestLogger.error({ number: r.angebot.number }, '[angebote] E-Mail-Versand fehlgeschlagen');
-      return json(502, { error: `Angebot ${r.angebot.number} ist nummeriert, aber die E-Mail ging nicht hinaus. Bitte das PDF herunterladen und selbst senden.`, pdfUrl });
-    }
-    return json(200, { ok: true, number: r.angebot.number, versand: 'email' });
+    return json(200, { ok: true, number: r.angebot.number, versand: 'email', mail: true });
   }
 
   const form = await request.formData();
@@ -124,12 +116,24 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
     const d = pruefeAntwortDatum(text('datum'), a.versendetAm ?? a.datum, heute);
     if (!d.wert) return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent(d.fehler!)}`, 303);
+    // K101: Nachweis (Weg, Notiz, Datei) vorher prüfen – sonst wäre die Antwort vermerkt, der Nachweis aber nicht.
+    const datei = await dateiAusFormular(form.get('datei'));
+    const dateiFehler = pruefeDatei(datei);
+    if (dateiFehler) return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent(dateiFehler)}`, 303);
     const r = aktion === 'angenommen'
       ? await vermerkeAnnahme(brand, a.id, d.wert)
       : await vermerkeAblehnung(brand, a.id, d.wert, text('grund'));
     if (!r.ok) return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent(r.fehler)}`, 303);
+    const weg = istWeg(text('weg')) ? text('weg') : null;
+    const notiz = [aktion === 'abgelehnt' && text('grund').trim() ? `Grund: ${text('grund').trim()}` : '', text('notiz').trim()].filter(Boolean).join('\n');
+    if (a.klientId && (weg || notiz || datei)) {
+      const e = await legeEintragAn(brand, { klientId: a.klientId, angebotId: a.id, art: aktion === 'angenommen' ? 'annahme' : 'ablehnung',
+        weg, datum: d.wert, notiz: notiz || `${aktion === 'angenommen' ? 'Annahme' : 'Ablehnung'} vermerkt`, datei }, session.email);
+      if (!e.ok) locals.requestLogger.warn({ fehler: e.fehler }, '[angebote] Nachweis nicht gespeichert');
+    }
     await log({ aktion: aktion === 'angenommen' ? 'Annahme vermerkt' : 'Ablehnung vermerkt', klientId: a.klientId, objekt: a.number,
-      nachher: { am: d.wert, grund: aktion === 'abgelehnt' ? text('grund').trim() || null : null } });
+      nachher: { am: d.wert, weg: weg ? WEG_TEXT[weg as keyof typeof WEG_TEXT] : null, grund: aktion === 'abgelehnt' ? text('grund').trim() || null : null,
+        notiz: text('notiz').trim().slice(0, 200), datei: datei?.name } });
     return redirect(`/admin/angebote/${a.id}?gespeichert=1`, 303);
   }
   return new Response('Unbekannte Aktion', { status: 400 });

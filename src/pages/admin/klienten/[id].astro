@@ -5,7 +5,9 @@ import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte
 import KlientFormular from '../../../components/admin/KlientFormular.svelte';
 import ZustandLegende from '../../../components/admin/ZustandLegende.astro';
 import ProtokollTabelle from '../../../components/admin/ProtokollTabelle.astro';
+import AkteEintraege from '../../../components/admin/AkteEintraege.astro';
 import { leseProtokoll } from '../../../lib/akte-protokoll';
+import { eintraegeDesKlienten, type AkteEintrag } from '../../../lib/akte-dokumente';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
 import { listeLeistungen, listeKategorien, preisAnzeige } from '../../../lib/billing-leistungen';
@@ -69,6 +71,8 @@ const angebote = sortiereAngebote(await angeboteDesKlienten(brand, klient.id).ca
 const ersterAbgeschlossen = angebote.findIndex((x) => !istAktiv(x));
 // Änderungsprotokoll (K96).
 const protokoll = await leseProtokoll(brand, { klientId: klient.id, limit: 30 }).catch(() => ({ zeilen: [], mehr: false }));
+// Notizen und Dokumente (K103).
+const eintraege = await eintraegeDesKlienten(brand, klient.id).catch((): AkteEintrag[] => []);
 const angeboteVon = (auftragId: string) => angebote.filter((x) => x.auftragId === auftragId);
 const positionenVon = (auftragId: string) => posten.filter((p) => p.auftragId === auftragId);
 const zahlFeld = (n: number | null) => (n === null ? '' : String(n).replace('.', ','));
@@ -626,6 +630,16 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       </details>
     </section>
 
+    {/* Nachtrag Stufe 4 (K103): Notizen und Dokumente, auch die Nachweise zu Angeboten. */}
+    <section id="notizen" class="mb-8">
+      <details class="liste" open={eintraege.length > 0 || !!q.get('eintragFehler')}>
+      <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Notizen und Dokumente ({eintraege.length})</summary>
+      {q.get('eintragGespeichert') === '1' && <p class="text-sm text-green-400 mb-2">Gespeichert.</p>}
+      {q.get('eintragFehler') && <p role="alert" class="text-sm text-red-400 mb-2">{q.get('eintragFehler')}</p>}
+      <AkteEintraege eintraege={eintraege} klientId={klient.id} zurueck={`/admin/klienten/${klient.id}`} />
+      </details>
+    </section>
+
     {/* Änderungsprotokoll (K96): die letzten Einträge zu diesem Klienten, zugeklappt. */}
     <section id="protokoll" class="mb-8">
       <details class="liste">
@@ -635,6 +649,16 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       </details>
     </section>
 
+    {/* Rückfrage auf der Seite statt Browser-Fenster. */}
+    <div id="rueckfrage" hidden class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div class="bg-surface border border-gold/60 rounded-xl p-5 max-w-md w-full shadow-xl">
+        <p id="rueckfrage-text" class="text-sm text-light mb-4"></p>
+        <div class="flex gap-2 justify-end">
+          <button type="button" id="rueckfrage-nein" class="px-3 py-2 rounded-lg border border-dark-lighter text-sm">Abbrechen</button>
+          <button type="button" id="rueckfrage-ja" class="px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">Ja</button>
+        </div>
+      </div>
+    </div>
   </div>
 </AdminLayout>
 
@@ -772,17 +796,33 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
     });
   });
 
-  // Löschen nur nach Rückfrage.
-  document.querySelectorAll<HTMLFormElement>('form.posten-loeschen').forEach((f) => {
-    f.addEventListener('submit', (e) => {
-      if (!confirm(f.dataset.frage ?? 'Diesen Posten wirklich löschen?')) e.preventDefault();
+  // Rückfrage auf der Seite statt Browser-Fenster (wie Rechnungs- und Angebotsseite).
+  function frage(text: string, ja = 'Ja'): Promise<boolean> {
+    const box = document.getElementById('rueckfrage') as HTMLElement;
+    const jaK = document.getElementById('rueckfrage-ja') as HTMLButtonElement;
+    const neinK = document.getElementById('rueckfrage-nein') as HTMLButtonElement;
+    (document.getElementById('rueckfrage-text') as HTMLElement).textContent = text;
+    jaK.textContent = ja;
+    box.hidden = false;
+    return new Promise((fertig) => {
+      const zu = (w: boolean) => { box.hidden = true; jaK.onclick = null; neinK.onclick = null; fertig(w); };
+      jaK.onclick = () => zu(true);
+      neinK.onclick = () => zu(false);
+    });
+  }
+  // Löschen, Zurückziehen u. Ä. nur nach Rückfrage.
+  document.querySelectorAll<HTMLFormElement>('form.posten-loeschen, form.mit-rueckfrage').forEach((f) => {
+    f.addEventListener('submit', async (e) => {
+      if (f.dataset.bestaetigt === '1') return;
+      e.preventDefault();
+      if (await frage(f.dataset.frage ?? 'Diesen Posten wirklich löschen?', f.dataset.ja ?? 'Ja')) { f.dataset.bestaetigt = '1'; f.requestSubmit(); }
     });
   });
 
   const knopf = document.getElementById('konto-einrichten') as HTMLButtonElement | null;
   const meldung = document.getElementById('konto-meldung');
   knopf?.addEventListener('click', async () => {
-    if (!confirm('Benutzerkonto anlegen und Einladung per E-Mail an den Klienten senden?')) return;
+    if (!(await frage('Benutzerkonto anlegen und Einladung per E-Mail an den Klienten senden?', 'Konto anlegen'))) return;
     knopf.disabled = true;
     const res = await fetch('/api/admin/clients/enroll', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

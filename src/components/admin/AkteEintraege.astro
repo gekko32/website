@@ -1,0 +1,65 @@
+---
+// Nachtrag Stufe 4 (K102, K103, K105): Notizen und Dokumente – links anlegen, darunter die Liste mit
+// Herunterladen und Zurückziehen. In der Akte und auf der Angebotsseite.
+import { ART_TEXT, WEG_TEXT, ERLAUBTE_ENDUNGEN, groesseText, type AkteEintrag } from '../../lib/akte-dokumente';
+
+interface Props { eintraege: AkteEintrag[]; klientId: string; angebotId?: string | null; zurueck: string; offen?: boolean }
+const { eintraege, klientId, angebotId = null, zurueck, offen = false } = Astro.props;
+const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+const fd = (iso: string | null) => (iso ? iso.slice(0, 10).split('-').reverse().join('.') : '–');
+const eingabe = 'block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light';
+---
+
+<details class="mb-3" open={offen}>
+  <summary class="cursor-pointer inline-block px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Notiz oder Dokument</summary>
+  <form method="POST" action="/api/admin/akte-eintraege" enctype="multipart/form-data" class="mt-2 p-3 rounded-lg border border-gold/60 bg-dark">
+    <input type="hidden" name="klientId" value={klientId} />
+    {angebotId && <input type="hidden" name="angebotId" value={angebotId} />}
+    <input type="hidden" name="zurueck" value={zurueck} />
+    <div class="grid gap-2 items-end" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+      <label class="text-xs text-muted">Datum<input type="date" name="datum" required value={heute} max={heute} class={eingabe} style="color-scheme:dark;" /></label>
+      <label class="text-xs text-muted">Weg
+        <select name="weg" class={eingabe}>
+          <option value="">–</option>
+          {Object.entries(WEG_TEXT).map(([k, t]) => <option value={k}>{t}</option>)}
+        </select>
+      </label>
+      <label class="text-xs text-muted" style="grid-column:span 2;">Datei (freiwillig, höchstens 15 MB)
+        <input type="file" name="datei" accept={ERLAUBTE_ENDUNGEN.map((e) => `.${e}`).join(',')} class={eingabe} />
+      </label>
+    </div>
+    <label class="block text-xs text-muted mt-2">Notiz
+      <textarea name="notiz" rows="3" maxlength="5000" placeholder="z. B. Anruf Herr X: sagt zu, Start 1.12." class={eingabe}></textarea>
+    </label>
+    <p class="text-xs text-muted mt-1">Eine Antwort-Mail aus Thunderbird: Nachricht öffnen → „Speichern unter“ (.eml), hier wählen.</p>
+    <button type="submit" class="mt-2 px-4 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Ablegen</button>
+  </form>
+</details>
+
+{eintraege.length === 0 ? <p class="text-sm text-muted">Noch keine Notizen oder Dokumente.</p> : (
+  <table class="w-full text-sm">
+    <tbody>{eintraege.map((e) => (
+      <tr class={`border-t border-dark-lighter align-top ${e.zurueckgezogenAm ? 'opacity-50' : ''}`}>
+        <td class="py-1 pr-3 whitespace-nowrap">{fd(e.datum)}</td>
+        <td class="py-1 pr-3 whitespace-nowrap text-muted">{ART_TEXT[e.art]}{e.weg && <span class="block text-xs">{WEG_TEXT[e.weg]}</span>}
+          {!angebotId && e.angebotId && <a class="block text-xs font-mono hover:underline" href={`/admin/angebote/${e.angebotId}`}>{e.angebotNummer ?? 'Angebot'} ›</a>}</td>
+        <td class="py-1 pr-3">
+          {e.notiz && <span class="whitespace-pre-line">{e.notiz}</span>}
+          {e.dateiName && <a class="block text-gold underline" href={`/api/admin/akte-eintraege/${e.id}`}>⬇ {e.dateiName} <span class="text-xs text-muted">({groesseText(e.dateiGroesse)})</span></a>}
+          <span class="block text-xs text-muted">abgelegt {fd(e.erstelltAm)} von {e.erstelltVon ?? '–'}</span>
+          {e.zurueckgezogenAm && <span class="block text-xs text-red-300">zurückgezogen am {fd(e.zurueckgezogenAm)} von {e.zurueckgezogenVon ?? '–'}{e.zurueckGrund ? `: ${e.zurueckGrund}` : ''}</span>}
+        </td>
+        <td class="py-1 text-right whitespace-nowrap">
+          {!e.zurueckgezogenAm && (
+            <form method="POST" action="/api/admin/akte-eintraege" enctype="multipart/form-data" class="inline mit-rueckfrage"
+              data-frage="Diesen Eintrag zurückziehen? Er bleibt mit Vermerk sichtbar, die Datei bleibt erhalten." data-ja="Zurückziehen">
+              <input type="hidden" name="aktion" value="zurueckziehen" /><input type="hidden" name="id" value={e.id} /><input type="hidden" name="zurueck" value={zurueck} />
+              <input name="grund" maxlength="300" placeholder="Grund" aria-label="Grund des Zurückziehens" class="w-28 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-xs text-light" />
+              <button type="submit" class="px-2 py-0.5 rounded border border-red-400 text-red-300 text-xs">Zurückziehen</button>
+            </form>
+          )}
+        </td>
+      </tr>))}
+    </tbody>
+  </table>
+)}

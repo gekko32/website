@@ -354,7 +354,11 @@ export async function verwirfAngebot(brand: string, id: string): Promise<boolean
  */
 export async function versendeAngebot(
   brand: string, id: string,
-  opts: { weg: Versandweg; gueltigBis?: string; jetzt?: Date; dokument?: (a: Angebot) => Promise<Buffer> },
+  opts: {
+    weg: Versandweg; gueltigBis?: string; jetzt?: Date; dokument?: (a: Angebot) => Promise<Buffer>;
+    /** K100: nur nummerieren – „verschickt per E-Mail“ wird erst mit der tatsächlich gesendeten Mail vermerkt. */
+    ohneVersandvermerk?: boolean;
+  },
 ): Promise<Ergebnis<{ angebot: Angebot; pdf: Buffer | null }>> {
   await initAngebotTabelle();
   const jetzt = opts.jetzt ?? new Date();
@@ -387,14 +391,14 @@ export async function versendeAngebot(
     await client.query(
       `UPDATE billing_quotes SET number=$2, grundnummer=$3, status='verschickt', issue_date=$4, valid_until=$5,
          net_amount=$6, gross_amount=$6, positionen=$7::jsonb, empfaenger=$8::jsonb, einleitung=$9, schluss=$10,
-         versandweg=$11, versendet_am=now()
+         versandweg=$11, versendet_am=CASE WHEN $11::text IS NULL THEN NULL ELSE now() END
        WHERE id=$1`,
       [id, nummer, grundnummer, heute, gueltigBis, betrag, JSON.stringify(zeilen), JSON.stringify(empfaenger),
-       texte.angebot_intro_text || null, texte.angebot_outro_text || null, opts.weg]);
+       texte.angebot_intro_text || null, texte.angebot_outro_text || null, opts.ohneVersandvermerk ? null : opts.weg]);
     await client.query(`UPDATE auftraege SET stand='angeboten' WHERE id=$1`, [vorher.auftragId]);
     const angebot: Angebot = {
       ...vorher, number: nummer, grundnummer, status: 'verschickt', stand: 'verschickt', datum: heute, gueltigBis,
-      netto: betrag, brutto: betrag, positionen: zeilen, empfaenger, versandweg: opts.weg,
+      netto: betrag, brutto: betrag, positionen: zeilen, empfaenger, versandweg: opts.ohneVersandvermerk ? null : opts.weg,
       einleitung: texte.angebot_intro_text || null, schluss: texte.angebot_outro_text || null,
     };
     const pdf = opts.dokument ? await opts.dokument(angebot) : null;

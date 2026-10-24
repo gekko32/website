@@ -5,6 +5,8 @@
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
 import ZustandLegende from '../../../components/admin/ZustandLegende.astro';
+import AkteEintraege from '../../../components/admin/AkteEintraege.astro';
+import { eintraegeDesAngebots, WEG_TEXT, ERLAUBTE_ENDUNGEN, type AkteEintrag } from '../../../lib/akte-dokumente';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { holeAngebot, angebotVorschau, geplantePositionenDesAuftrags, ANGEBOT_STAND_TEXT } from '../../../lib/billing-angebot';
 import { fehlendeAngaben } from '../../../lib/billing-empfaenger';
@@ -34,6 +36,8 @@ const [einheiten, leistungen, klienten] = await Promise.all([
   entwurf ? listeLeistungen(brand, { nurAktiv: true }).catch(() => []) : Promise.resolve([]),
   listKlienten().catch(() => []),
 ]);
+// K102: Nachweise und Notizen zu diesem Angebot.
+const nachweise = await eintraegeDesAngebots(brand, a.id).catch((): AkteEintrag[] => []);
 const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.includes(aktuell) ? [aktuell, ...einheiten] : einheiten);
 const fehlt = empfaenger ? fehlendeAngaben(empfaenger) : ['Empfänger'];
 const wege = versandwege(empfaenger?.email);
@@ -61,9 +65,11 @@ const eingabe = 'block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dar
       description={`${a.auftragTitel ?? ''} · ${ANGEBOT_STAND_TEXT[a.stand]}${a.fassung > 1 ? ` · Fassung ${a.fassung}` : ''}${a.vorlageName ? ` · Vorlage „${a.vorlageName}“` : ''}`} />
 
     {q.get('neu') === '1' && <p class="text-sm text-green-400 mb-3">Neuer Angebotsentwurf angelegt. Positionen lassen sich hier ändern, löschen und ergänzen.</p>}
-    {gespeichert && <p class="text-sm text-green-400 mb-3">Gespeichert.</p>}
+    {(gespeichert || q.get('eintragGespeichert') === '1') && <p class="text-sm text-green-400 mb-3">Gespeichert.</p>}
+    {q.get('eintragFehler') && <p role="alert" class="text-sm text-red-400 mb-3">{q.get('eintragFehler')}</p>}
     {fehler && <p role="alert" class="text-sm text-red-400 mb-3">{fehler}</p>}
     {a.stand === 'abgelaufen' && <p class="text-sm text-gold mb-3">„Gültig bis“ ({fd(a.gueltigBis)}) ist vorbei. Du kannst die Annahme trotzdem vermerken oder eine neue Fassung anlegen.</p>}
+    {!entwurf && !a.versendetAm && <p class="text-sm text-gold mb-3">Nummeriert, aber noch nicht verschickt. Unten „Per E-Mail senden“ – oder das PDF selbst weitergeben.</p>}
     {!entwurf && <p class="text-xs text-muted mb-3">Verschickt und damit gesperrt. Ändern geht nur über „Neue Fassung“; als Grundlage für ein anderes Angebot unten „Neues Angebot aus diesem Angebot“.</p>}
 
     <section class="mb-6">
@@ -190,15 +196,18 @@ const eingabe = 'block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dar
           </form>
           <a href={`/api/admin/angebote/${a.id}/pdf`} target="_blank" rel="noopener" class={`${knopf} border border-dark-lighter`}>Vorschau ↗</a>
           <button type="button" data-weg="post" disabled={fehlt.length > 0 || positionen.length === 0} class={`versenden ${knopf} border border-gold text-gold disabled:opacity-40`}>Verschicken ohne E-Mail (Post/persönlich)</button>
-          {wege.includes('email') && <button type="button" data-weg="email" disabled={fehlt.length > 0 || positionen.length === 0} class={`versenden ${knopf} bg-gold text-dark font-semibold disabled:opacity-40`}>Per E-Mail verschicken</button>}
+          {wege.includes('email') && <button type="button" data-weg="email" disabled={fehlt.length > 0 || positionen.length === 0} class={`versenden ${knopf} bg-gold text-dark font-semibold disabled:opacity-40`}>Nummerieren und E-Mail vorbereiten</button>}
         </div>
-        {!wege.includes('email') && <p class="text-xs text-muted mt-2">Keine E-Mail-Adresse in der Akte: nur Versand per Post/persönlich.</p>}
+        <p class="text-xs text-muted mt-2">{wege.includes('email')
+          ? 'Beim Nummerieren bekommt das Angebot seine Nummer und ist danach gesperrt. Danach siehst du die E-Mail (Empfänger, Betreff, Text) und kannst sie vor dem Senden anpassen.'
+          : 'Keine E-Mail-Adresse in der Akte: nur Versand per Post/persönlich.'}</p>
       </section>
     )}
 
     {!entwurf && (
       <div class="flex flex-wrap gap-2 justify-end mb-6">
         <a href={`/api/admin/angebote/${a.id}/pdf`} target="_blank" rel="noopener" class={`${knopf} border border-dark-lighter`}>PDF ↗</a>
+        <button type="button" id="mail-oeffnen" class={`${knopf} bg-gold text-dark font-semibold`}>{a.versandweg === 'email' ? 'Erneut per E-Mail senden' : 'Per E-Mail senden'}</button>
         {a.status === 'verschickt' && (
           <form method="POST" action="/api/admin/angebote" class="mit-rueckfrage" data-frage="Neue Fassung anlegen? Diese Fassung steht danach auf „ersetzt“ und bleibt lesbar; die neue ist ein änderbarer Entwurf." data-ja="Neue Fassung">
             <input type="hidden" name="aktion" value="neue_fassung" /><input type="hidden" name="id" value={a.id} />
@@ -211,23 +220,74 @@ const eingabe = 'block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dar
     {/* T17 (K52–K55): Antwort des Kunden vermerken – nur bei der neuesten verschickten Fassung. */}
     {a.status === 'verschickt' && (
       <section class="border border-dark-lighter rounded-xl p-4 mb-6 grid gap-4" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));">
-        <form method="POST" action="/api/admin/angebote" class="mit-rueckfrage" data-frage="Annahme vermerken? Die angebotenen Positionen werden offene Posten und lassen sich abrechnen." data-ja="Annahme vermerken">
+        <form method="POST" action="/api/admin/angebote" enctype="multipart/form-data" class="mit-rueckfrage" data-frage="Annahme vermerken? Die angebotenen Positionen werden offene Posten und lassen sich abrechnen." data-ja="Annahme vermerken">
           <input type="hidden" name="aktion" value="angenommen" /><input type="hidden" name="id" value={a.id} />
           <p class="text-sm font-semibold text-light mb-2">Angenommen</p>
           <label class="block text-xs text-muted mb-2">am <input type="date" name="datum" value={heute} max={heute} required class="ml-1 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light" style="color-scheme:dark;" /></label>
           {a.stand === 'abgelaufen' && <p class="text-xs text-gold mb-2">Hinweis: Das Angebot ist abgelaufen; die Annahme wird mit diesem Vermerk gespeichert.</p>}
+          <label class="block text-xs text-muted mb-2">Wie kam die Annahme?
+            <select name="weg" class="block w-full mt-1 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light">
+              <option value="">–</option>
+              {Object.entries(WEG_TEXT).map(([k, t]) => <option value={k}>{t}</option>)}
+            </select>
+          </label>
+          <label class="block text-xs text-muted mb-2">Notiz (freiwillig)
+            <textarea name="notiz" rows="2" maxlength="5000" placeholder="z. B. Anruf: sagt zu, Start 1.12." class="block w-full mt-1 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light"></textarea>
+          </label>
+          <label class="block text-xs text-muted mb-2">Nachweis als Datei (freiwillig, z. B. Antwort-Mail .eml, PDF, Foto)
+            <input type="file" name="datei" accept={ERLAUBTE_ENDUNGEN.map((e) => `.${e}`).join(',')} class="block w-full mt-1 text-sm text-light" />
+          </label>
           <button type="submit" class={`${knopf} bg-gold text-dark font-semibold`}>Annahme vermerken</button>
         </form>
-        <form method="POST" action="/api/admin/angebote" class="mit-rueckfrage" data-frage="Ablehnung vermerken? Die Positionen bleiben im Auftrag und werden nicht abgerechnet." data-ja="Ablehnung vermerken">
+        <form method="POST" action="/api/admin/angebote" enctype="multipart/form-data" class="mit-rueckfrage" data-frage="Ablehnung vermerken? Die Positionen bleiben im Auftrag und werden nicht abgerechnet." data-ja="Ablehnung vermerken">
           <input type="hidden" name="aktion" value="abgelehnt" /><input type="hidden" name="id" value={a.id} />
           <p class="text-sm font-semibold text-light mb-2">Abgelehnt</p>
           <label class="block text-xs text-muted mb-2">am <input type="date" name="datum" value={heute} max={heute} required class="ml-1 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light" style="color-scheme:dark;" /></label>
           <label class="block text-xs text-muted mb-2">Grund (freiwillig) <input name="grund" maxlength="300" class="block w-full mt-1 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
+          <label class="block text-xs text-muted mb-2">Wie kam die Ablehnung?
+            <select name="weg" class="block w-full mt-1 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light">
+              <option value="">–</option>
+              {Object.entries(WEG_TEXT).map(([k, t]) => <option value={k}>{t}</option>)}
+            </select>
+          </label>
+          <label class="block text-xs text-muted mb-2">Notiz (freiwillig)
+            <textarea name="notiz" rows="2" maxlength="5000" placeholder="z. B. Anruf: sagt zu, Start 1.12." class="block w-full mt-1 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light"></textarea>
+          </label>
+          <label class="block text-xs text-muted mb-2">Nachweis als Datei (freiwillig, z. B. Antwort-Mail .eml, PDF, Foto)
+            <input type="file" name="datei" accept={ERLAUBTE_ENDUNGEN.map((e) => `.${e}`).join(',')} class="block w-full mt-1 text-sm text-light" />
+          </label>
           <button type="submit" class={`${knopf} border border-red-400 text-red-300`}>Ablehnung vermerken</button>
         </form>
       </section>
     )}
     {a.status === 'angenommen' && <p class="text-sm text-green-400 mb-6">Angenommen{a.abgelaufenAngenommen ? ' (nach Ablauf)' : ''}. Daraus wurde der Auftrag <a class="underline" href={`/admin/klienten/${a.klientId}#auftrag-${a.auftragId}`}>„{a.auftragTitel}“</a> beauftragt; seine Positionen sind offene Posten und werden wie alle Posten abgerechnet.</p>}
+
+    {/* K100: E-Mail vor dem Senden prüfen und anpassen (wie Rechnung). */}
+    {!entwurf && (
+    <section id="mail" hidden class="border border-gold/60 rounded-xl p-4 mb-6">
+      <h2 class="text-sm font-semibold text-gold mb-3">E-Mail mit Angebot {a.number}</h2>
+      <div class="grid gap-3 text-sm">
+        <label class="text-xs text-muted">An <input id="mail-an" type="email" autocomplete="off" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
+        <p class="text-xs text-muted">Von: <span id="mail-von" class="text-light"></span> <span class="ml-1">(einstellbar unter <a class="underline" href="/admin/einstellungen/email">Einstellungen → E-Mail</a>)</span></p>
+        <label class="text-xs text-muted">Betreff <input id="mail-betreff" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
+        <label class="text-xs text-muted">Text <textarea id="mail-text" rows="9" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light"></textarea></label>
+        <p class="text-xs text-muted">Anhang: <span id="mail-anhaenge" class="text-light"></span> · Vorlage für alle Angebote: <a class="underline" href="/admin/einstellungen/rechnungstexte">Einstellungen → Rechnungstexte</a></p>
+        <p id="mail-meldung" role="alert" class="text-sm"></p>
+        <div class="flex gap-2 justify-end">
+          <button type="button" id="mail-abbrechen" class="px-3 py-2 rounded-lg border border-dark-lighter text-sm">Abbrechen</button>
+          <button type="button" id="mail-senden" class="px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">E-Mail senden</button>
+        </div>
+      </div>
+    </section>
+    )}
+
+    {/* K102: Nachweise und Notizen zu diesem Angebot (Anruf, Antwort-Mail, Brief …). */}
+    {a.klientId && (
+    <section id="notizen" class="border border-dark-lighter rounded-xl p-4 mb-6">
+      <h2 class="text-xs text-muted uppercase tracking-wide mb-2">Nachweise und Notizen ({nachweise.length})</h2>
+      <AkteEintraege eintraege={nachweise} klientId={a.klientId} angebotId={a.id} zurueck={zurueck} />
+    </section>
+    )}
 
     {/* Nachtrag 24.10.2026 (K86, K87): Vorlage markieren und neues Angebot aus diesem Angebot. */}
     <section id="vorlage" class="border border-dark-lighter rounded-xl p-4 mb-6 grid gap-4" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));">
@@ -351,6 +411,43 @@ const eingabe = 'block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dar
       link.href = data.pdfUrl; link.download = `${data.number ?? 'Angebot'}.pdf`;
       document.body.appendChild(link); link.click(); link.remove();
     }
-    if (res.ok) setTimeout(() => window.location.reload(), data.pdfUrl ? 1500 : 0);
+    if (res.ok) setTimeout(() => { window.location.href = `/admin/angebote/${id}${weg === 'email' ? '?mail=1' : ''}`; }, data.pdfUrl ? 1500 : 0);
   }));
+
+  // K100: E-Mail vorbereiten und senden.
+  const mail = document.getElementById('mail');
+  const mailMeldung = document.getElementById('mail-meldung');
+  const zeigeMail = (text, gut) => { if (mailMeldung) { mailMeldung.className = `text-sm ${gut ? 'text-green-400' : 'text-red-400'}`; mailMeldung.textContent = text; } };
+  async function mailOeffnen() {
+    if (!mail) return;
+    mail.hidden = false;
+    mail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const res = await fetch(`/api/admin/angebote/${id}/mail`);
+    const v = await res.json().catch(() => ({}));
+    if (!res.ok) { zeigeMail(v.error ?? 'E-Mail-Vorschlag nicht geladen.', false); return; }
+    document.getElementById('mail-an').value = v.an ?? '';
+    document.getElementById('mail-von').textContent = v.von ?? '';
+    document.getElementById('mail-betreff').value = v.betreff ?? '';
+    document.getElementById('mail-text').value = v.text ?? '';
+    document.getElementById('mail-anhaenge').textContent = (v.anhaenge ?? []).join(', ');
+  }
+  document.getElementById('mail-oeffnen')?.addEventListener('click', mailOeffnen);
+  document.getElementById('mail-abbrechen')?.addEventListener('click', () => { if (mail) mail.hidden = true; });
+  document.getElementById('mail-senden')?.addEventListener('click', async (e) => {
+    const k = e.currentTarget;
+    const an = document.getElementById('mail-an').value;
+    if (!(await frage(`E-Mail jetzt an ${an} senden?`, 'Senden'))) return;
+    k.disabled = true;
+    zeigeMail('Wird gesendet …', true);
+    const res = await fetch(`/api/admin/angebote/${id}/mail`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ an, betreff: document.getElementById('mail-betreff').value, text: document.getElementById('mail-text').value }),
+    });
+    const data = await res.json().catch(() => ({}));
+    k.disabled = false;
+    if (!res.ok) { zeigeMail(data.error ?? 'E-Mail nicht gesendet.', false); k.textContent = 'Nochmal versuchen'; return; }
+    zeigeMail('E-Mail gesendet.', true);
+    setTimeout(() => window.location.replace(`/admin/angebote/${id}`), 1200);
+  });
+  if (new URLSearchParams(location.search).get('mail') === '1') void mailOeffnen();
 </script>
