@@ -8,7 +8,7 @@ import { pool } from './website-db';
 import { createCustomer } from './native-billing';
 import { resolveEffectiveTaxMode } from './tax-monitor';
 import { ladeRegeln } from './billing-regeln';
-import { initPostenTabelle, postenBetrag, holeAuftrag, legeAuftragAn, legePositionAn, type Posten, type PostenZustand } from './billing-posten';
+import { initPostenTabelle, postenBetrag, holeAuftrag, legeAuftragAn, legePositionAn, loescheAuftrag, type Posten, type PostenZustand } from './billing-posten';
 import { rechnungsempfaenger, verknuepfeRechnungskunde, type Klient } from './klientenakte';
 import { aktuellerEmpfaenger, fehlendeAngaben, leseEmpfaenger, AnschriftFehlt, type Empfaenger } from './billing-empfaenger';
 import { entwurfsKennung, istEntwurfsKennung, naechsteNummer } from './billing-nummer';
@@ -171,8 +171,9 @@ export async function alleAngebote(
       WHERE q.brand = $1 AND q.klient_id IS NOT NULL
         AND ($2::boolean IS NOT TRUE OR q.vorlage_name IS NOT NULL)
         AND ($3 = '' OR q.number ILIKE $4 OR c.name ILIKE $4 OR a.titel ILIKE $4 OR q.vorlage_name ILIKE $4
-             OR q.positionen::text ILIKE $4
-             OR EXISTS (SELECT 1 FROM abrechnungsposten p WHERE p.auftrag_id = q.auftrag_id AND p.text ILIKE $4))
+             -- Prüfung A3: nur die Bezeichnungen, nicht die JSON-Schlüssel; Posten nur beim Entwurf (sonst gilt die Kopie)
+             OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(q.positionen, '[]'::jsonb)) z WHERE z->>'description' ILIKE $4)
+             OR (q.status = 'entwurf' AND EXISTS (SELECT 1 FROM abrechnungsposten p WHERE p.auftrag_id = q.auftrag_id AND p.text ILIKE $4)))
       ORDER BY q.created_at DESC`,
     [brand, opts.nurVorlagen === true, suche, `%${suche.replace(/[%_\\]/g, (z) => '\\' + z)}%`]);
   const liste = rows.map((r: Record<string, unknown>) => ({ ...zeile(r, tagBerlin(jetzt)), klientName: (r.klient_name as string) ?? '' }));
@@ -224,18 +225,30 @@ export async function angebotAusVorlage(
   const { getKlient } = await import('./klientenakte');
   const quellKlient = quelle.klientId ? await getKlient(quelle.klientId) : null;
   // Bei „Firma zahlt“ hängt an jeder Zeile der Name der Person – für den neuen Auftrag weglassen.
-  const ohnePerson = (t: string) => (quellKlient && t.endsWith(` · ${quellKlient.name}`) ? t.slice(0, -(` · ${quellKlient.name}`.length)) : t);
+  // Prüfung A1: auch den Namen aus der Empfängerkopie des Angebots (Klient inzwischen umbenannt/gelöscht).
+  const namen = [...new Set([quelle.empfaenger?.company ? quelle.empfaenger.name : null, quellKlient?.name].filter((n): n is string => !!n))];
+  const ohnePerson = (t: string) => {
+    const n = namen.find((x) => t.endsWith(` · ${x}`));
+    return n ? t.slice(0, -(` · ${n}`.length)) : t;
+  };
   const heute = tagBerlin(jetzt);
   const auftragId = await legeAuftragAn(brand, ziel.id, titel, 'mit_angebot');
-  for (const z of positionen) {
-    const tage = z.leistungBis ? Math.round((Date.parse(z.leistungBis) - Date.parse(z.leistungVon)) / 86_400_000) : 0;
-    await legePositionAn(brand, ziel.id, auftragId, {
-      datum: heute, datumBis: tage > 0 ? tagePlus(heute, tage) : null, text: ohnePerson(z.description),
-      menge: z.quantity, einheit: z.unit ?? '', einzelpreis: z.unitPrice,
-    });
+  try {
+    for (const z of positionen) {
+      const tage = z.leistungBis ? Math.round((Date.parse(z.leistungBis) - Date.parse(z.leistungVon)) / 86_400_000) : 0;
+      await legePositionAn(brand, ziel.id, auftragId, {
+        datum: heute, datumBis: tage > 0 ? tagePlus(heute, tage) : null, text: ohnePerson(z.description),
+        menge: z.quantity, einheit: z.unit ?? '', einzelpreis: z.unitPrice,
+      });
+    }
+    const e = await erstelleAngebotsentwurf(brand, ziel, auftragId, jetzt);
+    if (!e.ok) { await loescheAuftrag(brand, auftragId).catch(() => false); return e; }
+    return { ok: true, id: e.id, auftragId };
+  } catch (err) {
+    // Prüfung A2: keinen halben Auftrag ohne Angebot zurücklassen.
+    await loescheAuftrag(brand, auftragId).catch(() => false);
+    throw err;
   }
-  const e = await erstelleAngebotsentwurf(brand, ziel, auftragId, jetzt);
-  return e.ok ? { ok: true, id: e.id, auftragId } : e;
 }
 
 /** Geplante Positionen eines Auftrags (Quelle für Entwurf und Versand). */
