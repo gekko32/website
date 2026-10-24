@@ -8,7 +8,7 @@ import { pool } from './website-db';
 import { createCustomer } from './native-billing';
 import { resolveEffectiveTaxMode } from './tax-monitor';
 import { ladeRegeln } from './billing-regeln';
-import { initPostenTabelle, postenBetrag, holeAuftrag, type Posten, type PostenZustand } from './billing-posten';
+import { initPostenTabelle, postenBetrag, holeAuftrag, legeAuftragAn, legePositionAn, type Posten, type PostenZustand } from './billing-posten';
 import { rechnungsempfaenger, verknuepfeRechnungskunde, type Klient } from './klientenakte';
 import { aktuellerEmpfaenger, fehlendeAngaben, leseEmpfaenger, AnschriftFehlt, type Empfaenger } from './billing-empfaenger';
 import { entwurfsKennung, istEntwurfsKennung, naechsteNummer } from './billing-nummer';
@@ -62,6 +62,15 @@ export interface Angebot {
   versandweg: Versandweg | null; versendetAm: string | null;
   antwortAm: string | null; antwortGrund: string | null; abgelaufenAngenommen: boolean;
   einleitung: string | null; schluss: string | null;
+  /** Nachtrag 24.10.2026 (K86): als Vorlage markiert, mit Namen. */
+  vorlageName: string | null;
+}
+
+/** K84: aktive Angebote zuerst, dann die abgeschlossenen. */
+export const AKTIVE_STAENDE: AngebotStand[] = ['entwurf', 'verschickt', 'abgelaufen'];
+export const istAktiv = (a: Pick<Angebot, 'stand'>) => AKTIVE_STAENDE.includes(a.stand);
+export function sortiereAngebote<T extends Pick<Angebot, 'stand'>>(liste: T[]): T[] {
+  return [...liste.filter(istAktiv), ...liste.filter((a) => !istAktiv(a))];
 }
 
 // ── Datenbank ───────────────────────────────────────────────────────────────
@@ -88,7 +97,8 @@ export function initAngebotTabelle(): Promise<void> {
         ADD COLUMN IF NOT EXISTS antwort_am     DATE,
         ADD COLUMN IF NOT EXISTS antwort_grund  TEXT,
         ADD COLUMN IF NOT EXISTS abgelaufen_angenommen BOOLEAN NOT NULL DEFAULT false,
-        ADD COLUMN IF NOT EXISTS pdf            BYTEA`);
+        ADD COLUMN IF NOT EXISTS pdf            BYTEA,
+        ADD COLUMN IF NOT EXISTS vorlage_name   TEXT`);
   })().catch((e) => { bereit = null; throw e; });
   return bereit;
 }
@@ -97,7 +107,7 @@ const SPALTEN = `q.id, q.brand, q.number, q.status, q.klient_id::text AS klient_
   a.titel AS auftrag_titel, q.customer_id, q.fassung, q.grundnummer, q.vorgaenger_id, q.issue_date::text AS datum,
   q.valid_until::text AS gueltig_bis, q.net_amount, q.gross_amount, q.tax_mode, q.positionen, q.empfaenger,
   q.versandweg, q.versendet_am::text AS versendet_am, q.antwort_am::text AS antwort_am, q.antwort_grund,
-  q.abgelaufen_angenommen, q.einleitung, q.schluss`;
+  q.abgelaufen_angenommen, q.einleitung, q.schluss, q.vorlage_name`;
 
 function zeile(r: Record<string, unknown>, heute: string): Angebot {
   const status = r.status as AngebotStatus;
@@ -115,6 +125,7 @@ function zeile(r: Record<string, unknown>, heute: string): Angebot {
     antwortAm: (r.antwort_am as string | null) ?? null, antwortGrund: (r.antwort_grund as string | null) ?? null,
     abgelaufenAngenommen: r.abgelaufen_angenommen === true,
     einleitung: (r.einleitung as string | null) ?? null, schluss: (r.schluss as string | null) ?? null,
+    vorlageName: (r.vorlage_name as string | null) ?? null,
   };
 }
 
@@ -141,6 +152,90 @@ export async function offeneAngebote(brand: string, jetzt = new Date()): Promise
        LEFT JOIN auftraege a ON a.id = q.auftrag_id LEFT JOIN customers c ON c.id = q.klient_id
       WHERE q.brand = $1 AND q.status = 'verschickt' ORDER BY q.valid_until`, [brand]);
   return rows.map((r: Record<string, unknown>) => ({ ...zeile(r, tagBerlin(jetzt)), klientName: (r.klient_name as string) ?? '' }));
+}
+
+export type AngebotFilter = 'aktiv' | 'abgeschlossen' | 'alle';
+
+/**
+ * Nachtrag 24.10.2026 (K85): zentrale Liste aller Angebote aller Klienten – Filter, nur Vorlagen, Suche
+ * in Nummer, Klient, Auftrag, Vorlagenname und Positionstexten.
+ */
+export async function alleAngebote(
+  brand: string, opts: { filter?: AngebotFilter; nurVorlagen?: boolean; suche?: string } = {}, jetzt = new Date(),
+): Promise<(Angebot & { klientName: string })[]> {
+  await initAngebotTabelle();
+  const suche = (opts.suche ?? '').trim().slice(0, 100);
+  const { rows } = await pool.query(
+    `SELECT ${SPALTEN}, c.name AS klient_name FROM billing_quotes q
+       LEFT JOIN auftraege a ON a.id = q.auftrag_id LEFT JOIN customers c ON c.id = q.klient_id
+      WHERE q.brand = $1 AND q.klient_id IS NOT NULL
+        AND ($2::boolean IS NOT TRUE OR q.vorlage_name IS NOT NULL)
+        AND ($3 = '' OR q.number ILIKE $4 OR c.name ILIKE $4 OR a.titel ILIKE $4 OR q.vorlage_name ILIKE $4
+             OR q.positionen::text ILIKE $4
+             OR EXISTS (SELECT 1 FROM abrechnungsposten p WHERE p.auftrag_id = q.auftrag_id AND p.text ILIKE $4))
+      ORDER BY q.created_at DESC`,
+    [brand, opts.nurVorlagen === true, suche, `%${suche.replace(/[%_\\]/g, (z) => '\\' + z)}%`]);
+  const liste = rows.map((r: Record<string, unknown>) => ({ ...zeile(r, tagBerlin(jetzt)), klientName: (r.klient_name as string) ?? '' }));
+  const gefiltert = opts.filter === 'aktiv' ? liste.filter(istAktiv)
+    : opts.filter === 'abgeschlossen' ? liste.filter((a) => !istAktiv(a)) : liste;
+  return sortiereAngebote(gefiltert);
+}
+
+/** K86: als Vorlage markieren (Name) oder Markierung entfernen (null). Ändert am Angebot selbst nichts. */
+export async function markiereVorlage(brand: string, id: string, name: string | null): Promise<Ergebnis<object>> {
+  await initAngebotTabelle();
+  const n = name === null ? null : name.trim().slice(0, 120);
+  if (n !== null && n.length < 2) return { ok: false, fehler: 'Bitte einen Vorlagennamen mit mindestens zwei Zeichen eintragen.' };
+  const r = await pool.query('UPDATE billing_quotes SET vorlage_name = $3 WHERE brand = $1 AND id = $2', [brand, id, n]);
+  return (r.rowCount ?? 0) > 0 ? { ok: true } : { ok: false, fehler: 'Angebot nicht gefunden.' };
+}
+
+/** K88: die geplanten Positionen eines Auftrags mit allen Feldern – für die änderbare Entwurfsseite. */
+export async function geplantePositionenDesAuftrags(brand: string, auftragId: string): Promise<Posten[]> {
+  await initAngebotTabelle();
+  return geplantePositionen(pool, brand, auftragId);
+}
+
+/** K88: Betrag eines Angebotsentwurfs nach Änderungen an den geplanten Positionen nachziehen. */
+export async function aktualisiereAngebotsentwurf(brand: string, auftragId: string): Promise<void> {
+  await initAngebotTabelle();
+  const pos = await geplantePositionen(pool, brand, auftragId);
+  await pool.query(`UPDATE billing_quotes SET net_amount = $3, gross_amount = $3 WHERE brand = $1 AND auftrag_id = $2 AND status = 'entwurf'`,
+    [brand, auftragId, summe(pos)]);
+}
+
+const tagePlus = (iso: string, tage: number) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + tage);
+  return d.toISOString().slice(0, 10);
+};
+
+/**
+ * K87: neues Angebot aus einem bestehenden (Vorlage): neuer Auftrag „mit Angebot“ für den gewählten Klienten,
+ * Positionen kopiert (Leistungsdatum ab heute, Zeiträume behalten ihre Länge), Angebotsentwurf dazu.
+ */
+export async function angebotAusVorlage(
+  brand: string, quelleId: string, ziel: Klient, titel: string, jetzt = new Date(),
+): Promise<Ergebnis<{ id: string; auftragId: string }>> {
+  const quelle = await holeAngebot(brand, quelleId, jetzt);
+  if (!quelle) return { ok: false, fehler: 'Angebot nicht gefunden.' };
+  const { positionen } = await angebotVorschau(brand, quelle);
+  if (positionen.length === 0) return { ok: false, fehler: 'Dieses Angebot hat keine Positionen.' };
+  const { getKlient } = await import('./klientenakte');
+  const quellKlient = quelle.klientId ? await getKlient(quelle.klientId) : null;
+  // Bei „Firma zahlt“ hängt an jeder Zeile der Name der Person – für den neuen Auftrag weglassen.
+  const ohnePerson = (t: string) => (quellKlient && t.endsWith(` · ${quellKlient.name}`) ? t.slice(0, -(` · ${quellKlient.name}`.length)) : t);
+  const heute = tagBerlin(jetzt);
+  const auftragId = await legeAuftragAn(brand, ziel.id, titel, 'mit_angebot');
+  for (const z of positionen) {
+    const tage = z.leistungBis ? Math.round((Date.parse(z.leistungBis) - Date.parse(z.leistungVon)) / 86_400_000) : 0;
+    await legePositionAn(brand, ziel.id, auftragId, {
+      datum: heute, datumBis: tage > 0 ? tagePlus(heute, tage) : null, text: ohnePerson(z.description),
+      menge: z.quantity, einheit: z.unit ?? '', einzelpreis: z.unitPrice,
+    });
+  }
+  const e = await erstelleAngebotsentwurf(brand, ziel, auftragId, jetzt);
+  return e.ok ? { ok: true, id: e.id, auftragId } : e;
 }
 
 /** Geplante Positionen eines Auftrags (Quelle für Entwurf und Versand). */

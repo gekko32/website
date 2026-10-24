@@ -69,6 +69,8 @@ export function buildNavSections({ inboxPending, brettUrl }: NavOptions): NavSec
         },
         // Rechnungswesen Stufe 3 (T3): Leistungen und Preise selbst pflegen.
         { href: '/admin/offene-posten', label: 'Offene Posten', icon: 'clock' },
+        // Nachtrag Stufe 4 (K85, 24.10.2026): zentrale Liste aller Angebote und Vorlagen.
+        { href: '/admin/angebote', label: 'Angebote', icon: 'clipboard' },
         { href: '/admin/leistungen', label: 'Leistungen', icon: 'tag' },
       ],
     },

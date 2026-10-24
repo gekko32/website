@@ -1,0 +1,72 @@
+---
+// Nachtrag 24.10.2026 (K85): zentrale Liste aller Angebote aller Klienten – aktive zuerst, Filter,
+// nur Vorlagen, Suche. Von hier aus ein Angebot öffnen und als Grundlage für ein neues nehmen (K87).
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
+import ZustandLegende from '../../../components/admin/ZustandLegende.astro';
+import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
+import { alleAngebote, istAktiv, ANGEBOT_STAND_TEXT, type AngebotFilter } from '../../../lib/billing-angebot';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+Astro.response.headers.set('Cache-Control', 'no-store');
+
+const brand = process.env.BRAND || 'mentolder';
+const q = Astro.url.searchParams;
+const filter: AngebotFilter = q.get('filter') === 'aktiv' || q.get('filter') === 'abgeschlossen' ? (q.get('filter') as AngebotFilter) : 'alle';
+const nurVorlagen = q.get('vorlage') === '1';
+const suche = (q.get('suche') ?? '').slice(0, 100);
+const liste = await alleAngebote(brand, { filter, nurVorlagen, suche }).catch(() => []);
+const ersterAbgeschlossen = liste.findIndex((x) => !istAktiv(x));
+const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
+const fd = (iso: string | null) => (iso ? iso.slice(0, 10).split('-').reverse().join('.') : '–');
+const eingabe = 'px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light';
+---
+
+<AdminLayout title="Angebote">
+  <div style="padding:2rem;max-width:1100px;">
+    <AdminPageHeader title="Angebote" description="Alle Angebote aller Klienten, aktive zuerst. Jedes Angebot lässt sich als Vorlage merken und als Grundlage für ein neues nehmen." />
+
+    <form method="GET" class="flex flex-wrap items-end gap-3 mb-3">
+      <label class="text-xs text-muted">Anzeigen
+        <select name="filter" class={`block mt-1 ${eingabe}`}>
+          <option value="alle" selected={filter === 'alle'}>alle</option>
+          <option value="aktiv" selected={filter === 'aktiv'}>aktive (Entwurf, verschickt, abgelaufen)</option>
+          <option value="abgeschlossen" selected={filter === 'abgeschlossen'}>abgeschlossene (angenommen, abgelehnt, ersetzt)</option>
+        </select>
+      </label>
+      <label class="text-xs text-muted flex items-center gap-2 pb-2"><input type="checkbox" name="vorlage" value="1" checked={nurVorlagen} /> nur Vorlagen</label>
+      <label class="text-xs text-muted flex-1 min-w-[12rem]">Suche (Nummer, Klient, Auftrag, Position, Vorlagenname)
+        <input name="suche" value={suche} placeholder="z. B. Moderation" class={`block w-full mt-1 ${eingabe}`} />
+      </label>
+      <button type="submit" class="px-3 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Anzeigen</button>
+      {(filter !== 'alle' || nurVorlagen || suche) && <a href="/admin/angebote" class="px-3 py-1.5 rounded-lg border border-dark-lighter text-sm">Zurücksetzen</a>}
+    </form>
+
+    <ZustandLegende teile={['angebot']} />
+
+    {liste.length === 0 ? <p class="text-sm text-muted">Keine Angebote gefunden. Angebote entstehen in der Klientenakte in einem Auftrag „mit Angebot“.</p> : (
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-xs text-muted">
+          <th class="py-1 pr-3 font-normal">Nummer</th><th class="py-1 pr-3 font-normal">Klient</th><th class="py-1 pr-3 font-normal">Auftrag</th>
+          <th class="py-1 pr-3 font-normal">Datum</th><th class="py-1 pr-3 font-normal">gültig bis</th><th class="py-1 pr-3 font-normal text-right">Betrag</th><th class="py-1 font-normal">Stand</th>
+        </tr></thead>
+        <tbody>{liste.map((x, i) => (<>
+          {i === ersterAbgeschlossen && i > 0 && <tr><td colspan="7" class="pt-3 pb-1 text-xs text-muted uppercase tracking-wide">Abgeschlossen</td></tr>}
+          <tr class={`border-t border-dark-lighter ${x.status === 'ersetzt' ? 'opacity-60' : ''}`}>
+            <td class="py-1 pr-3 font-mono"><a class="hover:underline" href={`/admin/angebote/${x.id}`}>{x.number} ›</a>
+              {x.vorlageName && <span class="block text-xs font-sans text-gold">★ Vorlage: {x.vorlageName}</span>}</td>
+            <td class="py-1 pr-3"><a class="hover:underline" href={`/admin/klienten/${x.klientId}#angebote`}>{x.klientName || '–'}</a></td>
+            <td class="py-1 pr-3">{x.auftragTitel ?? '–'}{x.status === 'angenommen' && <span class="block text-xs text-green-400">→ wurde beauftragt</span>}</td>
+            <td class="py-1 pr-3">{fd(x.datum)}</td>
+            <td class="py-1 pr-3">{fd(x.gueltigBis)}</td>
+            <td class="py-1 pr-3 text-right">{euro(x.brutto)}</td>
+            <td class={`py-1 ${x.stand === 'abgelaufen' ? 'text-gold' : x.status === 'angenommen' ? 'text-green-400' : 'text-muted'}`}>{ANGEBOT_STAND_TEXT[x.stand]}</td>
+          </tr></>))}
+        </tbody>
+      </table>
+    )}
+    <p class="text-xs text-muted mt-4">Neues Angebot aus einem bestehenden: Angebot öffnen → unten „Neues Angebot aus diesem Angebot“, Klient wählen.</p>
+  </div>
+</AdminLayout>

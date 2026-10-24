@@ -151,7 +151,8 @@ const STATUS_TABS = [
       {offeneAngebotListe.length > 0 && (
         <section class="mb-8">
           <h2 class="text-lg font-semibold text-light mb-4">Angebote mit offener Antwort
-            <span class="ml-2 text-sm font-normal text-muted">({offeneAngebotListe.length})</span></h2>
+            <span class="ml-2 text-sm font-normal text-muted">({offeneAngebotListe.length})</span>
+            <a href="/admin/angebote" class="ml-3 text-sm font-normal text-gold underline">Alle Angebote und Vorlagen ›</a></h2>
           <div class="space-y-2">
             {offeneAngebotListe.map((x) => (
               <a href={`/admin/angebote/${x.id}`} class={`flex flex-wrap items-center justify-between gap-2 bg-surface border rounded-xl p-3 hover:border-gold ${x.stand === 'abgelaufen' ? 'border-gold' : 'border-border'}`}>

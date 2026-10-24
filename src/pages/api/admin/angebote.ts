@@ -5,8 +5,9 @@ import { getSession, isAdmin } from '../../../lib/auth';
 import { getKlient } from '../../../lib/klientenakte';
 import {
   erstelleAngebotsentwurf, holeAngebot, neueFassung, pruefeGueltigBis, verwirfAngebot, versendeAngebot, angebotVorschau,
-  pruefeAntwortDatum, vermerkeAnnahme, vermerkeAblehnung, setzeGueltigBis,
+  pruefeAntwortDatum, vermerkeAnnahme, vermerkeAblehnung, setzeGueltigBis, markiereVorlage, angebotAusVorlage,
 } from '../../../lib/billing-angebot';
+import { pruefeAuftragTitel } from '../../../lib/billing-posten';
 import { erzeugeAngebotsPdf, angebotsMail } from '../../../lib/billing-angebot-pdf';
 import { pruefeVersandweg } from '../../../lib/billing-versand';
 import { sendEmail } from '../../../lib/email';
@@ -78,6 +79,20 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
   if (aktion === 'verwerfen') {
     const ok = await verwirfAngebot(brand, a.id);
     return redirect(ok ? `/admin/klienten/${a.klientId}?gespeichert=1#auftraege` : `/admin/angebote/${a.id}?fehler=${encodeURIComponent('Nur Entwürfe lassen sich verwerfen.')}`, 303);
+  }
+  // Nachtrag 24.10.2026 (K86): als Vorlage markieren / Markierung entfernen.
+  if (aktion === 'vorlage_markieren' || aktion === 'vorlage_entfernen') {
+    const r = await markiereVorlage(brand, a.id, aktion === 'vorlage_markieren' ? text('vorlageName') : null);
+    return redirect(`/admin/angebote/${a.id}?${r.ok ? 'gespeichert=1' : `fehler=${encodeURIComponent(r.fehler)}`}#vorlage`, 303);
+  }
+  // K87: neues Angebot aus diesem Angebot (für denselben oder einen anderen Klienten).
+  if (aktion === 'aus_vorlage') {
+    const ziel = await getKlient(text('zielKlientId'));
+    if (!ziel) return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent('Bitte einen Klienten wählen.')}#vorlage`, 303);
+    const { titel, fehler } = pruefeAuftragTitel(text('titel'));
+    if (!titel) return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent(fehler!)}#vorlage`, 303);
+    const r = await angebotAusVorlage(brand, a.id, ziel, titel);
+    return redirect(r.ok ? `/admin/angebote/${r.id}?neu=1` : `/admin/angebote/${a.id}?fehler=${encodeURIComponent(r.fehler)}#vorlage`, 303);
   }
   if (aktion === 'neue_fassung') {
     const r = await neueFassung(brand, a.id);

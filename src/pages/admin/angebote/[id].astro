@@ -1,42 +1,70 @@
 ---
 // Rechnungswesen Stufe 4, T16/T17: ein Angebot prüfen, verschicken, neue Fassung, Antwort (K47–K55).
+// Nachtrag 24.10.2026: Entwurf direkt änderbar (K88), Vorlage markieren und neues Angebot daraus (K86, K87),
+// Rückfragen auf der Seite statt Browser-Fenster (K92).
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
+import ZustandLegende from '../../../components/admin/ZustandLegende.astro';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
-import { holeAngebot, angebotVorschau, ANGEBOT_STAND_TEXT } from '../../../lib/billing-angebot';
+import { holeAngebot, angebotVorschau, geplantePositionenDesAuftrags, ANGEBOT_STAND_TEXT } from '../../../lib/billing-angebot';
 import { fehlendeAngaben } from '../../../lib/billing-empfaenger';
 import { anzeigeEmail, versandwege } from '../../../lib/billing-versand';
 import { leistungsdatumZeile } from '../../../lib/leistungszeitraum';
-import { postenBetrag } from '../../../lib/billing-posten';
+import { postenBetrag, type Posten } from '../../../lib/billing-posten';
+import { ladeEinheiten } from '../../../lib/billing-einheiten';
+import { listeLeistungen, preisAnzeige } from '../../../lib/billing-leistungen';
+import { listKlienten } from '../../../lib/klientenakte';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
 if (!isAdmin(session)) return Astro.redirect('/admin');
+// Kein Zwischenspeichern: „Zurück“ im Browser zeigt immer den aktuellen Stand.
+Astro.response.headers.set('Cache-Control', 'no-store');
 
 const brand = process.env.BRAND || 'mentolder';
 const a = await holeAngebot(brand, Astro.params.id ?? '');
-if (!a) return Astro.redirect('/admin/rechnungen');
+if (!a) return Astro.redirect('/admin/angebote');
+const entwurf = a.status === 'entwurf';
 const { positionen, empfaenger } = await angebotVorschau(brand, a);
+// K88: im Entwurf die geplanten Positionen des Auftrags mit allen Feldern (zum Ändern).
+const geplant: Posten[] = entwurf && a.auftragId ? await geplantePositionenDesAuftrags(brand, a.auftragId) : [];
+const zeileVon = new Map(positionen.map((z) => [z.postenId, z]));
+const [einheiten, leistungen, klienten] = await Promise.all([
+  entwurf ? ladeEinheiten(brand) : Promise.resolve([] as string[]),
+  entwurf ? listeLeistungen(brand, { nurAktiv: true }).catch(() => []) : Promise.resolve([]),
+  listKlienten().catch(() => []),
+]);
+const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.includes(aktuell) ? [aktuell, ...einheiten] : einheiten);
 const fehlt = empfaenger ? fehlendeAngaben(empfaenger) : ['Empfänger'];
 const wege = versandwege(empfaenger?.email);
 const summe = positionen.reduce((s, z) => Math.round((s + postenBetrag({ menge: z.quantity, einzelpreis: z.unitPrice })) * 100) / 100, 0);
 const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
+const zahl = (n: number | null) => (n === null ? '' : String(n).replace('.', ','));
 const fd = (iso: string | null) => (iso ? iso.slice(0, 10).split('-').reverse().join('.') : '–');
 const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
-const fehler = Astro.url.searchParams.get('fehler');
-const gespeichert = Astro.url.searchParams.get('gespeichert') === '1';
+const q = Astro.url.searchParams;
+const fehler = q.get('fehler');
+const gespeichert = q.get('gespeichert') === '1';
+const zurueck = `/admin/angebote/${a.id}`;
 const knopf = 'px-3 py-1.5 rounded-lg text-sm';
+const feld = 'zfeld';
+const eingabe = 'block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light';
 ---
 
 <AdminLayout title={`Angebot ${a.number}`}>
-  <div style="padding:2rem;max-width:960px;">
-    <p class="text-xs text-muted mb-2"><a class="hover:underline" href={`/admin/klienten/${a.klientId}#auftraege`}>← Zur Klientenakte</a></p>
+  <div style="padding:2rem;max-width:1000px;">
+    <p class="text-xs text-muted mb-2">
+      <a class="hover:underline" href={`/admin/klienten/${a.klientId}#angebote`}>← Zur Klientenakte</a>
+      <span class="mx-2">·</span><a class="hover:underline" href="/admin/angebote">Alle Angebote</a>
+    </p>
     <AdminPageHeader title={`Angebot ${a.number}`}
-      description={`${a.auftragTitel ?? ''} · ${ANGEBOT_STAND_TEXT[a.stand]}${a.fassung > 1 ? ` · Fassung ${a.fassung}` : ''}`} />
+      description={`${a.auftragTitel ?? ''} · ${ANGEBOT_STAND_TEXT[a.stand]}${a.fassung > 1 ? ` · Fassung ${a.fassung}` : ''}${a.vorlageName ? ` · Vorlage „${a.vorlageName}“` : ''}`} />
 
+    {q.get('neu') === '1' && <p class="text-sm text-green-400 mb-3">Neuer Angebotsentwurf angelegt. Positionen lassen sich hier ändern, löschen und ergänzen.</p>}
     {gespeichert && <p class="text-sm text-green-400 mb-3">Gespeichert.</p>}
     {fehler && <p role="alert" class="text-sm text-red-400 mb-3">{fehler}</p>}
     {a.stand === 'abgelaufen' && <p class="text-sm text-gold mb-3">„Gültig bis“ ({fd(a.gueltigBis)}) ist vorbei. Du kannst die Annahme trotzdem vermerken oder eine neue Fassung anlegen.</p>}
+    {!entwurf && <p class="text-xs text-muted mb-3">Verschickt und damit gesperrt. Ändern geht nur über „Neue Fassung“; als Grundlage für ein anderes Angebot unten „Neues Angebot aus diesem Angebot“.</p>}
 
     <section class="mb-6">
       <h2 class="text-xs text-muted uppercase tracking-wide mb-1">An</h2>
@@ -46,22 +74,99 @@ const knopf = 'px-3 py-1.5 rounded-lg text-sm';
           <br /><span class="text-muted">{[empfaenger.addressLine1, [empfaenger.postalCode, empfaenger.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Anschrift fehlt'} · {anzeigeEmail(empfaenger.email)}</span>
         </p>
       ) : <p class="text-sm text-red-400">Empfänger nicht gefunden.</p>}
-      {a.status === 'entwurf' && fehlt.length > 0 && <p class="text-sm text-red-400 mt-1">Versand erst möglich, wenn die Anschrift vollständig ist. Es fehlt: {fehlt.join(', ')}. Bitte in der Klientenakte ergänzen.</p>}
+      {entwurf && fehlt.length > 0 && <p class="text-sm text-red-400 mt-1">Versand erst möglich, wenn die Anschrift vollständig ist. Es fehlt: {fehlt.join(', ')}. Bitte in der Klientenakte ergänzen.</p>}
     </section>
 
+    {/* K88: links anlegen – neue Position direkt im Entwurf (landet im Auftrag). */}
+    {entwurf && a.auftragId && (
+      <details class="mb-3">
+        <summary class="cursor-pointer inline-block px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Neue Position</summary>
+        <form method="POST" action="/api/admin/posten" autocomplete="off" class="mt-2 p-3 rounded-lg border border-gold/60 bg-dark">
+          <input type="hidden" name="aktion" value="position" /><input type="hidden" name="auftragId" value={a.auftragId} /><input type="hidden" name="zurueck" value={zurueck} />
+          <label class="block text-xs text-muted mb-2">Aus Leistungsliste übernehmen (freiwillig)
+            <select class={`leistung-uebernehmen ${eingabe}`}>
+              <option value="">– freie Position –</option>
+              {leistungen.map((l) => <option data-text={l.name} data-einheit={l.einheit} data-preis={l.preis === null ? '' : String(l.preis).replace('.', ',')}>{l.name}{l.preis === null ? '' : ` – ${preisAnzeige({ preis: l.preis, nachVereinbarung: false })}`}</option>)}
+            </select>
+          </label>
+          <div class="grid gap-2 items-end" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr));">
+            <label class="text-xs text-muted">Leistungsdatum (von)<input type="date" name="datum" required value={heute} class={eingabe} /></label>
+            <label class="text-xs text-muted">bis (nur bei Zeitraum)<input type="date" name="datumBis" class={eingabe} /></label>
+            <label class="text-xs text-muted" style="grid-column:span 2;">Bezeichnung<input name="text" required class={eingabe} /></label>
+            <label class="text-xs text-muted">Menge<input name="menge" required value="1" inputmode="decimal" class={eingabe} /></label>
+            <label class="text-xs text-muted">Einheit
+              <select name="einheit" class={eingabe}><option value="">–</option>{einheiten.map((e) => <option value={e}>{e}</option>)}</select>
+            </label>
+            <label class="text-xs text-muted">Preis je Einheit in €<input name="preis" required inputmode="decimal" class={eingabe} /></label>
+          </div>
+          <button type="submit" class="mt-2 px-4 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Position anlegen</button>
+        </form>
+      </details>
+    )}
+
     <section class="mb-6">
-      <h2 class="text-xs text-muted uppercase tracking-wide mb-1">Positionen {a.status === 'entwurf' && <span class="normal-case">(aus dem Auftrag, Änderungen dort)</span>}</h2>
-      {positionen.length === 0 ? <p class="text-sm text-muted">Keine geplanten Positionen.</p> : (
+      <h2 class="text-xs text-muted uppercase tracking-wide mb-1">Positionen</h2>
+      {positionen.length === 0 ? <p class="text-sm text-muted">Noch keine Positionen{entwurf ? ' – über „+ Neue Position“ hinzufügen.' : '.'}</p> : (
         <table class="w-full text-sm">
-          <thead><tr class="text-left text-xs text-muted"><th class="py-1 pr-3 font-normal">Leistung</th><th class="py-1 pr-3 font-normal text-right">Menge</th><th class="py-1 pr-3 font-normal text-right">Einzelpreis</th><th class="py-1 font-normal text-right">Betrag</th></tr></thead>
-          <tbody>{positionen.map((z) => (
-            <tr class="border-t border-dark-lighter">
-              <td class="py-1 pr-3">{z.description}{leistungsdatumZeile(z) && <span class="block text-xs text-muted">{leistungsdatumZeile(z)}{z.unit ? ` · ${z.unit}` : ''}</span>}</td>
-              <td class="py-1 pr-3 text-right">{z.quantity.toLocaleString('de-DE')}</td>
-              <td class="py-1 pr-3 text-right">{euro(z.unitPrice)}</td>
-              <td class="py-1 text-right">{euro(postenBetrag({ menge: z.quantity, einzelpreis: z.unitPrice }))}</td>
-            </tr>))}
-            <tr class="border-t-2 border-dark-lighter font-semibold"><td class="py-1" colspan="3">Gesamt</td><td class="py-1 text-right">{euro(summe)}</td></tr>
+          <thead><tr class="text-left text-xs text-muted">
+            <th class="py-1 pr-2 font-normal">Leistungsdatum</th><th class="py-1 pr-2 font-normal">Leistung</th>
+            <th class="py-1 pr-2 font-normal text-right">Menge × Einzelpreis</th><th class="py-1 pr-2 font-normal text-right">Betrag</th><th></th>
+          </tr></thead>
+          <tbody>
+            {entwurf ? geplant.map((p) => {
+              const z = zeileVon.get(p.id);
+              const f = `f-${p.id}`;
+              return (
+              <tr class="zeile border-t border-dark-lighter">
+                <td class="py-1 pr-2 whitespace-nowrap align-top">
+                  <span class="ansicht">{leistungsdatumZeile({ leistungVon: p.datum, leistungBis: p.datumBis })?.replace('Leistung: ', '') ?? '–'}</span>
+                  <span class="bearbeiten">
+                    <label class="text-xs text-muted">von<input type="date" name="datum" value={p.datum} form={f} class={feld} required /></label>
+                    <label class="text-xs text-muted">bis<input type="date" name="datumBis" value={p.datumBis ?? ''} form={f} class={feld} /></label>
+                  </span>
+                </td>
+                <td class="py-1 pr-2 align-top">
+                  <span class="ansicht">{z?.description ?? p.text}</span>
+                  <span class="bearbeiten"><input name="text" value={p.text} form={f} aria-label="Bezeichnung" class={feld} required /></span>
+                </td>
+                <td class="py-1 pr-2 text-right whitespace-nowrap align-top">
+                  <span class="ansicht">{p.menge.toLocaleString('de-DE')}{p.einheit ? ` ${p.einheit}` : ''} × {p.einzelpreis === null ? '–' : euro(p.einzelpreis)}</span>
+                  <span class="bearbeiten"><span class="inline-flex gap-1 items-center">
+                    <input name="menge" value={zahl(p.menge)} inputmode="decimal" form={f} aria-label="Menge" class={`${feld} w-14`} required />
+                    <select name="einheit" form={f} aria-label="Einheit" class={`${feld} w-24`}>
+                      <option value="" selected={!p.einheit}>–</option>
+                      {einheitOptionen(p.einheit).map((e) => <option value={e} selected={e === p.einheit}>{e}</option>)}
+                    </select> ×
+                    <input name="preis" value={zahl(p.einzelpreis)} inputmode="decimal" form={f} aria-label="Preis je Einheit in €" class={`${feld} w-20`} required />
+                  </span></span>
+                </td>
+                <td class="py-1 pr-2 text-right whitespace-nowrap align-top">{euro(postenBetrag(p))}</td>
+                <td class="py-1 text-right whitespace-nowrap align-top">
+                  <span class="bearbeiten">
+                    <form id={f} method="POST" action="/api/admin/posten" class="inline">
+                      <input type="hidden" name="zurueck" value={zurueck} /><input type="hidden" name="aktion" value="position_aendern" /><input type="hidden" name="postenId" value={p.id} />
+                      <button type="submit" class="px-2 py-1 rounded bg-gold text-dark text-xs font-semibold">Speichern</button>
+                    </form>
+                    <button type="button" class="zeile-abbrechen px-2 py-1 rounded border border-dark-lighter text-xs" data-form={f}>Abbrechen</button>
+                  </span>
+                  <span class="ansicht">
+                    <button type="button" class="zeile-aendern px-2 py-1 rounded border border-gold text-gold text-xs">Ändern</button>
+                    <form method="POST" action="/api/admin/posten" class="inline mit-rueckfrage" data-frage="Diese Position löschen? Sie verschwindet aus dem Angebot und aus dem Auftrag." data-ja="Löschen">
+                      <input type="hidden" name="zurueck" value={zurueck} /><input type="hidden" name="aktion" value="loeschen_auftragsposition" /><input type="hidden" name="postenId" value={p.id} />
+                      <button type="submit" class="px-2 py-1 rounded border border-red-400 text-red-300 text-xs">Löschen</button>
+                    </form>
+                  </span>
+                </td>
+              </tr>
+              ); }) : positionen.map((z) => (
+              <tr class="border-t border-dark-lighter">
+                <td class="py-1 pr-2 whitespace-nowrap">{leistungsdatumZeile(z)?.replace('Leistung: ', '') ?? '–'}</td>
+                <td class="py-1 pr-2">{z.description}</td>
+                <td class="py-1 pr-2 text-right whitespace-nowrap">{z.quantity.toLocaleString('de-DE')}{z.unit ? ` ${z.unit}` : ''} × {euro(z.unitPrice)}</td>
+                <td class="py-1 pr-2 text-right whitespace-nowrap">{euro(postenBetrag({ menge: z.quantity, einzelpreis: z.unitPrice }))}</td>
+                <td></td>
+              </tr>))}
+            <tr class="border-t-2 border-dark-lighter font-semibold"><td class="py-1" colspan="3">Gesamt</td><td class="py-1 pr-2 text-right">{euro(summe)}</td><td></td></tr>
           </tbody>
         </table>
       )}
@@ -72,14 +177,14 @@ const knopf = 'px-3 py-1.5 rounded-lg text-sm';
         {a.antwortAm && <> · {a.status === 'angenommen' ? 'angenommen' : 'abgelehnt'} am {fd(a.antwortAm)}{a.antwortGrund ? ` (${a.antwortGrund})` : ''}</>}</p>
     </section>
 
-    {a.status === 'entwurf' && (
+    {entwurf && (
       <section class="border border-dark-lighter rounded-xl p-4 mb-6">
         <label class="block text-xs text-muted mb-3">Gültig bis
           <input id="gueltig-bis" type="date" value={a.gueltigBis} min={heute} class="ml-2 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light" style="color-scheme:dark;" />
         </label>
         <p id="meldung" role="alert" class="text-sm text-red-400 mb-3"></p>
         <div class="flex flex-wrap gap-2 justify-end">
-          <form method="POST" action="/api/admin/angebote" class="angebot-verwerfen">
+          <form method="POST" action="/api/admin/angebote" class="mit-rueckfrage" data-frage="Angebotsentwurf verwerfen? Die Positionen bleiben im Auftrag." data-ja="Verwerfen">
             <input type="hidden" name="aktion" value="verwerfen" /><input type="hidden" name="id" value={a.id} />
             <button type="submit" class={`${knopf} border border-red-400 text-red-300`}>Verwerfen</button>
           </form>
@@ -91,11 +196,11 @@ const knopf = 'px-3 py-1.5 rounded-lg text-sm';
       </section>
     )}
 
-    {a.status !== 'entwurf' && (
+    {!entwurf && (
       <div class="flex flex-wrap gap-2 justify-end mb-6">
         <a href={`/api/admin/angebote/${a.id}/pdf`} target="_blank" rel="noopener" class={`${knopf} border border-dark-lighter`}>PDF ↗</a>
         {a.status === 'verschickt' && (
-          <form method="POST" action="/api/admin/angebote">
+          <form method="POST" action="/api/admin/angebote" class="mit-rueckfrage" data-frage="Neue Fassung anlegen? Diese Fassung steht danach auf „ersetzt“ und bleibt lesbar; die neue ist ein änderbarer Entwurf." data-ja="Neue Fassung">
             <input type="hidden" name="aktion" value="neue_fassung" /><input type="hidden" name="id" value={a.id} />
             <button type="submit" class={`${knopf} border border-gold text-gold`}>Neue Fassung</button>
           </form>
@@ -106,14 +211,14 @@ const knopf = 'px-3 py-1.5 rounded-lg text-sm';
     {/* T17 (K52–K55): Antwort des Kunden vermerken – nur bei der neuesten verschickten Fassung. */}
     {a.status === 'verschickt' && (
       <section class="border border-dark-lighter rounded-xl p-4 mb-6 grid gap-4" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));">
-        <form method="POST" action="/api/admin/angebote" class="antwort" data-frage="Annahme vermerken? Die angebotenen Positionen werden offene Posten und lassen sich abrechnen.">
+        <form method="POST" action="/api/admin/angebote" class="mit-rueckfrage" data-frage="Annahme vermerken? Die angebotenen Positionen werden offene Posten und lassen sich abrechnen." data-ja="Annahme vermerken">
           <input type="hidden" name="aktion" value="angenommen" /><input type="hidden" name="id" value={a.id} />
           <p class="text-sm font-semibold text-light mb-2">Angenommen</p>
           <label class="block text-xs text-muted mb-2">am <input type="date" name="datum" value={heute} max={heute} required class="ml-1 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light" style="color-scheme:dark;" /></label>
           {a.stand === 'abgelaufen' && <p class="text-xs text-gold mb-2">Hinweis: Das Angebot ist abgelaufen; die Annahme wird mit diesem Vermerk gespeichert.</p>}
           <button type="submit" class={`${knopf} bg-gold text-dark font-semibold`}>Annahme vermerken</button>
         </form>
-        <form method="POST" action="/api/admin/angebote" class="antwort" data-frage="Ablehnung vermerken? Die Positionen bleiben im Auftrag und werden nicht abgerechnet.">
+        <form method="POST" action="/api/admin/angebote" class="mit-rueckfrage" data-frage="Ablehnung vermerken? Die Positionen bleiben im Auftrag und werden nicht abgerechnet." data-ja="Ablehnung vermerken">
           <input type="hidden" name="aktion" value="abgelehnt" /><input type="hidden" name="id" value={a.id} />
           <p class="text-sm font-semibold text-light mb-2">Abgelehnt</p>
           <label class="block text-xs text-muted mb-2">am <input type="date" name="datum" value={heute} max={heute} required class="ml-1 px-2 py-1 rounded bg-dark border border-dark-lighter text-sm text-light" style="color-scheme:dark;" /></label>
@@ -122,17 +227,102 @@ const knopf = 'px-3 py-1.5 rounded-lg text-sm';
         </form>
       </section>
     )}
-    {a.status === 'angenommen' && <p class="text-sm text-green-400 mb-6">Angenommen{a.abgelaufenAngenommen ? ' (nach Ablauf)' : ''}. Die Positionen sind jetzt offene Posten in der <a class="underline" href={`/admin/klienten/${a.klientId}#abrechnung`}>Klientenakte</a> und werden wie alle Posten abgerechnet.</p>}
+    {a.status === 'angenommen' && <p class="text-sm text-green-400 mb-6">Angenommen{a.abgelaufenAngenommen ? ' (nach Ablauf)' : ''}. Daraus wurde der Auftrag <a class="underline" href={`/admin/klienten/${a.klientId}#auftrag-${a.auftragId}`}>„{a.auftragTitel}“</a> beauftragt; seine Positionen sind offene Posten und werden wie alle Posten abgerechnet.</p>}
+
+    {/* Nachtrag 24.10.2026 (K86, K87): Vorlage markieren und neues Angebot aus diesem Angebot. */}
+    <section id="vorlage" class="border border-dark-lighter rounded-xl p-4 mb-6 grid gap-4" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));">
+      <form method="POST" action="/api/admin/angebote">
+        <input type="hidden" name="id" value={a.id} />
+        <p class="text-sm font-semibold text-light mb-1">Als Vorlage {a.vorlageName ? 'markiert' : 'markieren'}</p>
+        <p class="text-xs text-muted mb-2">Vorlagen findest du unter <a class="underline" href="/admin/angebote?vorlage=1">Angebote → nur Vorlagen</a>. Am Angebot selbst ändert das nichts.</p>
+        <label class="block text-xs text-muted mb-2">Vorlagenname
+          <input name="vorlageName" value={a.vorlageName ?? ''} maxlength="120" placeholder="z. B. Moderation Strategietag ganztägig" class={eingabe} />
+        </label>
+        <div class="flex gap-2">
+          <button type="submit" name="aktion" value="vorlage_markieren" class={`${knopf} border border-gold text-gold`}>{a.vorlageName ? 'Namen speichern' : 'Als Vorlage merken'}</button>
+          {a.vorlageName && <button type="submit" name="aktion" value="vorlage_entfernen" class={`${knopf} border border-dark-lighter`}>Markierung entfernen</button>}
+        </div>
+      </form>
+      <form method="POST" action="/api/admin/angebote" class="mit-rueckfrage" data-frage="Neues Angebot anlegen? Es entsteht ein neuer Auftrag „mit Angebot“ mit denselben Positionen und ein Angebotsentwurf dazu. Dieses Angebot bleibt unverändert." data-ja="Anlegen">
+        <input type="hidden" name="aktion" value="aus_vorlage" /><input type="hidden" name="id" value={a.id} />
+        <p class="text-sm font-semibold text-light mb-1">Neues Angebot aus diesem Angebot</p>
+        <p class="text-xs text-muted mb-2">Positionen und Preise werden übernommen und sind im neuen Entwurf änderbar; Leistungsdatum ab heute.</p>
+        <label class="block text-xs text-muted mb-2">Für Klient
+          <select name="zielKlientId" class={eingabe}>
+            {klienten.map((k) => <option value={k.id} selected={k.id === a.klientId}>{k.name}{k.email && !k.email.endsWith('.invalid') ? ` (${k.email})` : ''}</option>)}
+          </select>
+        </label>
+        <label class="block text-xs text-muted mb-2">Titel des neuen Auftrags
+          <input name="titel" required minlength="2" maxlength="120" value={a.vorlageName ?? a.auftragTitel ?? ''} class={eingabe} />
+        </label>
+        <button type="submit" class={`${knopf} bg-gold text-dark font-semibold`}>Neues Angebot anlegen</button>
+      </form>
+    </section>
+
+    <ZustandLegende teile={['angebot']} />
+
+    {/* Rückfrage auf der Seite statt Browser-Fenster (K92). */}
+    <div id="rueckfrage" hidden class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div class="bg-surface border border-gold/60 rounded-xl p-5 max-w-md w-full shadow-xl">
+        <p id="rueckfrage-text" class="text-sm text-light mb-4"></p>
+        <div class="flex gap-2 justify-end">
+          <button type="button" id="rueckfrage-nein" class="px-3 py-2 rounded-lg border border-dark-lighter text-sm">Abbrechen</button>
+          <button type="button" id="rueckfrage-ja" class="px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">Ja</button>
+        </div>
+      </div>
+    </div>
   </div>
 </AdminLayout>
 
+<style>
+  input[type='date'] { color-scheme: dark; }
+  .zeile .bearbeiten { display: none; }
+  .zeile.im-bearbeiten .ansicht { display: none; }
+  .zeile.im-bearbeiten .bearbeiten { display: block; }
+  .zeile.im-bearbeiten { background: var(--color-gold-dim, rgba(200, 170, 90, 0.14)); outline: 1px solid var(--color-gold, #c9a227); }
+  .zfeld { display: block; width: 100%; min-width: 0; margin: 0.125rem 0; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.8rem;
+    background: var(--color-dark, #111); border: 1px solid var(--color-dark-lighter, #333); color: var(--color-light, #eee); }
+  .zfeld.w-14 { width: 3.5rem; } .zfeld.w-20 { width: 5rem; } .zfeld.w-24 { width: 6rem; }
+  .inline-flex > .zfeld { display: inline-block; }
+</style>
+
 <script define:vars={{ id: a.id }}>
-  document.querySelectorAll('form.antwort').forEach((f) => f.addEventListener('submit', (e) => {
-    if (!confirm(f.dataset.frage)) e.preventDefault();
+  const box = document.getElementById('rueckfrage');
+  function frage(text, ja = 'Ja') {
+    return new Promise((fertig) => {
+      const jaK = document.getElementById('rueckfrage-ja');
+      const neinK = document.getElementById('rueckfrage-nein');
+      document.getElementById('rueckfrage-text').textContent = text;
+      jaK.textContent = ja;
+      box.hidden = false;
+      const zu = (w) => { box.hidden = true; jaK.onclick = null; neinK.onclick = null; fertig(w); };
+      jaK.onclick = () => zu(true);
+      neinK.onclick = () => zu(false);
+    });
+  }
+  document.querySelectorAll('form.mit-rueckfrage').forEach((f) => f.addEventListener('submit', async (e) => {
+    if (f.dataset.bestaetigt === '1') return;
+    e.preventDefault();
+    if (await frage(f.dataset.frage, f.dataset.ja)) { f.dataset.bestaetigt = '1'; f.requestSubmit(); }
   }));
-  document.querySelectorAll('form.angebot-verwerfen').forEach((f) => f.addEventListener('submit', (e) => {
-    if (!confirm('Angebotsentwurf verwerfen? Die Positionen bleiben im Auftrag.')) e.preventDefault();
+  document.querySelectorAll('.zeile-aendern').forEach((b) => b.addEventListener('click', () => b.closest('.zeile')?.classList.add('im-bearbeiten')));
+  document.querySelectorAll('.zeile-abbrechen').forEach((b) => b.addEventListener('click', () => {
+    document.getElementById(b.dataset.form)?.reset();
+    b.closest('.zeile')?.classList.remove('im-bearbeiten');
   }));
+  document.querySelectorAll('select.leistung-uebernehmen').forEach((wahl) => wahl.addEventListener('change', () => {
+    const o = wahl.selectedOptions[0];
+    const f = wahl.form;
+    if (!o || !f || !o.dataset.text) return;
+    f.elements.namedItem('text').value = o.dataset.text ?? '';
+    f.elements.namedItem('preis').value = o.dataset.preis ?? '';
+    const e = f.elements.namedItem('einheit');
+    if (e && o.dataset.einheit) {
+      if (![...e.options].some((x) => x.value === o.dataset.einheit)) e.add(new Option(o.dataset.einheit, o.dataset.einheit));
+      e.value = o.dataset.einheit;
+    }
+  }));
+
   const meldung = document.getElementById('meldung');
   // Prüfung Stufe 4 (B5): „gültig bis“ beim Ändern sofort speichern.
   document.getElementById('gueltig-bis')?.addEventListener('change', async (e) => {
@@ -145,17 +335,17 @@ const knopf = 'px-3 py-1.5 rounded-lg text-sm';
   });
   document.querySelectorAll('button.versenden').forEach((b) => b.addEventListener('click', async () => {
     const weg = b.dataset.weg;
-    const frage = weg === 'email'
+    const text = weg === 'email'
       ? 'Angebot jetzt nummerieren und per E-Mail verschicken? Danach lässt es sich nur über eine neue Fassung ändern.'
       : 'Angebot jetzt nummerieren, ohne E-Mail? Das PDF wird heruntergeladen; vermerkt wird „verschickt per Post“.';
-    if (!confirm(frage)) return;
+    if (!(await frage(text, 'Verschicken'))) return;
     b.disabled = true;
     const res = await fetch('/api/admin/angebote', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aktion: 'versenden', id, versand: weg, gueltigBis: document.getElementById('gueltig-bis')?.value }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { b.disabled = false; if (meldung) meldung.textContent = data.error ?? 'Nicht verschickt.'; }
+    if (!res.ok) { b.disabled = false; if (meldung) { meldung.className = 'text-sm text-red-400 mb-3'; meldung.textContent = data.error ?? 'Nicht verschickt.'; } }
     if (data.pdfUrl) {
       const link = document.createElement('a');
       link.href = data.pdfUrl; link.download = `${data.number ?? 'Angebot'}.pdf`;

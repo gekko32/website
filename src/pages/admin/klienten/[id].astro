@@ -3,13 +3,14 @@
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
 import KlientFormular from '../../../components/admin/KlientFormular.svelte';
+import ZustandLegende from '../../../components/admin/ZustandLegende.astro';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
 import { listeLeistungen, listeKategorien, preisAnzeige } from '../../../lib/billing-leistungen';
 import { gebuchteTermine } from '../../../lib/billing-ausfall';
 import { ladeEinheiten } from '../../../lib/billing-einheiten';
 import { verbucheUndEntwerfe, wirksameAbrechnungsart } from '../../../lib/billing-abrechnungslauf';
-import { angeboteDesKlienten, ANGEBOT_STAND_TEXT, type Angebot } from '../../../lib/billing-angebot';
+import { angeboteDesKlienten, sortiereAngebote, istAktiv, ANGEBOT_STAND_TEXT, type Angebot } from '../../../lib/billing-angebot';
 import { ladeRegeln } from '../../../lib/billing-regeln';
 import { anzeigeEmail, hatEchteEmail } from '../../../lib/billing-versand';
 import { postenDesKlienten, postenBetrag, AUFTRAG_STAND_TEXT, auftragMitAngebotLoeschbar, postenImEntwurfAenderbar, auftraegeDesKlienten, terminAbgesagt, postenLoeschbar, auftragLoeschbar, leistungszeitraum, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
@@ -27,7 +28,7 @@ const empfaenger = rechnungsempfaenger(klient);
 const datum = (d: string | Date | null) => d ? new Date(d).toLocaleDateString('de-DE') : '–';
 const zeit = (d: string | Date | null) => d ? new Date(d).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '–';
 const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
-const STATUS: Record<string, string> = { draft: 'Entwurf', open: 'offen', paid: 'bezahlt', void: 'storniert', uncollectible: 'uneinbringlich', cancelled: 'storniert' };
+const STATUS: Record<string, string> = { draft: 'Entwurf', open: 'offen', paid: 'bezahlt', partially_paid: 'teilweise bezahlt', overdue: 'überfällig', void: 'storniert', uncollectible: 'uneinbringlich', cancelled: 'storniert' };
 
 // Rechnungswesen Stufe 3, T5/T6: vergangene, freigegebene Termine zuerst als Posten
 // übernehmen, dann Posten und „Sitzung erfassen“ (K11, K12, K14, K16).
@@ -61,7 +62,9 @@ const postenGespeichert = q.get('gespeichert') === '1';
 const auftraege = await auftraegeDesKlienten(brand, klient.id).catch((): Auftrag[] => []);
 const auftragFehler = q.get('auftragFehler');
 // Stufe 4 T16: Angebote der Akte (je Auftrag angezeigt; Liste „Angebote“ in T18).
-const angebote = await angeboteDesKlienten(brand, klient.id).catch((): Angebot[] => []);
+// Nachtrag 24.10.2026 (K84): aktive zuerst, dann die abgeschlossenen.
+const angebote = sortiereAngebote(await angeboteDesKlienten(brand, klient.id).catch((): Angebot[] => []));
+const ersterAbgeschlossen = angebote.findIndex((x) => !istAktiv(x));
 const angeboteVon = (auftragId: string) => angebote.filter((x) => x.auftragId === auftragId);
 const positionenVon = (auftragId: string) => posten.filter((p) => p.auftragId === auftragId);
 const zahlFeld = (n: number | null) => (n === null ? '' : String(n).replace('.', ','));
@@ -73,6 +76,8 @@ const postenFehler = q.get('fehler');
 // T10a: Rechnung aus gewählten Posten; Nummer der Rechnung, auf der ein Posten steht.
 const entwurfAngelegt = q.get('entwurf');
 const rechnungNummer = new Map(rechnungen.map((r) => [String(r.id), r.number]));
+// K90: bei „abgerechnet“ auch der Zustand der Rechnung (offen, bezahlt, storniert …).
+const rechnungZustand = new Map(rechnungen.map((r) => [String(r.id), STATUS[r.status] ?? r.status]));
 const waehlbar = (p: Posten) => p.zustand === 'offen' && p.einzelpreis !== null;
 // Einheiten als Auswahl (Handtest 21.10.2026); gepflegt unter Einstellungen → Regeln.
 // Ein alter Wert, der nicht mehr in der Liste steht, bleibt wählbar.
@@ -133,6 +138,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       {entwurfAngelegt && <p class="text-sm text-green-400 mb-2">Rechnungsentwurf {entwurfAngelegt} angelegt. Noch nichts verschickt:
         prüfen und versenden unter <a class="underline" href="/admin/rechnungen">Rechnungen → Entwürfe</a>.</p>}
       {postenFehler && <p role="alert" class="text-sm text-red-400 mb-2">{postenFehler}</p>}
+      <ZustandLegende teile={['posten', 'rechnung']} />
 
       {/* Handtest 22.10.2026: über der Liste, als Knopf wie „Auftrag anlegen“. */}
       <details class="mb-3" open={sitzungFehler.length > 0}>
@@ -257,7 +263,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
             <td class="py-1 pr-3 text-muted whitespace-nowrap align-top">{ZUSTAND_TEXT[p.zustand]}
               {p.invoiceId && rechnungNummer.has(p.invoiceId) && (p.zustand === 'auf_entwurf'
                 ? <a class="block text-xs font-mono text-gold underline" href={`/admin/rechnungen/entwurf/${p.invoiceId}`} title="Entwurf prüfen, ändern, verschicken">{rechnungNummer.get(p.invoiceId)} ›</a>
-                : <a class="block text-xs font-mono hover:underline" href={`/admin/rechnungen/entwurf/${p.invoiceId}`} title="Rechnung öffnen: PDF, per E-Mail senden">{rechnungNummer.get(p.invoiceId)} ›</a>)}</td>
+                : <a class="block text-xs font-mono hover:underline" href={`/admin/rechnungen/entwurf/${p.invoiceId}`} title="Rechnung öffnen: PDF, per E-Mail senden">{rechnungNummer.get(p.invoiceId)} · {rechnungZustand.get(p.invoiceId)} ›</a>)}</td>
             <td class="py-1 text-right whitespace-nowrap align-top">
               {aenderbar && <span class="bearbeiten">
                 <form id={f} method="POST" action="/api/admin/posten" autocomplete="off" class="merk-ungespeichert inline">
@@ -317,17 +323,22 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       <p class="text-xs text-muted mb-2">Vorträge, Moderationen, Analysen … So geht es: 1. hier einen Auftrag mit Titel anlegen,
         2. im Auftrag „+ Neue Position mit Preis“ öffnen – erst die Positionen werden abgerechnet. Sie erscheinen nicht auf der Website.</p>
       {auftragFehler && <p role="alert" class="text-sm text-red-400 mb-2">{auftragFehler}</p>}
+      <ZustandLegende teile={['posten', 'angebot']} />
 
       {/* Handtest 22.10.2026: Anlegen oberhalb der Liste – der neue Auftrag erscheint direkt darunter (neueste zuerst). */}
       <div class="mb-4">
         <form method="POST" action="/api/admin/posten" class="flex flex-col items-start gap-2">
           <input type="hidden" name="aktion" value="auftrag" />
           <input type="hidden" name="klientId" value={klient.id} />
-          <label class="text-sm text-light"><input type="checkbox" name="mitAngebot" /> mit Angebot – Positionen werden erst nach Annahme des Angebots abrechenbar</label>
           <input name="titel" required minlength="2" maxlength="120" placeholder="Neuer Auftrag, z. B. Moderation Strategietag" aria-label="Titel des Auftrags"
             class="w-full px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
-          <button type="submit" class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Auftrag anlegen</button>
+          {/* Nachtrag 24.10.2026 (K89): der Haken gehört zum Knopf und steht direkt daneben. */}
+          <div class="flex flex-wrap items-center gap-3">
+            <button type="submit" class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Auftrag anlegen</button>
+            <label class="text-sm text-light"><input type="checkbox" name="mitAngebot" /> mit Angebot – Positionen werden erst nach Annahme des Angebots abrechenbar</label>
+          </div>
         </form>
+        <p class="text-xs text-muted mt-2">Oder ein früheres Angebot als Grundlage nehmen: <a class="underline" href="/admin/angebote?vorlage=1">Angebote → Vorlagen</a>.</p>
       </div>
 
       {auftraege.map((a) => {
@@ -335,7 +346,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
         const summe = pos.filter((p) => p.zustand === 'offen').reduce((s, p) => Math.round((s + postenBetrag(p)) * 100) / 100, 0);
         const geplantSumme = pos.filter((p) => p.zustand === 'geplant').reduce((s, p) => Math.round((s + postenBetrag(p)) * 100) / 100, 0);
         return (
-          <div class="border border-dark-lighter rounded-xl p-4 mb-3">
+          <div id={`auftrag-${a.id}`} class="border border-dark-lighter rounded-xl p-4 mb-3">
             {/* Kopf: links Titel, rechts Umbenennen / Auftrag löschen; Umbenennen direkt im Titel (Handtest 22.10.2026). */}
             <div class="zeile flex flex-wrap items-center gap-2 mb-2 rounded px-1">
               <h3 class="ansicht text-sm font-semibold text-light">{a.titel}
@@ -519,19 +530,24 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
     <section id="angebote" class="mb-8">
       <details class="liste" open>
       <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Angebote ({angebote.length})</summary>
+      <p class="text-xs text-muted mb-2">Alle Angebote dieses Klienten, aktive zuerst. <a class="underline" href="/admin/angebote">Alle Angebote aller Klienten und Vorlagen ›</a></p>
+      <ZustandLegende teile={['angebot']} />
       {angebote.length === 0 ? <p class="text-sm text-muted">Noch keine Angebote. Angebote entstehen in einem Auftrag „mit Angebot“.</p> : (
         <table class="w-full text-sm">
           <thead><tr class="text-left text-xs text-muted"><th class="py-1 pr-3 font-normal">Nummer</th><th class="py-1 pr-3 font-normal">Auftrag</th>
             <th class="py-1 pr-3 font-normal">Datum</th><th class="py-1 pr-3 font-normal">gültig bis</th><th class="py-1 pr-3 font-normal text-right">Betrag</th><th class="py-1 font-normal">Stand</th></tr></thead>
-          <tbody>{angebote.map((x) => (
+          <tbody>{angebote.map((x, i) => (<>
+            {i === ersterAbgeschlossen && <tr><td colspan="6" class="pt-3 pb-1 text-xs text-muted uppercase tracking-wide">Abgeschlossen</td></tr>}
             <tr class={`border-t border-dark-lighter ${x.status === 'ersetzt' ? 'opacity-60' : ''}`}>
-              <td class="py-1 pr-3 font-mono"><a class="hover:underline" href={`/admin/angebote/${x.id}`}>{x.number}</a></td>
-              <td class="py-1 pr-3">{x.auftragTitel ?? '–'}</td>
+              <td class="py-1 pr-3 font-mono"><a class="hover:underline" href={`/admin/angebote/${x.id}`}>{x.number}</a>
+                {x.vorlageName && <span class="block text-xs font-sans text-gold" title="Als Vorlage markiert">★ Vorlage: {x.vorlageName}</span>}</td>
+              <td class="py-1 pr-3">{x.auftragId ? <a class="hover:underline" href={`#auftrag-${x.auftragId}`}>{x.auftragTitel ?? '–'}</a> : '–'}
+                {x.status === 'angenommen' && <span class="block text-xs text-green-400">→ wurde beauftragt</span>}</td>
               <td class="py-1 pr-3">{datum(x.datum)}</td>
               <td class="py-1 pr-3">{datum(x.gueltigBis)}</td>
               <td class="py-1 pr-3 text-right">{euro(x.brutto)}</td>
-              <td class={`py-1 ${x.stand === 'abgelaufen' ? 'text-gold' : 'text-muted'}`}>{ANGEBOT_STAND_TEXT[x.stand]}</td>
-            </tr>))}
+              <td class={`py-1 ${x.stand === 'abgelaufen' ? 'text-gold' : x.status === 'angenommen' ? 'text-green-400' : 'text-muted'}`}>{ANGEBOT_STAND_TEXT[x.stand]}</td>
+            </tr></>))}
           </tbody>
         </table>
       )}
@@ -590,6 +606,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
     <section class="mb-8">
       <details class="liste" open>
       <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Rechnungen ({rechnungen.length})</summary>
+      <ZustandLegende teile={['rechnung']} />
       {rechnungen.length === 0 ? <p class="text-sm text-muted">Keine Rechnungen.</p> :
         <table class="w-full text-sm"><tbody>{rechnungen.map((r) => (
           <tr class="border-t border-dark-lighter">

@@ -13,6 +13,7 @@ import { aktualisiereEntwurf, aendereFreieZeile, entferneFreieZeile, erstelleEnt
 import { fuegeZumEntwurf, nimmVomEntwurf } from '../../../lib/billing-posten';
 import { pool } from '../../../lib/website-db';
 import { isE2ETestRequest } from '../../../lib/e2e-marker';
+import { aktualisiereAngebotsentwurf } from '../../../lib/billing-angebot';
 
 /** Prüfung Stufe 4 Runde 2 (N2): bei gesperrten Auftragspositionen den richtigen Grund nennen. */
 async function gesperrtGrund(brand: string, auftragId: string | null, sonst: string, auftragLoeschen = false): Promise<string> {
@@ -39,13 +40,17 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   // Posten, der auf einem Entwurf steht, wird der Entwurf danach neu aufgebaut. Kommt die Anfrage von
   // der Entwurfsseite (zurueck), geht es dorthin zurück.
   const zurueck = text('zurueck');
-  const zurEntwurfsseite = /^\/admin\/rechnungen\/entwurf\/[0-9a-f-]{36}$/i.test(zurueck);
+  // Nachtrag 24.10.2026 (K88): ebenso von der Seite eines Angebotsentwurfs.
+  const zurEntwurfsseite = /^\/admin\/(rechnungen\/entwurf|angebote)\/[0-9a-f-]{36}$/i.test(zurueck);
   const pid = text('postenId');
   const vorher = /^[0-9a-f-]{36}$/i.test(pid) ? await rechnungDesPostens(brand, pid) : null;
   let entwurfNachher: string | null = vorher?.zustand === 'auf_entwurf' ? vorher.invoiceId : null;
+  // K88: Ändert sich eine Position eines Auftrags, zieht ein Angebotsentwurf dazu seinen Betrag nach.
+  let auftragNachher: string | null = vorher?.auftragId ?? null;
   const weiter = async (ziel: string, _status = 303): Promise<Response> => {
     let ergebnis: string | null = null;
     if (entwurfNachher) ergebnis = await aktualisiereEntwurf(brand, entwurfNachher);
+    if (auftragNachher) await aktualisiereAngebotsentwurf(brand, auftragNachher);
     if (zurEntwurfsseite) {
       if (ergebnis === 'verworfen') {
         return redirect(`/admin/klienten/${vorher?.klientId ?? ''}?fehler=${encodeURIComponent('Der Entwurf hatte keine Position mehr und wurde verworfen. Die Posten sind wieder offen.')}#abrechnung`, 303);
@@ -212,6 +217,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       if (!/^[0-9a-f-]{36}$/i.test(auftragId)) return new Response('Auftrag nicht gefunden', { status: 404 });
       klientId = await klientDesAuftrags(brand, auftragId);
       if (!klientId) return new Response('Auftrag nicht gefunden', { status: 404 });
+      auftragNachher = auftragId;
       // Prüfung Stufe 4 (B1): verschicktes Angebot – Positionen nur über eine neue Fassung ändern.
       if ((await holeAuftrag(brand, auftragId))?.stand === 'angeboten') {
         return weiter(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent('Das Angebot ist verschickt. Für Änderungen auf der Angebotsseite eine neue Fassung anlegen.')}#auftraege`, 303);
