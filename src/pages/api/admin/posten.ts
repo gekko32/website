@@ -14,6 +14,29 @@ import { fuegeZumEntwurf, nimmVomEntwurf } from '../../../lib/billing-posten';
 import { pool } from '../../../lib/website-db';
 import { isE2ETestRequest } from '../../../lib/e2e-marker';
 import { aktualisiereAngebotsentwurf } from '../../../lib/billing-angebot';
+import { protokolliere, unterschied, type ProtokollBereich } from '../../../lib/akte-protokoll';
+
+// Änderungsprotokoll (K94): Bereich und Text je Aktion; protokolliert wird jede erfolgreiche Aktion.
+const AKTION_TEXT: Record<string, [ProtokollBereich, string]> = {
+  nicht_abrechnen: ['posten', 'Posten ausgenommen'], abrechnen: ['posten', 'Posten wieder abrechnen'],
+  preis: ['posten', 'Preis eingetragen'], vom_entwurf: ['posten', 'Vom Rechnungsentwurf genommen'],
+  entwurf_verwerfen: ['posten', 'Vom Rechnungsentwurf genommen'], zum_entwurf: ['posten', 'Zum Rechnungsentwurf hinzugefügt'],
+  freie_zeile_aendern: ['rechnung', 'Freie Zeile im Rechnungsentwurf geändert'], freie_zeile_entfernen: ['rechnung', 'Freie Zeile aus Rechnungsentwurf entfernt'],
+  absage: ['posten', 'Absage vermerkt'], erlassen: ['posten', 'Ausfallhonorar erlassen'], loeschen: ['posten', 'Posten gelöscht'],
+  sitzung: ['posten', 'Sitzung erfasst'], auftrag: ['auftrag', 'Auftrag angelegt'], auftrag_umbenennen: ['auftrag', 'Auftrag umbenannt'],
+  auftrag_loeschen: ['auftrag', 'Auftrag gelöscht'], position: ['auftrag', 'Position angelegt'],
+  position_aendern: ['posten', 'Position geändert'], loeschen_auftragsposition: ['auftrag', 'Position gelöscht'],
+};
+const POSTEN_FELDER = ['datum', 'datumBis', 'text', 'menge', 'einheit', 'preis', 'zustand'];
+
+/** Stand eines Postens für vorher → nachher (null, wenn es ihn nicht gibt). */
+async function postenStand(brand: string, id: string): Promise<Record<string, unknown> | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const r = (await pool.query(
+    `SELECT datum::text AS datum, datum_bis::text AS datum_bis, text, menge::float AS menge, einheit, einzelpreis::float AS preis, zustand
+       FROM abrechnungsposten WHERE brand = $1 AND id = $2`, [brand, id])).rows[0];
+  return r ? { datum: r.datum, datumBis: r.datum_bis, text: r.text, menge: r.menge, einheit: r.einheit, preis: r.preis, zustand: r.zustand } : null;
+}
 
 /** Prüfung Stufe 4 Runde 2 (N2): bei gesperrten Auftragspositionen den richtigen Grund nennen. */
 async function gesperrtGrund(brand: string, auftragId: string | null, sonst: string, auftragLoeschen = false): Promise<string> {
@@ -47,10 +70,37 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   let entwurfNachher: string | null = vorher?.zustand === 'auf_entwurf' ? vorher.invoiceId : null;
   // K88: Ändert sich eine Position eines Auftrags, zieht ein Angebotsentwurf dazu seinen Betrag nach.
   let auftragNachher: string | null = vorher?.auftragId ?? null;
+  // K94: Stand vorher für das Änderungsprotokoll.
+  const postenVorher = vorher ? await postenStand(brand, pid) : null;
+  const auftragVorher = /^[0-9a-f-]{36}$/i.test(text('auftragId')) ? await holeAuftrag(brand, text('auftragId')) : null;
+  const protokolliereErfolg = async (ziel: string) => {
+    const eintrag = AKTION_TEXT[aktion];
+    if (!eintrag || !/[?&]gespeichert=1/.test(ziel)) return;
+    const klientId = ziel.match(/\/admin\/klienten\/([0-9a-f-]{36})/i)?.[1] ?? vorher?.klientId ?? auftragVorher?.klientId ?? null;
+    const formular = Object.fromEntries(['datum', 'datumBis', 'text', 'menge', 'einheit', 'preis', 'titel', 'grund', 'von', 'leistungKey']
+      .map((k) => [k, text(k)]).filter(([, v]) => v !== ''));
+    let v: Record<string, unknown> | null = null;
+    let n: Record<string, unknown> | null = formular;
+    if (postenVorher) {
+      const danach = await postenStand(brand, pid);
+      const d = danach ? unterschied(postenVorher, danach, POSTEN_FELDER) : null;
+      v = d ? d.vorher : postenVorher; n = d ? d.nachher : null;
+    } else if (aktion === 'auftrag_umbenennen' && auftragVorher) {
+      v = { titel: auftragVorher.titel }; n = { titel: text('titel') };
+    } else if (aktion === 'auftrag') {
+      n = { ...formular, mitAngebot: form.get('mitAngebot') === 'on' ? 'ja' : 'nein' };
+    }
+    await protokolliere(brand, session.email, {
+      bereich: eintrag[0], aktion: eintrag[1], klientId,
+      objekt: (postenVorher?.text as string | undefined) ?? auftragVorher?.titel ?? (text('titel') || text('text') || null),
+      vorher: v, nachher: n,
+    });
+  };
   const weiter = async (ziel: string, _status = 303): Promise<Response> => {
     let ergebnis: string | null = null;
     if (entwurfNachher) ergebnis = await aktualisiereEntwurf(brand, entwurfNachher);
     if (auftragNachher) await aktualisiereAngebotsentwurf(brand, auftragNachher);
+    await protokolliereErfolg(ziel);
     if (zurEntwurfsseite) {
       if (ergebnis === 'verworfen') {
         return redirect(`/admin/klienten/${vorher?.klientId ?? ''}?fehler=${encodeURIComponent('Der Entwurf hatte keine Position mehr und wurde verworfen. Die Posten sind wieder offen.')}#abrechnung`, 303);
@@ -93,7 +143,10 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const ids = form.getAll('postenId').map(String);
     const r = await erstelleEntwurfAusPosten(brand, klient, ids, { isTestData: isE2ETestRequest(request) });
     // Handtest 23.10.2026: direkt zur Entwurfsseite – dort prüfen, ändern, verschicken.
-    if (r.ok) return redirect(`/admin/rechnungen/entwurf/${r.invoiceId}?neu=1`, 303);
+    if (r.ok) {
+      await protokolliere(brand, session.email, { bereich: 'rechnung', aktion: 'Rechnungsentwurf erstellt', klientId: klient.id, beschreibung: `${ids.length} Posten` });
+      return redirect(`/admin/rechnungen/entwurf/${r.invoiceId}?neu=1`, 303);
+    }
     return weiter(`/admin/klienten/${klient.id}?fehler=${encodeURIComponent(r.fehler)}#abrechnung`, 303);
   }
 

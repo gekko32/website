@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
 import { setSiteSetting } from '../../../../lib/website-db';
+import { protokolliere } from '../../../../lib/akte-protokoll';
 import { setTaxMode } from '../../../../lib/tax-monitor';
 import { normalisiereUstId, pruefeSteuerangaben } from '../../../../lib/billing-absender';
 import { pruefeZahlungsziel } from '../../../../lib/billing-regeln';
@@ -49,5 +50,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   }
 
   await Promise.all(saves);
+  await protokolliere(brand, session.email, { bereich: 'einstellungen', aktion: 'Rechnungsangaben gespeichert',
+    nachher: Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)])) });
   return redirect('/admin/einstellungen/rechnungen?saved=1', 303);
 };

@@ -8,6 +8,7 @@ import {
   pruefeAntwortDatum, vermerkeAnnahme, vermerkeAblehnung, setzeGueltigBis, markiereVorlage, angebotAusVorlage,
 } from '../../../lib/billing-angebot';
 import { pruefeAuftragTitel } from '../../../lib/billing-posten';
+import { protokolliere, type ProtokollEintrag } from '../../../lib/akte-protokoll';
 import { erzeugeAngebotsPdf, angebotsMail } from '../../../lib/billing-angebot-pdf';
 import { pruefeVersandweg } from '../../../lib/billing-versand';
 import { sendEmail } from '../../../lib/email';
@@ -20,6 +21,8 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
   if (!session) return new Response('Nicht angemeldet', { status: 401 });
   if (!isAdmin(session)) return new Response('Forbidden', { status: 403 });
   const brand = process.env.BRAND || 'mentolder';
+  // Änderungsprotokoll (K94): jede erfolgreiche Angebotsaktion.
+  const log = (e: Omit<ProtokollEintrag, 'bereich'>) => protokolliere(brand, session.email, { bereich: 'angebot', ...e });
 
   // Versand kommt als JSON aus der Prüfseite, alles andere als Formular.
   if ((request.headers.get('content-type') ?? '').includes('application/json')) {
@@ -29,7 +32,10 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
       const heuteG = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
       const gb = pruefeGueltigBis(body.gueltigBis, heuteG);
       if (!gb.wert) return json(422, { error: gb.fehler });
-      return (await setzeGueltigBis(brand, body.id, gb.wert)) ? json(200, { ok: true }) : json(409, { error: 'Nur bei Entwürfen änderbar.' });
+      const vorherA = await holeAngebot(brand, body.id);
+      if (!(await setzeGueltigBis(brand, body.id, gb.wert))) return json(409, { error: 'Nur bei Entwürfen änderbar.' });
+      await log({ aktion: '„Gültig bis“ geändert', klientId: vorherA?.klientId, objekt: vorherA?.number, vorher: { gueltigBis: vorherA?.gueltigBis }, nachher: { gueltigBis: gb.wert } });
+      return json(200, { ok: true });
     }
     if (body.aktion !== 'versenden' || !body.id) return json(400, { error: 'Unbekannte Aktion' });
     const a = await holeAngebot(brand, body.id);
@@ -45,6 +51,8 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
       dokument: (fertig) => erzeugeAngebotsPdf(brand, fertig, fertig.positionen, fertig.empfaenger!),
     });
     if (!r.ok) return json(422, { error: r.fehler });
+    await log({ aktion: `Angebot verschickt (${versand.weg === 'post' ? 'Post/persönlich' : 'E-Mail'})`, klientId: a.klientId, objekt: r.angebot.number,
+      nachher: { betrag: r.angebot.brutto, gueltigBis: r.angebot.gueltigBis } });
     const pdfUrl = `/api/admin/angebote/${a.id}/pdf`;
     if (versand.weg === 'post') return json(200, { ok: true, number: r.angebot.number, versand: 'post', pdfUrl });
     const mail = await angebotsMail(brand, r.angebot, r.angebot.empfaenger!);
@@ -69,6 +77,7 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     if (!klient || !uuid(text('auftragId'))) return new Response('Nicht gefunden', { status: 404 });
     const r = await erstelleAngebotsentwurf(brand, klient, text('auftragId'));
     if (!r.ok) return redirect(`/admin/klienten/${klient.id}?auftragFehler=${encodeURIComponent(r.fehler)}#auftraege`, 303);
+    await log({ aktion: 'Angebotsentwurf erstellt', klientId: klient.id, objekt: (await holeAngebot(brand, r.id))?.auftragTitel ?? null });
     return redirect(`/admin/angebote/${r.id}`, 303);
   }
 
@@ -78,11 +87,14 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
 
   if (aktion === 'verwerfen') {
     const ok = await verwirfAngebot(brand, a.id);
+    if (ok) await log({ aktion: 'Angebotsentwurf verworfen', klientId: a.klientId, objekt: a.auftragTitel });
     return redirect(ok ? `/admin/klienten/${a.klientId}?gespeichert=1#auftraege` : `/admin/angebote/${a.id}?fehler=${encodeURIComponent('Nur Entwürfe lassen sich verwerfen.')}`, 303);
   }
   // Nachtrag 24.10.2026 (K86): als Vorlage markieren / Markierung entfernen.
   if (aktion === 'vorlage_markieren' || aktion === 'vorlage_entfernen') {
     const r = await markiereVorlage(brand, a.id, aktion === 'vorlage_markieren' ? text('vorlageName') : null);
+    if (r.ok) await log({ aktion: aktion === 'vorlage_markieren' ? 'Als Vorlage markiert' : 'Vorlagen-Markierung entfernt', klientId: a.klientId, objekt: a.number,
+      vorher: { vorlageName: a.vorlageName }, nachher: { vorlageName: aktion === 'vorlage_markieren' ? text('vorlageName').trim() : null } });
     return redirect(`/admin/angebote/${a.id}?${r.ok ? 'gespeichert=1' : `fehler=${encodeURIComponent(r.fehler)}`}#vorlage`, 303);
   }
   // K87: neues Angebot aus diesem Angebot (für denselben oder einen anderen Klienten).
@@ -91,11 +103,20 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     if (!ziel) return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent('Bitte einen Klienten wählen.')}#vorlage`, 303);
     const { titel, fehler } = pruefeAuftragTitel(text('titel'));
     if (!titel) return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent(fehler!)}#vorlage`, 303);
-    const r = await angebotAusVorlage(brand, a.id, ziel, titel);
+    let r: Awaited<ReturnType<typeof angebotAusVorlage>>;
+    try {
+      r = await angebotAusVorlage(brand, a.id, ziel, titel);
+    } catch (err) {
+      // Prüfung A2: verständliche Meldung statt Fehlerseite; der halbe Auftrag ist schon entfernt.
+      locals.requestLogger.error({ err }, '[angebote] aus Vorlage fehlgeschlagen');
+      return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent('Das neue Angebot konnte nicht angelegt werden. Bitte noch einmal versuchen.')}#vorlage`, 303);
+    }
+    if (r.ok) await log({ aktion: 'Neues Angebot aus Vorlage', klientId: ziel.id, objekt: titel, beschreibung: `Grundlage: ${a.number}${a.klientId !== ziel.id ? ' (anderer Klient)' : ''}` });
     return redirect(r.ok ? `/admin/angebote/${r.id}?neu=1` : `/admin/angebote/${a.id}?fehler=${encodeURIComponent(r.fehler)}#vorlage`, 303);
   }
   if (aktion === 'neue_fassung') {
     const r = await neueFassung(brand, a.id);
+    if (r.ok) await log({ aktion: 'Neue Fassung angelegt', klientId: a.klientId, objekt: a.number, beschreibung: `${a.number} steht jetzt auf „ersetzt“` });
     return redirect(r.ok ? `/admin/angebote/${r.id}` : `/admin/angebote/${a.id}?fehler=${encodeURIComponent(r.fehler)}`, 303);
   }
   // T17 (K52–K55): Antwort des Kunden von Hand vermerken.
@@ -107,6 +128,8 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
       ? await vermerkeAnnahme(brand, a.id, d.wert)
       : await vermerkeAblehnung(brand, a.id, d.wert, text('grund'));
     if (!r.ok) return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent(r.fehler)}`, 303);
+    await log({ aktion: aktion === 'angenommen' ? 'Annahme vermerkt' : 'Ablehnung vermerkt', klientId: a.klientId, objekt: a.number,
+      nachher: { am: d.wert, grund: aktion === 'abgelehnt' ? text('grund').trim() || null : null } });
     return redirect(`/admin/angebote/${a.id}?gespeichert=1`, 303);
   }
   return new Response('Unbekannte Aktion', { status: 400 });

@@ -76,12 +76,13 @@ describe('Admin-Sidebar — Gliederung', () => {
     expect(labels).not.toContain('Infrastruktur');
   });
 
-  it('enthält genau die fünfzehn freigegebenen Einträge', () => {
+  it('enthält genau die sechzehn freigegebenen Einträge', () => {
     const hrefs = allItems(buildNavSections(OPTS)).map((i) => i.href);
 
-    // Zwölf seit 19.10.2026, dazu „Leistungen“ und „Offene Posten“ (Rechnungswesen Stufe 3, 20.10.2026)
-    // und „Angebote“ (Nachtrag Stufe 4, K85, 24.10.2026).
-    expect(hrefs).toHaveLength(15);
+    // Zwölf seit 19.10.2026, dazu „Leistungen“ und „Offene Posten“ (Rechnungswesen Stufe 3, 20.10.2026),
+    // „Angebote“ (K85) und „Änderungsprotokoll“ (K97, beide 24.10.2026).
+    expect(hrefs).toHaveLength(16);
+    expect(hrefs).toContain('/admin/protokoll');
     expect(hrefs).toContain('/admin/leistungen');
     expect(hrefs).toContain('/admin/offene-posten');
     expect(hrefs).toContain('/admin/angebote');

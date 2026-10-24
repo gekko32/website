@@ -4,6 +4,8 @@ import AdminLayout from '../../../layouts/AdminLayout.astro';
 import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
 import KlientFormular from '../../../components/admin/KlientFormular.svelte';
 import ZustandLegende from '../../../components/admin/ZustandLegende.astro';
+import ProtokollTabelle from '../../../components/admin/ProtokollTabelle.astro';
+import { leseProtokoll } from '../../../lib/akte-protokoll';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getKlient, akteVerlauf, rechnungsempfaenger } from '../../../lib/klientenakte';
 import { listeLeistungen, listeKategorien, preisAnzeige } from '../../../lib/billing-leistungen';
@@ -65,6 +67,8 @@ const auftragFehler = q.get('auftragFehler');
 // Nachtrag 24.10.2026 (K84): aktive zuerst, dann die abgeschlossenen.
 const angebote = sortiereAngebote(await angeboteDesKlienten(brand, klient.id).catch((): Angebot[] => []));
 const ersterAbgeschlossen = angebote.findIndex((x) => !istAktiv(x));
+// Änderungsprotokoll (K96).
+const protokoll = await leseProtokoll(brand, { klientId: klient.id, limit: 30 }).catch(() => ({ zeilen: [], mehr: false }));
 const angeboteVon = (auftragId: string) => angebote.filter((x) => x.auftragId === auftragId);
 const positionenVon = (auftragId: string) => posten.filter((p) => p.auftragId === auftragId);
 const zahlFeld = (n: number | null) => (n === null ? '' : String(n).replace('.', ','));
@@ -619,6 +623,15 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
               {r.versendet_am && <span class="block text-xs">verschickt {r.versandweg === 'post' ? 'per Post' : 'per E-Mail'} am {datum(r.versendet_am)}</span>}</td>
             <td class="py-1 text-muted">{r.empfaenger}</td>
           </tr>))}</tbody></table>}
+      </details>
+    </section>
+
+    {/* Änderungsprotokoll (K96): die letzten Einträge zu diesem Klienten, zugeklappt. */}
+    <section id="protokoll" class="mb-8">
+      <details class="liste">
+      <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Änderungsprotokoll (letzte {protokoll.zeilen.length}{protokoll.mehr ? '+' : ''})</summary>
+      <p class="text-xs text-muted mb-2">Wer hat wann was an dieser Akte geändert. <a class="underline" href={`/admin/protokoll?klient=${klient.id}`}>Alle Einträge zu {klient.name} ›</a></p>
+      <ProtokollTabelle zeilen={protokoll.zeilen} />
       </details>
     </section>
 

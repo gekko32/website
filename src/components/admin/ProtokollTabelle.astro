@@ -1,0 +1,28 @@
+---
+// Änderungsprotokoll (K96, K97): Tabelle für Akte und zentrale Auswertung.
+import { BEREICH_TEXT, aenderungText, type ProtokollZeile } from '../../lib/akte-protokoll';
+
+interface Props { zeilen: ProtokollZeile[]; mitKlient?: boolean }
+const { zeilen, mitKlient = false } = Astro.props;
+const zeit = (iso: string) => new Date(iso).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Berlin' });
+---
+
+{zeilen.length === 0 ? <p class="text-sm text-muted">Noch keine Einträge.</p> : (
+  <table class="w-full text-xs">
+    <thead><tr class="text-left text-muted">
+      <th class="py-1 pr-3 font-normal">Wann</th><th class="py-1 pr-3 font-normal">Wer</th>
+      {mitKlient && <th class="py-1 pr-3 font-normal">Klient</th>}
+      <th class="py-1 pr-3 font-normal">Bereich</th><th class="py-1 pr-3 font-normal">Was</th><th class="py-1 font-normal">Änderung</th>
+    </tr></thead>
+    <tbody>{zeilen.map((z) => (
+      <tr class="border-t border-dark-lighter align-top">
+        <td class="py-1 pr-3 whitespace-nowrap">{zeit(z.am)}</td>
+        <td class="py-1 pr-3">{z.wer ?? '–'}</td>
+        {mitKlient && <td class="py-1 pr-3">{z.klientId ? <a class="hover:underline" href={`/admin/klienten/${z.klientId}#protokoll`}>{z.klientName ?? '–'}</a> : '–'}</td>}
+        <td class="py-1 pr-3 text-muted">{BEREICH_TEXT[z.bereich] ?? z.bereich}</td>
+        <td class="py-1 pr-3 text-light">{z.aktion}{z.objekt && <span class="text-muted"> · {z.objekt}</span>}{z.beschreibung && <span class="block text-muted">{z.beschreibung}</span>}</td>
+        <td class="py-1 text-muted break-words" style="max-width:28rem;">{aenderungText(z)}</td>
+      </tr>))}
+    </tbody>
+  </table>
+)}

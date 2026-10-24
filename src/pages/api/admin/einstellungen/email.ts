@@ -3,6 +3,7 @@ import { getSession, isAdmin } from '../../../../lib/auth';
 import { setSiteSetting } from '../../../../lib/website-db';
 import { sendEmailMitGrund } from '../../../../lib/email';
 import { speicherePostausgang, loeschePostausgang, vermerkeAbsender } from '../../../../lib/mail-postausgang';
+import { protokolliere } from '../../../../lib/akte-protokoll';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const json = (daten: unknown, status = 200) =>
@@ -29,6 +30,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         // E3: leer = Benutzername des Postfachs.
         await setSiteSetting(brand, 'email_from_address', adresse);
         await vermerkeAbsender(brand, session.email, name, adresse);
+        await protokolliere(brand, session.email, { bereich: 'einstellungen', aktion: 'E-Mail-Absender gespeichert', nachher: { name, adresse: adresse || '(Benutzername des Postfachs)' } });
         return json({ ok: true });
       }
       case 'postausgang': {
@@ -36,6 +38,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
           anbieter: text('anbieter'), host: text('host'), port: text('port'), sicherheit: text('sicherheit'),
           benutzer: text('benutzer'), passwort: typeof body.passwort === 'string' ? body.passwort : '',
         }, session.email);
+        // K98: ohne Passwort.
+        if (r.ok) await protokolliere(brand, session.email, { bereich: 'einstellungen', aktion: 'E-Mail-Postausgang gespeichert', nachher: { server: text('host'), benutzer: text('benutzer') } });
         return r.ok ? json({ ok: true }) : json({ error: r.grund, detail: r.detail }, r.status);
       }
       case 'testmail': {
@@ -49,6 +53,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
       case 'zuruecksetzen':
         await loeschePostausgang(brand, session.email);
+        await protokolliere(brand, session.email, { bereich: 'einstellungen', aktion: 'E-Mail-Postausgang auf Server-Einstellung zurückgesetzt' });
         return json({ ok: true });
       default:
         return json({ error: 'Unbekannte Aktion.' }, 400);

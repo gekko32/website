@@ -5,6 +5,7 @@ import { getSession, isAdmin } from '../../../lib/auth';
 import {
   holeLeistung, listeKategorien, pruefeLeistung, setzeLeistungAktiv, speichereLeistung,
 } from '../../../lib/billing-leistungen';
+import { protokolliere } from '../../../lib/akte-protokoll';
 
 export const POST: APIRoute = async ({ request, redirect }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -20,6 +21,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   if (aktion === 'stilllegen' || aktion === 'aktivieren') {
     if (!key || !(await holeLeistung(brand, key))) return new Response('Leistung nicht gefunden', { status: 404 });
     await setzeLeistungAktiv(brand, key, aktion === 'aktivieren');
+    await protokolliere(brand, session.email, { bereich: 'einstellungen', aktion: aktion === 'aktivieren' ? 'Leistung aktiviert' : 'Leistung stillgelegt', objekt: (await holeLeistung(brand, key))?.name ?? key });
     return redirect(`/admin/leistungen?gespeichert=${encodeURIComponent(key)}`, 303);
   }
 
@@ -39,6 +41,10 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     return redirect(`/admin/leistungen?${params.toString()}#formular`, 303);
   }
 
+  const vorherL = key ? await holeLeistung(brand, key) : null;
   const gespeichert = await speichereLeistung(brand, key, werte);
+  await protokolliere(brand, session.email, { bereich: 'einstellungen', aktion: key ? 'Leistung geändert' : 'Leistung angelegt', objekt: werte.name,
+    vorher: vorherL ? { name: vorherL.name, preis: vorherL.preis, einheit: vorherL.einheit } : null,
+    nachher: { name: werte.name, preis: werte.preis, einheit: werte.einheit } });
   return redirect(`/admin/leistungen?gespeichert=${encodeURIComponent(gespeichert)}`, 303);
 };

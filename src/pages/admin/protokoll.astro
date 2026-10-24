@@ -1,0 +1,66 @@
+---
+// Änderungsprotokoll (K97): zentrale Auswertung über alles – wer hat wann was geändert.
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../components/admin/ui/AdminPageHeader.svelte';
+import ProtokollTabelle from '../../components/admin/ProtokollTabelle.astro';
+import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
+import { leseProtokoll, BEREICH_TEXT, type ProtokollBereich } from '../../lib/akte-protokoll';
+import { listKlienten } from '../../lib/klientenakte';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+Astro.response.headers.set('Cache-Control', 'no-store');
+
+const brand = process.env.BRAND || 'mentolder';
+const q = Astro.url.searchParams;
+const bereich = (Object.keys(BEREICH_TEXT) as ProtokollBereich[]).find((b) => b === q.get('bereich'));
+const klientId = q.get('klient') ?? '';
+const wer = (q.get('wer') ?? '').slice(0, 100);
+const suche = (q.get('suche') ?? '').slice(0, 100);
+const von = q.get('von') ?? '';
+const bis = q.get('bis') ?? '';
+const seite = Math.max(Number(q.get('seite') ?? '1') || 1, 1);
+const PRO_SEITE = 100;
+const [{ zeilen, mehr }, klienten] = await Promise.all([
+  leseProtokoll(brand, { klientId: klientId || undefined, bereich, wer: wer || undefined, suche, von: von || undefined, bis: bis || undefined, limit: PRO_SEITE, offset: (seite - 1) * PRO_SEITE }),
+  listKlienten().catch(() => []),
+]);
+const link = (s: number) => { const p = new URLSearchParams(q); p.set('seite', String(s)); return `?${p.toString()}`; };
+const eingabe = 'block mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light';
+---
+
+<AdminLayout title="Änderungsprotokoll">
+  <div style="padding:2rem;max-width:1200px;">
+    <AdminPageHeader title="Änderungsprotokoll" description="Wer hat wann was geändert – Stammdaten, Posten, Aufträge, Angebote, Rechnungen, Einstellungen. Einträge lassen sich nicht ändern oder löschen." />
+
+    <form method="GET" class="flex flex-wrap items-end gap-3 mb-4">
+      <label class="text-xs text-muted">Klient
+        <select name="klient" class={eingabe}>
+          <option value="">alle</option>
+          {klienten.map((k) => <option value={k.id} selected={k.id === klientId}>{k.name}</option>)}
+        </select>
+      </label>
+      <label class="text-xs text-muted">Bereich
+        <select name="bereich" class={eingabe}>
+          <option value="">alle</option>
+          {(Object.entries(BEREICH_TEXT) as [ProtokollBereich, string][]).map(([k, t]) => <option value={k} selected={k === bereich}>{t}</option>)}
+        </select>
+      </label>
+      <label class="text-xs text-muted">Wer<input name="wer" value={wer} placeholder="E-Mail" class={eingabe} /></label>
+      <label class="text-xs text-muted">von<input type="date" name="von" value={von} class={eingabe} style="color-scheme:dark;" /></label>
+      <label class="text-xs text-muted">bis<input type="date" name="bis" value={bis} class={eingabe} style="color-scheme:dark;" /></label>
+      <label class="text-xs text-muted flex-1 min-w-[10rem]">Suche<input name="suche" value={suche} placeholder="z. B. Preis, RE-2026, Strategietag" class={`${eingabe} w-full`} /></label>
+      <button type="submit" class="px-3 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Anzeigen</button>
+      {[...q.keys()].length > 0 && <a href="/admin/protokoll" class="px-3 py-1.5 rounded-lg border border-dark-lighter text-sm">Zurücksetzen</a>}
+    </form>
+
+    <ProtokollTabelle zeilen={zeilen} mitKlient />
+
+    <div class="flex justify-between mt-4 text-sm">
+      {seite > 1 ? <a class="underline" href={link(seite - 1)}>← neuere</a> : <span></span>}
+      {mehr && <a class="underline" href={link(seite + 1)}>ältere →</a>}
+    </div>
+    <p class="text-xs text-muted mt-4">Das Protokoll für Stammdaten, Posten, Aufträge, Angebote und Einstellungen beginnt am 24.10.2026; Rechnungsereignisse (festgeschrieben, verschickt, Zahlung, Mahnung, Storno) reichen weiter zurück.</p>
+  </div>
+</AdminLayout>

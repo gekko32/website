@@ -3,6 +3,7 @@ import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
 import { REGEL_FELDER, pruefeRegeln, speichereRegeln } from '../../../../lib/billing-regeln';
 import { pruefeEinheiten, speichereEinheiten } from '../../../../lib/billing-einheiten';
+import { protokolliere } from '../../../../lib/akte-protokoll';
 
 export const POST: APIRoute = async ({ request, redirect }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -29,5 +30,6 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   const brand = process.env.BRAND || 'mentolder';
   await speichereRegeln(brand, werte);
   await speichereEinheiten(brand, einheiten.werte);
+  await protokolliere(brand, session.email, { bereich: 'einstellungen', aktion: 'Regeln gespeichert', nachher: { ...werte, einheiten: einheiten.werte.join(', ') } as Record<string, unknown> });
   return redirect('/admin/einstellungen/regeln?saved=1', 303);
 };
