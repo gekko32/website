@@ -5,7 +5,7 @@ import { getSession, isAdmin } from '../../../lib/auth';
 import {
   holeLeistung, listeKategorien, pruefeLeistung, setzeLeistungAktiv, speichereLeistung,
 } from '../../../lib/billing-leistungen';
-import { protokolliere } from '../../../lib/akte-protokoll';
+import { protokolliere, unterschied } from '../../../lib/akte-protokoll';
 
 export const POST: APIRoute = async ({ request, redirect }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -43,8 +43,10 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 
   const vorherL = key ? await holeLeistung(brand, key) : null;
   const gespeichert = await speichereLeistung(brand, key, werte);
-  await protokolliere(brand, session.email, { bereich: 'einstellungen', aktion: key ? 'Leistung geändert' : 'Leistung angelegt', objekt: werte.name,
-    vorher: vorherL ? { name: vorherL.name, preis: vorherL.preis, einheit: vorherL.einheit } : null,
-    nachher: { name: werte.name, preis: werte.preis, einheit: werte.einheit } });
+  // Prüfung P4: alle Felder, nur die geänderten.
+  const felder = Object.keys(werte);
+  const d = vorherL ? unterschied(vorherL as unknown as Record<string, unknown>, werte as unknown as Record<string, unknown>, felder) : null;
+  if (!vorherL || d) await protokolliere(brand, session.email, { bereich: 'einstellungen', aktion: key ? 'Leistung geändert' : 'Leistung angelegt', objekt: werte.name,
+    vorher: d?.vorher ?? null, nachher: d?.nachher ?? (werte as unknown as Record<string, unknown>) });
   return redirect(`/admin/leistungen?gespeichert=${encodeURIComponent(gespeichert)}`, 303);
 };

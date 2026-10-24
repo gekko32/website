@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
-import { setSiteSetting } from '../../../../lib/website-db';
-import { protokolliere } from '../../../../lib/akte-protokoll';
+import { setSiteSetting, getSiteSetting } from '../../../../lib/website-db';
+import { protokolliere, unterschied } from '../../../../lib/akte-protokoll';
 import { setTaxMode } from '../../../../lib/tax-monitor';
 import { normalisiereUstId, pruefeSteuerangaben } from '../../../../lib/billing-absender';
 import { pruefeZahlungsziel } from '../../../../lib/billing-regeln';
@@ -30,6 +30,9 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     return redirect(`/admin/einstellungen/rechnungen?${params.toString()}`, 303);
   }
 
+  // Änderungsprotokoll (Prüfung P4): Stand vorher.
+  const protokollKeys = ['invoice_vat_id', 'invoice_payment_days', ...STRING_KEYS, 'invoice_tax_rate', 'tax_mode'];
+  const vorher = Object.fromEntries(await Promise.all(protokollKeys.map(async (k) => [k, (await getSiteSetting(brand, k)) ?? ''])));
   const saves: Promise<void>[] = [];
   saves.push(setSiteSetting(brand, 'invoice_vat_id', ustRoh === '' ? '' : normalisiereUstId(ustRoh)));
   saves.push(setSiteSetting(brand, 'invoice_payment_days', String(zahlungsziel.wert)));
@@ -50,7 +53,8 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   }
 
   await Promise.all(saves);
-  await protokolliere(brand, session.email, { bereich: 'einstellungen', aktion: 'Rechnungsangaben gespeichert',
-    nachher: Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)])) });
+  const nachher = Object.fromEntries(await Promise.all(protokollKeys.map(async (k) => [k, (await getSiteSetting(brand, k)) ?? ''])));
+  const d = unterschied(vorher, nachher, protokollKeys);
+  if (d) await protokolliere(brand, session.email, { bereich: 'einstellungen', aktion: 'Rechnungsangaben geändert', vorher: d.vorher, nachher: d.nachher });
   return redirect('/admin/einstellungen/rechnungen?saved=1', 303);
 };

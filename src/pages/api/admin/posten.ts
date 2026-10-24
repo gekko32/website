@@ -73,6 +73,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   // K94: Stand vorher für das Änderungsprotokoll.
   const postenVorher = vorher ? await postenStand(brand, pid) : null;
   const auftragVorher = /^[0-9a-f-]{36}$/i.test(text('auftragId')) ? await holeAuftrag(brand, text('auftragId')) : null;
+  let protokollZusatz: string | null = null;
   const protokolliereErfolg = async (ziel: string) => {
     const eintrag = AKTION_TEXT[aktion];
     if (!eintrag || !/[?&]gespeichert=1/.test(ziel)) return;
@@ -83,17 +84,20 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     let n: Record<string, unknown> | null = formular;
     if (postenVorher) {
       const danach = await postenStand(brand, pid);
-      const d = danach ? unterschied(postenVorher, danach, POSTEN_FELDER) : null;
-      v = d ? d.vorher : postenVorher; n = d ? d.nachher : null;
+      // Prüfung P3: ganzer Stand vorher nur beim Löschen; ohne Unterschied nichts vorher/nachher.
+      if (!danach) { v = postenVorher; n = null; } else {
+        const d = unterschied(postenVorher, danach, POSTEN_FELDER);
+        v = d?.vorher ?? null; n = d?.nachher ?? null;
+      }
     } else if (aktion === 'auftrag_umbenennen' && auftragVorher) {
-      v = { titel: auftragVorher.titel }; n = { titel: text('titel') };
+      v = { titel: auftragVorher.titel }; n = { titel: pruefeAuftragTitel(text('titel')).titel ?? text('titel').trim() };
     } else if (aktion === 'auftrag') {
       n = { ...formular, mitAngebot: form.get('mitAngebot') === 'on' ? 'ja' : 'nein' };
     }
     await protokolliere(brand, session.email, {
       bereich: eintrag[0], aktion: eintrag[1], klientId,
       objekt: (postenVorher?.text as string | undefined) ?? auftragVorher?.titel ?? (text('titel') || text('text') || null),
-      vorher: v, nachher: n,
+      beschreibung: protokollZusatz, vorher: v, nachher: n,
     });
   };
   const weiter = async (ziel: string, _status = 303): Promise<Response> => {
@@ -165,6 +169,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!kopf?.klient_id) return new Response('Entwurf nicht gefunden', { status: 404 });
     const n = await fuegeZumEntwurf(brand, invoiceId, kopf.klient_id, form.getAll('postenId').map(String));
     entwurfNachher = invoiceId;
+    protokollZusatz = `${n} Posten`;
     return weiter(`/admin/klienten/${kopf.klient_id}?${n > 0 ? 'gespeichert=1' : `fehler=${encodeURIComponent('Bitte mindestens einen offenen Posten mit Preis ankreuzen.')}`}`, 303);
   }
 

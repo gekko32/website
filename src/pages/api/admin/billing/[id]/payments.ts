@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { logBillingEvent } from '../../../../../lib/billing-audit';
 import { getSession, isAdmin } from '../../../../../lib/auth';
 import { recordPayment, listPayments } from '../../../../../lib/invoice-payments';
 
@@ -45,6 +46,9 @@ export const POST: APIRoute = async ({ request, params }) => {
       notes:      body.notes,
       recordedBy: session.email ?? session.sub ?? 'admin',
     });
+    // Änderungsprotokoll (Prüfung P1): Zahlung im Rechnungsprotokoll, erscheint in Akte und Auswertung.
+    await logBillingEvent({ invoiceId: id, action: 'paid', actor: { userId: session.sub, email: session.email },
+      reason: body.notes, metadata: { betrag: body.amount, am: body.paidAt, art: body.method, referenz: body.reference } }).catch(() => {});
     return new Response(JSON.stringify({ payment }), {
       status: 201, headers: { 'Content-Type': 'application/json' },
     });

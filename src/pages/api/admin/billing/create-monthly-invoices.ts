@@ -4,6 +4,7 @@
 import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
 import { monatslauf, vormonat } from '../../../../lib/billing-abrechnungslauf';
+import { protokolliere } from '../../../../lib/akte-protokoll';
 
 export const POST: APIRoute = async ({ request , locals }) => {
   const cronSecret  = request.headers.get('X-Cron-Secret');
@@ -28,6 +29,11 @@ export const POST: APIRoute = async ({ request , locals }) => {
   const brand = process.env.BRAND || 'mentolder';
   try {
     const r = await monatslauf(brand, year, month, { nurPlanen: dryRun });
+    // Änderungsprotokoll (Prüfung P2): ein Eintrag je echtem Lauf.
+    if (!dryRun) await protokolliere(brand, session?.email ?? (isCron ? 'Zeitplan (Monatserster)' : null), {
+      bereich: 'rechnung', aktion: 'Monatsabrechnung erstellt', objekt: String(r.monat),
+      nachher: { angelegt: Array.isArray(r.angelegt) ? r.angelegt.length : r.angelegt, uebersprungen: Array.isArray(r.uebersprungen) ? r.uebersprungen.length : r.uebersprungen },
+    });
     if (r.fehler.length > 0) locals.requestLogger.error({ fehler: r.fehler }, '[billing/monatslauf] einzelne Entwürfe gescheitert');
     return Response.json({
       dryRun, period: r.monat, created: r.angelegt, skipped: r.uebersprungen, errors: r.fehler,

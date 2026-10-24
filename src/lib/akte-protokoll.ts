@@ -28,7 +28,7 @@ function bereinigt(o: Record<string, unknown> | null | undefined): Record<string
   if (!o) return null;
   const r: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(o)) {
-    if (v === undefined || v === '' || GEHEIM.test(k)) continue;
+    if (v === undefined || v === null || v === '' || GEHEIM.test(k)) continue;
     r[k] = typeof v === 'string' ? v.slice(0, 500) : v;
   }
   return Object.keys(r).length ? r : null;
@@ -58,7 +58,10 @@ export function initProtokoll(): Promise<void> {
       END $$ LANGUAGE plpgsql;
       DROP TRIGGER IF EXISTS akte_protokoll_sperre ON akte_protokoll;
       CREATE TRIGGER akte_protokoll_sperre BEFORE UPDATE OR DELETE ON akte_protokoll
-        FOR EACH ROW EXECUTE FUNCTION akte_protokoll_unveraenderlich();`);
+        FOR EACH ROW EXECUTE FUNCTION akte_protokoll_unveraenderlich();
+      DROP TRIGGER IF EXISTS akte_protokoll_kein_truncate ON akte_protokoll;
+      CREATE TRIGGER akte_protokoll_kein_truncate BEFORE TRUNCATE ON akte_protokoll
+        FOR EACH STATEMENT EXECUTE FUNCTION akte_protokoll_unveraenderlich();`);
   });
 }
 
@@ -103,16 +106,21 @@ export async function leseProtokoll(brand: string, f: ProtokollFilter = {}): Pro
   await initProtokoll();
   const limit = Math.min(Math.max(f.limit ?? 100, 1), 500);
   const offset = Math.max(f.offset ?? 0, 0);
-  const datum = (s: string | undefined) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null);
+  // Prüfung P6: nur echte Kalendertage (2026-02-31 → ignoriert statt Fehler).
+  const datum = (s: string | undefined) => {
+    if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+    const d = new Date(`${s}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(s) ? s : null;
+  };
   const suche = (f.suche ?? '').trim().slice(0, 100);
   const muster = `%${suche.replace(/[%_\\]/g, (z) => '\\' + z)}%`;
   const { rows } = await pool.query(
     `WITH alle AS (
-       SELECT p.am, p.wer, p.klient_id, p.bereich, p.aktion, p.objekt, p.beschreibung, p.vorher, p.nachher
+       SELECT p.am, p.wer, p.klient_id, p.bereich, p.aktion, p.objekt, p.beschreibung, p.vorher, p.nachher, 1 AS quelle, p.id
          FROM akte_protokoll p WHERE p.brand = $1
        UNION ALL
        SELECT l.created_at, COALESCE(l.actor_email, l.metadata->>'sentBy', l.metadata->>'recordedBy'), i.klient_id, 'rechnung',
-              l.action, i.number, l.reason, NULL::jsonb, l.metadata
+              l.action, i.number, l.reason, NULL::jsonb, l.metadata, 2 AS quelle, l.id
          FROM billing_audit_log l JOIN billing_invoices i ON i.id = l.invoice_id WHERE i.brand = $1
      )
      SELECT a.am::text AS am, a.wer, a.klient_id::text AS klient_id, c.name AS klient_name, a.bereich, a.aktion, a.objekt,
@@ -121,11 +129,11 @@ export async function leseProtokoll(brand: string, f: ProtokollFilter = {}): Pro
       WHERE ($2::uuid IS NULL OR a.klient_id = $2::uuid)
         AND ($3::text IS NULL OR a.bereich = $3)
         AND ($4::text IS NULL OR a.wer ILIKE $4)
-        AND ($5::date IS NULL OR a.am >= $5::date)
-        AND ($6::date IS NULL OR a.am < ($6::date + 1))
+        AND ($5::date IS NULL OR a.am >= ($5::date::timestamp AT TIME ZONE 'Europe/Berlin'))
+        AND ($6::date IS NULL OR a.am < (($6::date + 1)::timestamp AT TIME ZONE 'Europe/Berlin'))
         AND ($7 = '' OR a.aktion ILIKE $8 OR a.objekt ILIKE $8 OR a.beschreibung ILIKE $8 OR c.name ILIKE $8
              OR a.vorher::text ILIKE $8 OR a.nachher::text ILIKE $8)
-      ORDER BY a.am DESC
+      ORDER BY a.am DESC, a.quelle, a.id DESC
       LIMIT $9 OFFSET $10`,
     [brand, f.klientId && /^[0-9a-f-]{36}$/i.test(f.klientId) ? f.klientId : null, f.bereich ?? null,
      f.wer ? `%${f.wer.replace(/[%_\\]/g, (z) => '\\' + z)}%` : null, datum(f.von), datum(f.bis), suche, muster, limit + 1, offset]);
@@ -134,7 +142,8 @@ export async function leseProtokoll(brand: string, f: ProtokollFilter = {}): Pro
     klientName: (r.klient_name as string | null) ?? null, bereich: r.bereich as ProtokollBereich,
     aktion: r.bereich === 'rechnung' ? (RECHNUNG_AKTION[r.aktion as string] ?? (r.aktion as string)) : (r.aktion as string),
     objekt: (r.objekt as string | null) ?? null, beschreibung: (r.beschreibung as string | null) ?? null,
-    vorher: (r.vorher as Record<string, unknown> | null) ?? null, nachher: (r.nachher as Record<string, unknown> | null) ?? null,
+    // Prüfung P7: auch Einträge aus dem Rechnungsprotokoll ohne Geheimnisse anzeigen.
+    vorher: bereinigt(r.vorher as Record<string, unknown> | null), nachher: bereinigt(r.nachher as Record<string, unknown> | null),
   }));
   return { zeilen, mehr: rows.length > limit };
 }

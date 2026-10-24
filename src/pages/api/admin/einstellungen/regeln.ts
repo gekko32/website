@@ -1,9 +1,9 @@
 // Rechnungswesen Stufe 3, T1: Regeln speichern (K17, K36, K39). Nur Admins (K43).
 import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
-import { REGEL_FELDER, pruefeRegeln, speichereRegeln } from '../../../../lib/billing-regeln';
-import { pruefeEinheiten, speichereEinheiten } from '../../../../lib/billing-einheiten';
-import { protokolliere } from '../../../../lib/akte-protokoll';
+import { REGEL_FELDER, pruefeRegeln, speichereRegeln, ladeRegeln } from '../../../../lib/billing-regeln';
+import { pruefeEinheiten, speichereEinheiten, ladeEinheiten } from '../../../../lib/billing-einheiten';
+import { protokolliere, unterschied } from '../../../../lib/akte-protokoll';
 
 export const POST: APIRoute = async ({ request, redirect }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -28,8 +28,11 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   }
 
   const brand = process.env.BRAND || 'mentolder';
+  const vorherR = { ...(await ladeRegeln(brand)), einheiten: (await ladeEinheiten(brand)).join(', ') } as Record<string, unknown>;
   await speichereRegeln(brand, werte);
   await speichereEinheiten(brand, einheiten.werte);
-  await protokolliere(brand, session.email, { bereich: 'einstellungen', aktion: 'Regeln gespeichert', nachher: { ...werte, einheiten: einheiten.werte.join(', ') } as Record<string, unknown> });
+  const nachherR = { ...werte, einheiten: einheiten.werte.join(', ') } as Record<string, unknown>;
+  const d = unterschied(vorherR, nachherR, Object.keys(nachherR));
+  if (d) await protokolliere(brand, session.email, { bereich: 'einstellungen', aktion: 'Regeln geändert', vorher: d.vorher, nachher: d.nachher });
   return redirect('/admin/einstellungen/regeln?saved=1', 303);
 };
