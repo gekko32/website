@@ -24,13 +24,26 @@ export function dateiTeil(s: string | null | undefined): string {
     .replace(/^-+|-+$/g, '');
 }
 
-/** Person „Anna Müller“ → „Mueller-Anna“ (sortiert nach Nachnamen); Firma → „Firma-zHd-Vorname-Nachname“. */
+const TITEL = /^(dr|prof|dipl|mag|ing|med|phil|rer|nat)\.?$/i;
+const ZUSATZ = new Set(['von', 'van', 'de', 'der', 'den', 'zu', 'zur', 'vom', 'ten', 'ter', 'da', 'di', 'du', 'la', 'le', 'del']);
+
+/**
+ * Person „Anna Müller“ → „Mueller-Anna“ (sortiert nach Nachnamen); Firma → „Firma-zHd-Vorname-Nachname“.
+ * Prüfung N6: „Müller, Anna“ bleibt so; Titel ans Ende („Mueller-Anna-Dr“); Zusätze gehören zum Nachnamen
+ * („von-der-Heide-Anna“).
+ */
 export function namensTeil(e: { name?: string | null; company?: string | null }): string {
   const person = (e.name ?? '').trim();
   const firma = (e.company ?? '').trim();
   if (firma) return dateiTeil(person && person !== firma ? `${firma} zHd ${person}` : firma);
+  if (person.includes(',')) return dateiTeil(person);
   const w = person.split(/\s+/).filter(Boolean);
-  return dateiTeil(w.length > 1 ? [w[w.length - 1], ...w.slice(0, -1)].join(' ') : person);
+  const titel = w.filter((x) => TITEL.test(x));
+  const rest = w.filter((x) => !TITEL.test(x));
+  if (rest.length < 2) return dateiTeil([...rest, ...titel].join(' '));
+  let start = rest.length - 1;
+  while (start > 1 && ZUSATZ.has(rest[start - 1].toLowerCase())) start--;
+  return dateiTeil([...rest.slice(start), ...rest.slice(0, start), ...titel].join(' '));
 }
 
 const MONATE = ['Jan', 'Feb', 'Maer', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
@@ -103,8 +116,11 @@ export function inTransaktion(client: { query: (s: string, p?: unknown[]) => Pro
     }
   };
 }
+// Prüfung N2: reine Datumsfelder kommen als Text (::text); Date nur für Zeitpunkte (z. B. generated_at).
 const isoTag = (v: unknown): string =>
-  v instanceof Date ? v.toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' }) : String(v ?? '').slice(0, 10);
+  v instanceof Date
+    ? (Number.isNaN(v.getTime()) ? '' : v.toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' }))
+    : String(v ?? '').slice(0, 10);
 
 /**
  * Dateiname einer Rechnung/Gutschrift aus der Datenbank. `abfrage` erlaubt die Abfrage innerhalb der
@@ -116,7 +132,7 @@ export async function rechnungsDateiname(
 ): Promise<string | null> {
   try {
     const r = (await abfrage(
-      `SELECT i.number, i.status, i.kind, i.issue_date AS datum, i.empfaenger, c.name AS kunde_name, c.company AS kunde_firma,
+      `SELECT i.number, i.status, i.kind, i.issue_date::text AS datum, i.empfaenger, c.name AS kunde_name, c.company AS kunde_firma,
               COALESCE(i.service_period_start, (SELECT MIN(l.leistung_von) FROM billing_invoice_line_items l WHERE l.invoice_id = i.id))::text AS von,
               COALESCE(i.service_period_end, (SELECT MAX(COALESCE(l.leistung_bis, l.leistung_von)) FROM billing_invoice_line_items l WHERE l.invoice_id = i.id))::text AS bis,
               (SELECT k.customer_number FROM customers k WHERE k.id = i.klient_id) AS kundennummer,
@@ -124,12 +140,17 @@ export async function rechnungsDateiname(
          FROM billing_invoices i JOIN billing_customers c ON c.id = i.customer_id WHERE i.id = $1`, [invoiceId])).rows[0];
     if (!r) return null;
     // Auftragstitel nur, wenn alle Positionen aus einem Auftrag stammen (eigene Abfrage: Tabellen gibt es nicht überall).
+    // Prüfung N1: über die Rechnungszeilen – freie Zeilen und Posten ohne Auftrag zählen mit.
     let auftrag: string | null = null;
     try {
       const t = (await abfrage(
-        `SELECT MIN(a.titel) AS titel, COUNT(DISTINCT p.auftrag_id) AS n FROM abrechnungsposten p JOIN auftraege a ON a.id = p.auftrag_id WHERE p.invoice_id = $1`,
+        `SELECT MIN(a.titel) AS titel, COUNT(DISTINCT p.auftrag_id) AS n, COUNT(*) FILTER (WHERE a.id IS NULL) AS ohne
+           FROM billing_invoice_line_items l
+           LEFT JOIN abrechnungsposten p ON p.id = l.posten_id
+           LEFT JOIN auftraege a ON a.id = p.auftrag_id
+          WHERE l.invoice_id = $1`,
         [invoiceId])).rows[0];
-      if (t && Number(t.n) === 1 && typeof t.titel === 'string') auftrag = t.titel;
+      if (t && Number(t.n) === 1 && Number(t.ohne) === 0 && typeof t.titel === 'string') auftrag = t.titel;
     } catch { auftrag = null; }
     const e = leseEmpfaenger(r.empfaenger) ?? { name: r.kunde_name as string, company: (r.kunde_firma as string | null) ?? null };
     const gutschrift = r.kind === 'gutschrift';
@@ -149,16 +170,27 @@ export async function rechnungsDateiname(
   }
 }
 
-/** Dateiname eines Angebots; Entwürfe heißen „Entwurf“ statt der internen Kennung. */
-export async function angebotsDateiname(a: Angebot): Promise<string> {
-  return belegDateiname({
-    datum: a.datum,
-    art: 'Angebot',
-    nummer: a.status === 'entwurf' ? 'Entwurf' : a.number,
-    kundennummer: await kundennummerVon(a.klientId).catch(() => undefined),
-    name: a.empfaenger ? namensTeil(a.empfaenger) : '',
-    inhalt: a.auftragTitel,
-  });
+/**
+ * Dateiname eines Angebots; Entwürfe heißen „Entwurf“ statt der internen Kennung. `empfaenger`: bei Entwürfen
+ * der Empfänger der Vorschau (Prüfung N5). Fehler → Nummer (K122, Prüfung N4).
+ */
+export async function angebotsDateiname(
+  a: Angebot, empfaenger?: { name?: string | null; company?: string | null } | null,
+): Promise<string> {
+  const nummer = a.status === 'entwurf' ? 'Entwurf' : a.number;
+  try {
+    const e = a.empfaenger ?? empfaenger;
+    return belegDateiname({
+      datum: a.datum,
+      art: 'Angebot',
+      nummer,
+      kundennummer: await kundennummerVon(a.klientId).catch(() => undefined),
+      name: e ? namensTeil(e) : '',
+      inhalt: a.auftragTitel,
+    });
+  } catch {
+    return `${dateiTeil(nummer) || 'Angebot'}.pdf`;
+  }
 }
 
 /** Dateiname einer Zahlungserinnerung/Mahnung: Nummer der Rechnung, Inhalt „zu Rechnung vom …“. */
@@ -166,12 +198,17 @@ export function mahnungsDateiname(m: {
   stufe: number; datum: unknown; rechnungsnummer: string; rechnungsdatum: unknown;
   kundennummer?: string | null; empfaenger: { name?: string | null; company?: string | null };
 }): string {
-  return belegDateiname({
-    datum: isoTag(m.datum),
-    art: mahnungsArt(m.stufe),
-    nummer: m.rechnungsnummer,
-    kundennummer: m.kundennummer,
-    name: namensTeil(m.empfaenger),
-    inhalt: /^\d{4}-\d{2}-\d{2}/.test(isoTag(m.rechnungsdatum)) ? `zu Rechnung vom ${kompakt(isoTag(m.rechnungsdatum))}` : '',
-  });
+  try {
+    return belegDateiname({
+      datum: isoTag(m.datum),
+      art: mahnungsArt(m.stufe),
+      nummer: m.rechnungsnummer,
+      kundennummer: m.kundennummer,
+      name: namensTeil(m.empfaenger),
+      inhalt: /^\d{4}-\d{2}-\d{2}/.test(isoTag(m.rechnungsdatum)) ? `zu Rechnung vom ${kompakt(isoTag(m.rechnungsdatum))}` : '',
+    });
+  } catch {
+    // K122, Prüfung N4: Rückfall wie bisher.
+    return `Mahnung-${m.stufe}-${dateiTeil(m.rechnungsnummer)}.pdf`;
+  }
 }

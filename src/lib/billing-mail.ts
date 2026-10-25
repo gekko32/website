@@ -45,13 +45,13 @@ export async function rechnungsMailVorschlag(brand: string, invoiceId: string): 
     von,
     betreff: ersetze(texte.invoice_email_subject || 'Rechnung {{number}}', vars),
     text: ersetze(texte.invoice_email_body, vars),
-    anhaenge: [
-      (await rechnungsDateiname(invoiceId)) ?? `${r.number}.pdf`,
-      ...(r.leitweg_id ? [(await rechnungsDateiname(invoiceId, undefined, 'xml')) ?? `xrechnung-${r.number}.xml`] : []),
-    ],
+    anhaenge: anhangNamen((await rechnungsDateiname(invoiceId)) ?? `${r.number}.pdf`, Boolean(r.leitweg_id)),
     nummer: r.number as string,
   };
 }
+
+/** Prüfung N8: XRechnung heißt wie die PDF, nur mit .xml – ein Name, eine Abfrage. */
+const anhangNamen = (pdf: string, mitXml: boolean) => [pdf, ...(mitXml ? [pdf.replace(/\.pdf$/, '.xml')] : [])];
 
 export type MailErgebnis = { ok: true } | { ok: false; status: number; fehler: string };
 
@@ -71,11 +71,12 @@ export async function sendeRechnungsMail(
   const pdf = docs.find((d: { format: string }) => d.format === 'pdf')?.content as Buffer | undefined;
   if (!pdf) return { ok: false, status: 409, fehler: 'Zu dieser Rechnung ist kein PDF gespeichert.' };
   const xr = docs.find((d: { format: string }) => d.format === 'xrechnung')?.content as Buffer | undefined;
+  const [pdfName, xmlName] = anhangNamen((await rechnungsDateiname(invoiceId)) ?? `${r.number}.pdf`, true);
   const gesendet = await sendEmailMitGrund({
     to: an, subject: m.betreff.trim(), text: m.text,
     attachments: [
-      { filename: (await rechnungsDateiname(invoiceId)) ?? `${r.number}.pdf`, content: pdf },
-      ...(r.leitweg_id && xr ? [{ filename: (await rechnungsDateiname(invoiceId, undefined, 'xml')) ?? `xrechnung-${r.number}.xml`, content: xr }] : []),
+      { filename: pdfName, content: pdf },
+      ...(r.leitweg_id && xr ? [{ filename: xmlName, content: xr }] : []),
     ],
   });
   if (!gesendet.ok) {

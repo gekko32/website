@@ -97,12 +97,14 @@ export async function runDunningDetection(brand: string): Promise<{ generated: n
     customer_id: string;
     empfaenger: unknown;
     kundennummer: string | null;
+    issue_date: string;
   }>(
     // T000375 (View-Migration): paid_amount/dunning_level/last_dunning_at sind
     // keine Spalten von billing_invoices mehr, sondern werden von
     // v_billing_invoices_with_state aus billing_invoice_payments bzw.
     // billing_invoice_dunnings berechnet.
     `SELECT id, number, status, dunning_level, due_date, last_dunning_at, gross_amount, paid_amount, customer_id,
+            issue_date::text AS issue_date,
             (SELECT b.empfaenger FROM billing_invoices b WHERE b.id = v.id) AS empfaenger,
             (SELECT c.customer_number FROM billing_invoices b JOIN customers c ON c.id = b.klient_id WHERE b.id = v.id) AS kundennummer
        FROM v_billing_invoices_with_state v
@@ -148,7 +150,7 @@ export async function runDunningDetection(brand: string): Promise<{ generated: n
     });
     // K119: sprechender Name auch in der Ablage.
     const dateiname = mahnungsDateiname({
-      stufe: nextLevel, datum: new Date(), rechnungsnummer: invoice.number, rechnungsdatum: invoice.issueDate,
+      stufe: nextLevel, datum: new Date(), rechnungsnummer: invoice.number, rechnungsdatum: row.issue_date ?? invoice.issueDate,
       kundennummer: row.kundennummer, empfaenger: customer,
     });
     const pdfPath = await archiveBillingPdf({
@@ -280,7 +282,7 @@ export async function mahnungsPdf(brand: string, dunningId: string): Promise<{ p
   await initBillingTables();
   const r = await pool.query(
     `SELECT d.level, d.fee_amount, d.interest_amount, d.outstanding_at_generation, d.invoice_id, i.customer_id, i.number, i.empfaenger,
-            d.generated_at, i.issue_date,
+            d.generated_at, i.issue_date::text AS issue_date,
             (SELECT c.customer_number FROM customers c WHERE c.id = i.klient_id) AS kundennummer
        FROM billing_invoice_dunnings d JOIN billing_invoices i ON i.id = d.invoice_id
       WHERE d.id = $1 AND d.brand = $2`, [dunningId, brand]);

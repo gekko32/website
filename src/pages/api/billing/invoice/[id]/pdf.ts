@@ -30,8 +30,6 @@ export const GET: APIRoute = async ({ request, params }) => {
   );
   const row = r.rows[0];
   if (!row) return new Response('Not found', { status: 404 });
-  // K117: sprechender Dateiname (JJJJMMTT_Art_Nummer_Kundennr_Name_Inhalt.pdf).
-  const dateiname = (await rechnungsDateiname(id)) ?? `${row.number}.pdf`;
 
   if (profileParam) {
     if (!isAdmin(session)) return new Response('Forbidden', { status: 403 });
@@ -40,6 +38,7 @@ export const GET: APIRoute = async ({ request, params }) => {
     }
     const data = await getInvoiceForEInvoice(id);
     if (!data) return new Response('Not found', { status: 404 });
+    const dateiname = (await rechnungsDateiname(id)) ?? `${row.number}.pdf`;
     // Bridge EInvoiceLine -> InvoicePdfLine: derive line-level netAmount from quantity * unitPrice.
     const lines = data.lines.map((l) => ({ ...l, netAmount: l.quantity * l.unitPrice, leistungVon: l.periodStart, leistungBis: l.periodEnd }));
     let pdf: Buffer;
@@ -62,6 +61,8 @@ export const GET: APIRoute = async ({ request, params }) => {
   if (!isAdmin(session) && session.email !== row.customer_email) {
     return new Response('Forbidden', { status: 403 });
   }
+  // K117: sprechender Dateiname (JJJJMMTT_Art_Nummer_Kundennr_Name_Inhalt.pdf); Prüfung N9: erst nach den Prüfungen.
+  const dateiname = (await rechnungsDateiname(id)) ?? `${row.number}.pdf`;
   return new Response(row.pdf_blob, {
     status: 200,
     headers: {

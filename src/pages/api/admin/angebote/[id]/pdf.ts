@@ -16,12 +16,14 @@ export const GET: APIRoute = async ({ request, params }) => {
   const a = await holeAngebot(brand, params.id ?? '');
   if (!a) return new Response('Nicht gefunden', { status: 404 });
   let pdf: Buffer | null = (await pool.query('SELECT pdf FROM billing_quotes WHERE id=$1', [a.id])).rows[0]?.pdf ?? null;
+  let empfaenger = a.empfaenger;
   if (!pdf) {
     const v = await angebotVorschau(brand, a);
     if (!v.empfaenger) return new Response('Empfänger fehlt', { status: 422 });
     pdf = await erzeugeAngebotsPdf(brand, a, v.positionen, v.empfaenger);
+    empfaenger = v.empfaenger; // Prüfung N5: Entwurf mit dem Empfänger der Vorschau
   }
   return new Response(new Uint8Array(pdf), {
-    headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${await angebotsDateiname(a)}"` },
+    headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${await angebotsDateiname(a, empfaenger)}"` },
   });
 };

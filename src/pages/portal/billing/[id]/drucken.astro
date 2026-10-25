@@ -2,6 +2,7 @@
 import { getSession, getLoginUrl } from '../../../../lib/auth';
 import { getFullInvoice } from '../../../../lib/stripe-billing';
 import { getSiteSetting } from '../../../../lib/website-db';
+import { rechnungsDateiname } from '../../../../lib/beleg-dateiname';
 import { absenderAus, steuerangabeFuerRechnung } from '../../../../lib/billing-absender';
 import { getCustomerByEmail } from '../../../../lib/native-billing';
 
@@ -18,6 +19,8 @@ if (!inv) return Astro.redirect('/portal?section=rechnungen');
 if (inv.customerEmail !== session.email) return Astro.redirect('/portal?section=rechnungen');
 
 const brand = process.env.BRAND || 'mentolder';
+// K121, Prüfung N10: „Als PDF speichern“ übernimmt den Seitentitel als Dateinamen.
+const seitenTitel = ((await rechnungsDateiname(invoiceId)) ?? '').replace(/\.pdf$/, '') || null;
 
 const keys = [
   'invoice_sender_name', 'invoice_sender_street', 'invoice_sender_city',
@@ -71,7 +74,7 @@ const buyerVatId = dbCustomer?.vatNumber ?? null;
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Rechnung {inv.number} — {senderName}</title>
+  <title>{seitenTitel ?? `Rechnung ${inv.number} — ${senderName}`}</title>
   <link rel="preload" href="/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="/fonts/Newsreader-Latin.woff2" as="font" type="font/woff2" crossorigin />
   <style>

@@ -28,6 +28,13 @@ describe('Sprechende Dateinamen (K117–K122)', () => {
     expect(namensTeil({ name: 'Vera Vorlage', company: 'Vorlagen GmbH' })).toBe('Vorlagen-GmbH-zHd-Vera-Vorlage');
     expect(namensTeil({ name: 'Vorlagen GmbH', company: 'Vorlagen GmbH' })).toBe('Vorlagen-GmbH');
   });
+  it('Prüfung N6: Komma, Titel, Namenszusätze', () => {
+    expect(namensTeil({ name: 'Müller, Anna' })).toBe('Mueller-Anna');
+    expect(namensTeil({ name: 'Dr. Anna Müller' })).toBe('Mueller-Anna-Dr');
+    expect(namensTeil({ name: 'Prof. Dr. Anna Müller' })).toBe('Mueller-Anna-Prof-Dr');
+    expect(namensTeil({ name: 'Anna von der Heide' })).toBe('von-der-Heide-Anna');
+    expect(namensTeil({ name: 'Dr. Müller' })).toBe('Mueller-Dr');
+  });
   it('Leistungszeitraum: Tag, Monat, Spanne', () => {
     expect(zeitraumTeil('2026-11-03', '2026-11-03')).toBe('20261103');
     expect(zeitraumTeil('2026-11-03', null)).toBe('20261103');
@@ -73,12 +80,12 @@ describe('Sprechende Dateinamen (K117–K122)', () => {
   it('K119: Rechnung aus der Datenbank – Empfänger-Kopie, Auftragstitel, Zeitraum', async () => {
     const abfrage = vi.fn()
       .mockResolvedValueOnce({ rows: [zeile] })
-      .mockResolvedValueOnce({ rows: [{ titel: 'Coaching', n: '1' }] });
+      .mockResolvedValueOnce({ rows: [{ titel: 'Coaching', n: '1', ohne: '0' }] });
     expect(await rechnungsDateiname('inv-1', abfrage))
       .toBe('20261124_Rechnung_RE-2026-0012_M1088_Mueller-Anna_Coaching-Nov-2026.pdf');
   });
   it('mehrere Aufträge oder keine Auftragstabelle → nur Zeitraum; XML-Endung', async () => {
-    const mehrere = vi.fn().mockResolvedValueOnce({ rows: [zeile] }).mockResolvedValueOnce({ rows: [{ titel: 'A', n: '2' }] });
+    const mehrere = vi.fn().mockResolvedValueOnce({ rows: [zeile] }).mockResolvedValueOnce({ rows: [{ titel: 'A', n: '2', ohne: '0' }] });
     expect(await rechnungsDateiname('inv-1', mehrere)).toBe('20261124_Rechnung_RE-2026-0012_M1088_Mueller-Anna_Nov-2026.pdf');
     const ohne = vi.fn().mockResolvedValueOnce({ rows: [zeile] }).mockRejectedValueOnce(new Error('relation does not exist'));
     expect(await rechnungsDateiname('inv-1', ohne, 'xml')).toBe('20261124_Rechnung_RE-2026-0012_M1088_Mueller-Anna_Nov-2026.xml');
@@ -103,6 +110,21 @@ describe('Sprechende Dateinamen (K117–K122)', () => {
     expect(await angebotsDateiname(a)).toBe('20261102_Angebot_AN-2026-0003-2_M1090_Vorlagen-GmbH-zHd-Vera-Vorlage_Strategietag.pdf');
     expect(await angebotsDateiname({ ...(a as object), status: 'entwurf', number: 'ENTWURF-AB12', klientId: null } as never))
       .toBe('20261102_Angebot_Entwurf_Vorlagen-GmbH-zHd-Vera-Vorlage_Strategietag.pdf');
+    // Prüfung N5: Entwurf ohne gespeicherten Empfänger → Empfänger der Vorschau
+    expect(await angebotsDateiname({ ...(a as object), status: 'entwurf', empfaenger: null, klientId: null } as never, { name: 'Anna Müller' }))
+      .toBe('20261102_Angebot_Entwurf_Mueller-Anna_Strategietag.pdf');
+    // Prüfung N4: Fehler → Nummer
+    expect(await angebotsDateiname({ ...(a as object), datum: undefined, empfaenger: { get name(): string { throw new Error('x'); } } } as never))
+      .toBe('AN-2026-0003-2.pdf');
+  });
+  it('Prüfung N1: freie Zeilen (ohne Auftrag) → kein Auftragstitel', async () => {
+    const abfrage = vi.fn().mockResolvedValueOnce({ rows: [zeile] }).mockResolvedValueOnce({ rows: [{ titel: 'Strategietag', n: '1', ohne: '1' }] });
+    expect(await rechnungsDateiname('inv-1', abfrage)).toBe('20261124_Rechnung_RE-2026-0012_M1088_Mueller-Anna_Nov-2026.pdf');
+    expect(abfrage.mock.calls[1][0]).toMatch(/FROM billing_invoice_line_items l\s+LEFT JOIN abrechnungsposten/);
+  });
+  it('Prüfung N4: Mahnung mit ungültigem Datum → kein Absturz', () => {
+    const n = mahnungsDateiname({ stufe: 1, datum: new Date('kaputt'), rechnungsnummer: 'RE-1', rechnungsdatum: null, empfaenger: { name: 'A B' } });
+    expect(n).toBe('Zahlungserinnerung_RE-1_B-A.pdf');
   });
   it('Mahnung: Art wie auf dem PDF, Nummer der Rechnung, „zu Rechnung vom …“', () => {
     expect(mahnungsDateiname({
