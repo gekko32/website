@@ -3,7 +3,7 @@ import { generateInvoicePdf } from './invoice-pdf';
 import { ladeAbsender } from './billing-absender';
 import { ladeRechnungstexte } from './billing-rechnungstexte';
 import { rechnungsZeitraum, type RechnungsZeile } from './billing-entwurf';
-import { kaeuferName, type Empfaenger } from './billing-empfaenger';
+import { kaeuferName, kundennummerVon, type Empfaenger } from './billing-empfaenger';
 import { postenBetrag } from './billing-posten';
 import type { Angebot } from './billing-angebot';
 
@@ -30,6 +30,7 @@ export async function erzeugeAngebotsPdf(
       name: empfaenger.name, company: empfaenger.company ?? undefined, email: empfaenger.email,
       addressLine1: empfaenger.addressLine1 ?? undefined, postalCode: empfaenger.postalCode ?? undefined,
       city: empfaenger.city ?? undefined, country: empfaenger.country, vatNumber: empfaenger.vatNumber ?? undefined,
+      customerNumber: await kundennummerVon(a.klientId),
     },
     seller: { ...absender },
     templateTexts: {

@@ -1,53 +1,27 @@
-import PDFDocument from 'pdfkit';
-import { readFileSync, existsSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { join, dirname } from 'path';
+// Belege als PDF: Rechnung, Gutschrift, Angebot (generateInvoicePdf) und Zahlungserinnerung/Mahnung
+// (generateDunningPdf). Seit 25.10.2026 im Briefbild nach Geralds Word-Muster und DIN 5008 (beleg-layout.ts,
+// SPEZ-BELEG-DESIGN K107–K116); Rechnungen bekommen weiterhin die E-Rechnung (Factur-X/XRechnung) eingebettet.
 import type { Invoice } from './invoice-types';
 import { embedFacturXIntoPdfA3, type FacturXLevel } from './pdf-a3-embed';
 import { generateEInvoiceXml, type EInvoiceProfile } from './einvoice-profile';
 import type { EInvoiceInput } from './einvoice-types';
 import { leistungsdatumZeile } from './leistungszeitraum';
-import { hatEchteEmail } from './billing-versand';
-
-// Resolve logo from several candidate paths: cwd-relative (production container),
-// then source-relative (dev / test). Falls back to null → logo block is silently skipped.
-const _candidates = [
-  join(process.cwd(), 'src/assets/icon-128.png'),
-  join(dirname(fileURLToPath(import.meta.url)), '../assets/icon-128.png'),
-];
-const LOGO: Buffer | null = (() => {
-  for (const p of _candidates) {
-    try { if (existsSync(p)) return readFileSync(p); } catch { /* next */ }
-  }
-  return null;
-})();
-
-const C = {
-  paper:   '#f6f3ee',
-  paper2:  '#efeae1',
-  brass:   '#A8823A',
-  ink:     '#1a2030',
-  inkSoft: '#3a4150',
-  inkMute: '#6a717e',
-  line:    '#d4cfc6',
-} as const;
-
-const L = 50, R = 545, W = 495;
+import {
+  neuerBeleg, zeichneKopf, zeichneAnschrift, zeichneInfo, infoEmailUndAnsprechpartner, platz, abschliessen,
+  S, W, FARBE, euro, datumDe, mengeDe, type BelegAbsender, type BelegEmpfaenger,
+} from './beleg-layout';
 
 export interface InvoicePdfLine {
   description: string; quantity: number; unitPrice: number; netAmount: number; unit?: string;
   /** Stufe 3 T10a: Leistungsdatum bzw. -zeitraum der Position (YYYY-MM-DD). */
   leistungVon?: string; leistungBis?: string;
 }
-export interface InvoicePdfCustomer {
-  name: string; company?: string; addressLine1?: string; city?: string; postalCode?: string;
-  country: string; vatNumber?: string; email: string;
+export interface InvoicePdfCustomer extends BelegEmpfaenger {
+  vatNumber?: string;
+  /** K109: Kundennummer aus der Klientenakte. */
+  customerNumber?: string;
 }
-export interface InvoicePdfSeller {
-  name: string; address: string; postalCode: string; city: string; country: string;
-  vatId: string; taxNumber: string; iban: string; bic: string; bankName: string;
-  email?: string; phone?: string; website?: string;
-}
+export type InvoicePdfSeller = BelegAbsender;
 export interface InvoicePdfTemplateTexts {
   title?: string;
   introText?: string;
@@ -61,138 +35,87 @@ export interface Dunning {
   outstandingAtGeneration: number;
 }
 
+/** Anrede: bei bekannter Person persönlich, sonst allgemein. */
+function anrede(c: InvoicePdfCustomer): string {
+  return c.name && c.name.trim() && c.name !== c.company ? `Guten Tag ${c.name.trim()},` : 'Sehr geehrte Damen und Herren,';
+}
+
+function grussformel(doc: ReturnType<typeof neuerBeleg>['doc'], y: number, seller: InvoicePdfSeller, titel: string): number {
+  y = platz(doc, y, 40, titel);
+  doc.font('Helvetica').fontSize(10).fillColor(FARBE.text).text('Mit freundlichen Grüßen', S.L, y, { width: W });
+  y = doc.y + 14;
+  doc.text(seller.inhaber || seller.name, S.L, y, { width: W });
+  return doc.y;
+}
+
 export async function generateDunningPdf(p: {
   dunning: Dunning; invoice: Invoice;
   customer: InvoicePdfCustomer; seller: InvoicePdfSeller;
 }): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 0, info: { Title: `Mahnung ${p.dunning.level} - ${p.invoice.number}`, Author: p.seller.name } });
-    const chunks: Buffer[] = [];
-    doc.on('data', (c: Buffer) => chunks.push(c));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
+  const { dunning: d, invoice: inv, customer, seller } = p;
+  const titel = d.level === 1 ? 'ZAHLUNGSERINNERUNG' : 'MAHNUNG';
+  const { doc, fertig } = neuerBeleg({ Title: `Mahnung ${d.level} - ${inv.number}`, Author: seller.name });
 
-    const { dunning: d, invoice: inv, customer, seller } = p;
-    const fmt = (n: number) => n.toFixed(2).replace('.', ',') + ' €';
-    const fd  = (d: string) => d.split('-').reverse().join('.');
+  zeichneKopf(doc, titel);
+  const aEnde = zeichneAnschrift(doc, seller, customer);
+  const iEnde = zeichneInfo(doc, [
+    ['Rechnung Nr.', inv.number],
+    ['Rechnungsdatum', datumDe(inv.issueDate)],
+    ['Fällig seit', datumDe(inv.dueDate)],
+    ['Datum', datumDe(d.generatedAt)],
+    ...(customer.customerNumber ? [['Kundennr.', customer.customerNumber] as [string, string]] : []),
+    ...infoEmailUndAnsprechpartner(customer, seller),
+  ]);
 
-    // ── Background ──────────────────────────────────────────────────────────
-    doc.rect(0, 0, 595, 842).fill(C.paper);
+  let y = Math.max(aEnde, iEnde, 98 * MM_Y) + 10;
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(FARBE.text).text(`${d.level === 1 ? 'ZAHLUNGSERINNERUNG' : `${d.level - 1}. MAHNUNG`} ZU RECHNUNG NR. ${inv.number}`, S.L, y, { width: W });
+  y = doc.y + 14;
+  doc.font('Helvetica').fontSize(10).fillColor(FARBE.text).text(anrede(customer), S.L, y, { width: W });
+  y = doc.y + 8;
+  const intro = d.level === 1
+    ? `sicher haben Sie nur übersehen, dass die Rechnung Nr. ${inv.number} vom ${datumDe(inv.issueDate)} am ${datumDe(inv.dueDate)} zur Zahlung fällig war.`
+    : `leider konnten wir bis heute keinen Zahlungseingang für die Rechnung Nr. ${inv.number} vom ${datumDe(inv.issueDate)} feststellen.`;
+  doc.text(intro, S.L, y, { width: W });
+  y = doc.y + 8;
+  doc.text('Wir bitten Sie höflich, den offenen Betrag bis spätestens 7 Tage nach Erhalt dieses Schreibens zu begleichen.', S.L, y, { width: W });
+  y = doc.y + 16;
 
-    // ── Header ──────────────────────────────────────────────────────────────
-    if (LOGO) {
-      try { doc.image(LOGO, L, 47, { width: 42, height: 42 }); } catch { /* skip */ }
-    }
+  // Posten wie die Rechnungstabelle, nur Beschreibung und Betrag.
+  doc.rect(S.L, y, W, 18).fill(FARBE.kopf);
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(FARBE.text);
+  doc.text('Posten', S.L + 6, y + 5, { width: W - 120 });
+  doc.text('Betrag', S.R - 106, y + 5, { width: 100, align: 'right' });
+  y += 24;
+  const zeile = (label: string, wert: number) => {
+    doc.font('Helvetica').fontSize(9.5).fillColor(FARBE.text).text(label, S.L + 6, y, { width: W - 120 });
+    doc.text(euro(wert), S.R - 106, y, { width: 100, align: 'right' });
+    y += 16;
+    doc.moveTo(S.L, y - 4).lineTo(S.R, y - 4).lineWidth(0.4).strokeColor(FARBE.linie).stroke();
+  };
+  zeile(`Offener Betrag aus Rechnung ${inv.number}`, d.outstandingAtGeneration);
+  if (d.feeAmount > 0) zeile('Mahngebühren', d.feeAmount);
+  if (d.interestAmount > 0) zeile('Verzugszinsen', d.interestAmount);
+  y += 2;
+  const total = d.outstandingAtGeneration + d.feeAmount + d.interestAmount;
+  doc.moveTo(S.L, y).lineTo(S.R, y).lineWidth(1.4).strokeColor(FARBE.text).stroke();
+  doc.rect(S.R - 200, y + 2, 200, 18).fill(FARBE.summe);
+  doc.font('Helvetica-Bold').fontSize(10).fillColor(FARBE.text).text('Gesamtbetrag', S.R - 194, y + 7, { width: 90 });
+  doc.text(euro(total), S.R - 106, y + 7, { width: 100, align: 'right' });
+  y += 34;
 
-    const brandName = process.env.BRAND_NAME || 'mentolder';
-    doc.font('Times-Italic').fontSize(18).fillColor(C.ink)
-       .text(brandName, 102, 55, { continued: true, lineBreak: false });
-    doc.fillColor(C.brass).text('.', { lineBreak: false });
+  doc.font('Helvetica').fontSize(10).fillColor(FARBE.text)
+    .text(`Bitte überweisen Sie den Gesamtbetrag auf das unten angegebene Konto unter Angabe des Verwendungszwecks „${inv.paymentReference ?? inv.number}“.`, S.L, y, { width: W });
+  y = doc.y + 8;
+  doc.text('Sollten Sie die Zahlung in der Zwischenzeit bereits veranlasst haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.', S.L, y, { width: W });
+  y = doc.y + 16;
+  grussformel(doc, y, seller, titel);
 
-    doc.font('Helvetica').fontSize(8).fillColor(C.inkMute).text(seller.name, 102, 76);
-    const title = d.level === 1 ? 'ZAHLUNGSERINNERUNG' : 'MAHNUNG';
-    doc.font('Helvetica').fontSize(7.5).fillColor(C.brass).text(title, 102, 89);
-
-    // Right meta block
-    doc.font('Helvetica-Bold').fontSize(10).fillColor(C.ink)
-       .text(`Nr. ${inv.number}`, 360, 50, { width: 185, align: 'right' });
-    doc.font('Helvetica').fontSize(8).fillColor(C.inkMute)
-       .text(`Datum · ${fd(d.generatedAt.slice(0, 10))}`, 360, 65, { width: 185, align: 'right' });
-
-    // ── Brass divider ────────────────────────────────────────────────────────
-    doc.moveTo(L, 115).lineTo(R, 115).strokeColor(C.brass).lineWidth(0.75).stroke();
-
-    // ── Parties (same as invoice) ───────────────────────────────────────────
-    doc.font('Helvetica').fontSize(7).fillColor(C.brass)
-       .text('ABSENDER', L, 125, { characterSpacing: 0.8, width: 240 });
-    doc.font('Times-Italic').fontSize(13).fillColor(C.ink)
-       .text(seller.name, L, 137, { width: 240 });
-    doc.font('Helvetica').fontSize(9).fillColor(C.inkSoft)
-       .text(`${seller.address}, ${seller.postalCode} ${seller.city}`, L, 152, { width: 240 });
-
-    const CX = 315;
-    doc.font('Helvetica').fontSize(7).fillColor(C.brass)
-       .text('EMPFÄNGER', CX, 125, { characterSpacing: 0.8, width: 230 });
-    let cy = 137;
-    if (customer.company) {
-      doc.font('Helvetica').fontSize(9).fillColor(C.inkSoft).text(customer.company, CX, cy, { width: 230 });
-      cy = doc.y + 1;
-    }
-    doc.font('Times-Italic').fontSize(13).fillColor(C.ink).text(customer.name, CX, cy, { width: 230 });
-    cy = doc.y + 3;
-    doc.font('Helvetica').fontSize(9).fillColor(C.inkSoft)
-       .text(`${customer.addressLine1 ?? ''}, ${customer.postalCode ?? ''} ${customer.city ?? ''}`, CX, cy, { width: 230 });
-
-    // ── Content ──────────────────────────────────────────────────────────────
-    let y = 220;
-    doc.font('Helvetica-Bold').fontSize(14).fillColor(C.ink).text(title, L, y);
-    y += 25;
-
-    const intro = d.level === 1
-      ? `Sicher haben Sie nur übersehen, dass die Rechnung Nr. ${inv.number} vom ${fd(inv.issueDate)} am ${fd(inv.dueDate)} zur Zahlung fällig war.`
-      : `Leider konnten wir bis heute keinen Zahlungseingang für die Rechnung Nr. ${inv.number} vom ${fd(inv.issueDate)} feststellen.`;
-
-    doc.font('Helvetica').fontSize(10).fillColor(C.inkSoft).text(intro, L, y, { width: W });
-    y = doc.y + 15;
-
-    doc.text('Wir bitten Sie höflich, den offenen Betrag bis spätestens 7 Tage nach Erhalt dieses Schreibens zu begleichen.', L, y, { width: W });
-    y = doc.y + 25;
-
-    // ── Totals Table ────────────────────────────────────────────────────────
-    doc.rect(L, y, W, 17).fill(C.paper2);
-    doc.font('Helvetica-Bold').fontSize(8).fillColor(C.inkMute);
-    doc.text('Posten', L + 4, y + 5);
-    doc.text('Betrag', R - 100, y + 5, { width: 96, align: 'right' });
-    y += 22;
-
-    const row = (label: string, val: number) => {
-      doc.font('Helvetica').fontSize(10).fillColor(C.ink).text(label, L + 4, y);
-      doc.font('Courier').fontSize(10).text(fmt(val), R - 100, y, { width: 96, align: 'right' });
-      y += 18;
-    };
-
-    row(`Offener Betrag aus Rechnung ${inv.number}`, d.outstandingAtGeneration);
-    if (d.feeAmount > 0) row('Mahngebühren', d.feeAmount);
-    if (d.interestAmount > 0) row('Verzugszinsen', d.interestAmount);
-
-    y += 5;
-    doc.moveTo(L, y).lineTo(R, y).strokeColor(C.brass).lineWidth(1).stroke();
-    y += 10;
-
-    doc.font('Helvetica-Bold').fontSize(12).fillColor(C.ink).text('GESAMTBETRAG', L + 4, y);
-    const total = d.outstandingAtGeneration + d.feeAmount + d.interestAmount;
-    doc.font('Courier-Bold').fontSize(12).fillColor(C.brass).text(fmt(total), R - 100, y, { width: 96, align: 'right' });
-
-    y += 40;
-    doc.font('Helvetica').fontSize(10).fillColor(C.inkSoft)
-       .text(`Bitte überweisen Sie den Gesamtbetrag auf unser unten angegebenes Konto unter Angabe des Verwendungszwecks „${inv.paymentReference ?? inv.number}".`, L, y, { width: W });
-
-    y = doc.y + 15;
-    doc.text('Sollten Sie die Zahlung in der Zwischenzeit bereits veranlasst haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.', L, y, { width: W });
-
-    y = doc.y + 25;
-    doc.text('Mit freundlichen Grüßen', L, y);
-    y += 15;
-    doc.font('Times-Italic').fontSize(12).text(brandName, L, y);
-
-    // ── Footer (same as invoice) ───────────────────────────────────────────
-    const FY = 757;
-    doc.moveTo(L, FY).lineTo(R, FY).strokeColor(C.brass).lineWidth(0.75).stroke();
-    const fy = FY + 9;
-    const fcw = Math.floor(W / 3) - 6;
-    doc.font('Helvetica').fontSize(7).fillColor(C.brass).text('BANKVERBINDUNG', L, fy, { characterSpacing: 0.5, width: fcw });
-    doc.font('Helvetica').fontSize(8).fillColor(C.inkSoft).text(seller.bankName, L, fy + 12, { width: fcw });
-    doc.text(`IBAN ${seller.iban}`, L, doc.y + 1, { width: fcw });
-    doc.text(`BIC ${seller.bic}`,  L, doc.y + 1, { width: fcw });
-
-    const px = L + fcw + 16;
-    doc.font('Helvetica').fontSize(7).fillColor(C.brass).text('KONTAKT', px, fy, { characterSpacing: 0.5, width: fcw });
-    doc.font('Helvetica').fontSize(8).fillColor(C.inkSoft).text(seller.email ?? '', px, fy + 12, { width: fcw });
-    if (seller.phone) doc.text(seller.phone, px, doc.y + 1, { width: fcw });
-
-    doc.end();
-  });
+  abschliessen(doc, seller);
+  return fertig;
 }
+
+/** 98,4 mm: Lage der Betreffzeile nach DIN 5008 Form B. */
+const MM_Y = 72 / 25.4;
 
 export async function generateInvoicePdf(p: {
   invoice: Invoice; lines: InvoicePdfLine[];
@@ -214,297 +137,143 @@ export async function generateInvoicePdf(p: {
     eu_b2b_goods:    'Innergemeinschaftliche Lieferung SS.4 Nr.1b UStG',
     drittland_export: 'Ausfuhrlieferung SS.4 Nr.1a UStG',
   };
-  const docSubject = supplyTypeForMeta && supplyTypeTagMap[supplyTypeForMeta]
-    ? supplyTypeTagMap[supplyTypeForMeta]
-    : undefined;
+  const docSubject = supplyTypeForMeta && supplyTypeTagMap[supplyTypeForMeta] ? supplyTypeTagMap[supplyTypeForMeta] : undefined;
 
-  const basePdf = await new Promise<Buffer>((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 0, info: { Title: p.invoice.number, Author: p.seller.name, ...(docSubject ? { Subject: docSubject } : {}) } });
-    const chunks: Buffer[] = [];
-    doc.on('data', (c: Buffer) => chunks.push(c));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
+  const { invoice: inv, lines, customer, seller, templateTexts } = p;
+  const isKlein = inv.taxMode === 'kleinunternehmer';
+  const kleinNote = templateTexts?.kleinunternehmerNotice ??
+    'Kein Ausweis der Umsatzsteuer aufgrund der Anwendung der Kleinunternehmerregelung gemäß § 19 UStG.';
+  const titel = templateTexts?.title ?? (p.angebot ? 'ANGEBOT' : inv.kind === 'gutschrift' ? 'GUTSCHRIFT' : 'RECHNUNG');
+  const titelWort = titel.charAt(0) + titel.slice(1).toLowerCase();
 
-    const { invoice: inv, lines, customer, seller, templateTexts } = p;
-    const isKlein = inv.taxMode === 'kleinunternehmer';
-    const fmt = (n: number) => n.toFixed(2).replace('.', ',') + ' €';
-    const fd  = (d: string) => d.split('-').reverse().join('.');
-    const kleinNote = templateTexts?.kleinunternehmerNotice ??
-      'Kein Ausweis der Umsatzsteuer aufgrund der Anwendung der Kleinunternehmerregelung gemäß § 19 UStG.';
+  const { doc, fertig } = neuerBeleg({ Title: inv.number, Author: seller.name, ...(docSubject ? { Subject: docSubject } : {}) });
 
-    // ── Background ──────────────────────────────────────────────────────────
-    doc.rect(0, 0, 595, 842).fill(C.paper);
+  // ── Seite 1: Kopf, Anschrift, Infoblock ─────────────────────────────────────
+  zeichneKopf(doc, titel);
+  const aEnde = zeichneAnschrift(doc, seller, customer);
+  const zeitraum = inv.servicePeriodStart
+    ? (inv.servicePeriodEnd ? `${datumDe(inv.servicePeriodStart)}–${datumDe(inv.servicePeriodEnd)}` : datumDe(inv.servicePeriodStart))
+    : null;
+  const info: [string, string][] = [
+    [`${titelWort} Nr.`, inv.number],
+    [p.angebot ? 'Datum' : `${titelWort}sdatum`.replace('Gutschriftsdatum', 'Datum'), datumDe(inv.issueDate)],
+  ];
+  if (p.angebot) {
+    info.push(['Gültig bis', datumDe(p.angebot.gueltigBis)]);
+    if (zeitraum) info.push(['Leistungszeitraum', zeitraum]);
+  } else {
+    // Leistungszeitpunkt ist Pflichtangabe (§ 14 Abs. 4 Nr. 6 UStG, Befund R7).
+    info.push([zeitraum && zeitraum.includes('–') ? 'Leistungszeitraum' : 'Leistungsdatum', zeitraum ?? 'wie Rechnungsdatum']);
+    if (inv.kind !== 'gutschrift') info.push(['Fällig am', datumDe(inv.dueDate)]);
+  }
+  if (customer.customerNumber) info.push(['Kundennr.', customer.customerNumber]);
+  if (customer.vatNumber) info.push(['Ihre USt-IdNr.', customer.vatNumber]);
+  info.push(...infoEmailUndAnsprechpartner(customer, seller));
+  const iEnde = zeichneInfo(doc, info);
 
-    // ── Header ──────────────────────────────────────────────────────────────
-    if (LOGO) {
-      try { doc.image(LOGO, L, 47, { width: 42, height: 42 }); } catch { /* skip */ }
-    }
+  // ── Betreff, Anrede, Einleitung ─────────────────────────────────────────────
+  let y = Math.max(aEnde, iEnde, 98.4 * MM_Y) + 10;
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(FARBE.text).text(`${titel} NR. ${inv.number}`, S.L, y, { width: W });
+  y = doc.y + 14;
+  doc.font('Helvetica').fontSize(10).fillColor(FARBE.text).text(anrede(customer), S.L, y, { width: W });
+  y = doc.y + 8;
+  if (templateTexts?.introText) {
+    doc.text(templateTexts.introText, S.L, y, { width: W });
+    y = doc.y + 12;
+  } else y += 4;
 
-    const brandName = process.env.BRAND_NAME || 'mentolder';
-    doc.font('Times-Italic').fontSize(18).fillColor(C.ink)
-       .text(brandName, 102, 55, { continued: true, lineBreak: false });
-    doc.fillColor(C.brass).text('.', { lineBreak: false });
+  // ── Tabelle (K110, Folgeseiten K113) ────────────────────────────────────────
+  const COL = {
+    pos:  { x: S.L + 2,   w: 24 },
+    desc: { x: S.L + 32,  w: W - 32 - 216 },
+    qty:  { x: S.R - 212, w: 64 },
+    up:   { x: S.R - 144, w: 64 },
+    tot:  { x: S.R - 76,  w: 70 },
+  } as const;
+  const tabellenkopf = (yy: number): number => {
+    doc.rect(S.L, yy, W, 18).fill(FARBE.kopf);
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(FARBE.text);
+    doc.text('Pos.', COL.pos.x, yy + 5, { width: COL.pos.w });
+    doc.text('Beschreibung', COL.desc.x, yy + 5, { width: COL.desc.w });
+    doc.text('Menge', COL.qty.x, yy + 5, { width: COL.qty.w, align: 'right' });
+    doc.text('Einzelpreis', COL.up.x, yy + 5, { width: COL.up.w, align: 'right' });
+    doc.text('Gesamtpreis', COL.tot.x, yy + 5, { width: COL.tot.w, align: 'right' });
+    return yy + 22;
+  };
+  y = platz(doc, y, 60, titel);
+  y = tabellenkopf(y);
 
-    doc.font('Helvetica').fontSize(8).fillColor(C.inkMute).text(seller.name, 102, 76);
-    const docTitle = templateTexts?.title ?? (p.angebot ? 'ANGEBOT' : inv.kind === 'gutschrift' ? 'GUTSCHRIFT' : 'RECHNUNG');
-    doc.font('Helvetica').fontSize(7.5).fillColor(C.brass).text(docTitle, 102, 89);
+  for (const [i, l] of lines.entries()) {
+    const unterzeile = leistungsdatumZeile(l) ?? '';
+    doc.font('Helvetica').fontSize(9.5);
+    const hDesc = doc.heightOfString(l.description, { width: COL.desc.w });
+    doc.fontSize(8);
+    const hUnter = unterzeile ? doc.heightOfString(unterzeile, { width: COL.desc.w }) : 0;
+    const hoehe = hDesc + hUnter + 8;
+    y = platz(doc, y, hoehe, titel, (ny) => tabellenkopf(ny));
+    doc.font('Helvetica').fontSize(9.5).fillColor(FARBE.text);
+    doc.text(`${i + 1}.`, COL.pos.x, y, { width: COL.pos.w, align: 'right' });
+    doc.text(l.description, COL.desc.x, y, { width: COL.desc.w });
+    if (unterzeile) doc.font('Helvetica').fontSize(8).fillColor(FARBE.grau).text(unterzeile, COL.desc.x, y + hDesc, { width: COL.desc.w });
+    doc.font('Helvetica').fontSize(9.5).fillColor(FARBE.text);
+    doc.text(`${mengeDe(l.quantity)}${l.unit ? ` ${l.unit}` : ''}`, COL.qty.x, y, { width: COL.qty.w, align: 'right' });
+    doc.text(euro(l.unitPrice), COL.up.x, y, { width: COL.up.w, align: 'right' });
+    doc.text(euro(l.netAmount), COL.tot.x, y, { width: COL.tot.w, align: 'right' });
+    y += hoehe;
+    if (i < lines.length - 1) doc.moveTo(S.L, y - 4).lineTo(S.R, y - 4).lineWidth(0.4).strokeColor(FARBE.linie).stroke();
+  }
+  doc.moveTo(S.L, y - 2).lineTo(S.R, y - 2).lineWidth(1.4).strokeColor(FARBE.text).stroke();
 
-    // Right meta block (number prominent, then dates)
-    doc.font('Helvetica-Bold').fontSize(10).fillColor(C.ink)
-       .text(inv.number, 360, 50, { width: 185, align: 'right' });
+  // ── Summen ──────────────────────────────────────────────────────────────────
+  y = platz(doc, y + 2, 70, titel);
+  const sx = S.R - 200;
+  const summenZeile = (label: string, wert: string, fett = false) => {
+    doc.font(fett ? 'Helvetica-Bold' : 'Helvetica').fontSize(9.5).fillColor(FARBE.text);
+    doc.text(label, sx + 6, y + 4, { width: 120, align: 'right' });
+    doc.text(wert, COL.tot.x, y + 4, { width: COL.tot.w, align: 'right' });
+    y += 18;
+    doc.moveTo(sx, y).lineTo(S.R, y).lineWidth(0.4).strokeColor(FARBE.linie).stroke();
+  };
+  if (!isKlein) {
+    summenZeile('Summe Netto', euro(inv.netAmount), true);
+    summenZeile(`zzgl. USt. ${inv.taxRate} %`, euro(inv.taxAmount));
+  } else {
+    summenZeile('Summe Netto', euro(inv.grossAmount), true);
+    summenZeile('USt. (§ 19 UStG)', euro(0));
+  }
+  doc.moveTo(sx, y).lineTo(S.R, y).lineWidth(1.4).strokeColor(FARBE.text).stroke();
+  doc.rect(sx, y + 1, 200, 20).fill(FARBE.summe);
+  doc.font('Helvetica-Bold').fontSize(10).fillColor(FARBE.text);
+  doc.text('Gesamtsumme', sx + 6, y + 7, { width: 120, align: 'right' });
+  doc.text(euro(inv.grossAmount), COL.tot.x, y + 7, { width: COL.tot.w, align: 'right' });
+  y += 32;
 
-    const metaDates: [string, string][] = [
-      ['Datum',  fd(inv.issueDate)],
-      p.angebot ? ['Gültig bis', fd(p.angebot.gueltigBis)] : ['Fällig', fd(inv.dueDate)],
-    ];
-    if (p.angebot) {
-      // Angebot: Leistungszeitraum, soweit geplant; keine Pflichtangabe wie bei Rechnungen.
-      if (inv.servicePeriodStart) metaDates.push(['Leistung', inv.servicePeriodEnd ? `${fd(inv.servicePeriodStart)}–${fd(inv.servicePeriodEnd)}` : fd(inv.servicePeriodStart)]);
-    } else if (inv.servicePeriodStart) {
-      metaDates.push(['Leistung', inv.servicePeriodEnd
-        ? `${fd(inv.servicePeriodStart)}–${fd(inv.servicePeriodEnd)}`
-        : fd(inv.servicePeriodStart)]);
-    } else {
-      // Leistungszeitpunkt ist Pflichtangabe (§ 14 Abs. 4 Nr. 6 UStG, Befund R7).
-      metaDates.push(['Leistung', 'wie Rechnungsdatum']);
-    }
-    let ry = 65;
-    for (const [lbl, val] of metaDates) {
-      doc.font('Helvetica').fontSize(8).fillColor(C.inkMute)
-         .text(`${lbl} · ${val}`, 360, ry, { width: 185, align: 'right' });
-      ry += 11;
-    }
+  // ── Hinweise, Zahlung, Schluss ──────────────────────────────────────────────
+  const absatz = (text: string, opts: { fett?: boolean; groesse?: number; abstand?: number } = {}) => {
+    const schrift = () => doc.font(opts.fett ? 'Helvetica-Bold' : 'Helvetica').fontSize(opts.groesse ?? 10);
+    schrift();
+    y = platz(doc, y, doc.heightOfString(text, { width: W }) + 4, titel);
+    // Nach einem Seitenwechsel hat der Kopf die Titelschrift eingestellt – Schrift neu setzen.
+    schrift().fillColor(FARBE.text).text(text, S.L, y, { width: W });
+    y = doc.y + (opts.abstand ?? 6);
+  };
+  if (isKlein) absatz(kleinNote, { fett: true, groesse: 7.5 });
+  else if (seller.vatId) absatz(`USt-IdNr.: ${seller.vatId}`, { groesse: 7.5 });
+  if (supplyTypeForMeta && supplyNoticeMap[supplyTypeForMeta]) absatz(supplyNoticeMap[supplyTypeForMeta], { groesse: 7.5 });
+  if (!p.angebot && inv.kind !== 'gutschrift') {
+    // Prüfung L3 (B1, K38): Zahlungsziel aus der Rechnung selbst, nicht fest 14 Tage.
+    const zielTage = Math.max(0, Math.round((Date.parse(inv.dueDate) - Date.parse(inv.issueDate)) / 86_400_000));
+    absatz(`Zahlung innerhalb von ${Number.isFinite(zielTage) ? zielTage : 14} Tagen bis ${datumDe(inv.dueDate)} ohne Abzug unter Angabe des Verwendungszwecks „${inv.paymentReference ?? inv.number}“.`, { groesse: 7.5, abstand: 10 });
+  } else if (p.angebot) {
+    absatz(`Dieses Angebot ist gültig bis ${datumDe(p.angebot.gueltigBis)}.`, { groesse: 7.5, abstand: 10 });
+  }
+  if (templateTexts?.outroText) absatz(templateTexts.outroText, { abstand: 8 });
+  if (inv.notes) absatz(inv.notes, { groesse: 8.5, abstand: 8 });
+  y += 4;
+  grussformel(doc, y, seller, titel);
 
-    // ── Brass divider ────────────────────────────────────────────────────────
-    doc.moveTo(L, 115).lineTo(R, 115).strokeColor(C.brass).lineWidth(0.75).stroke();
-
-    // ── Parties ──────────────────────────────────────────────────────────────
-    doc.font('Helvetica').fontSize(7).fillColor(C.brass)
-       .text('AUFTRAGNEHMER', L, 125, { characterSpacing: 0.8, width: 240 });
-    doc.font('Times-Italic').fontSize(13).fillColor(C.ink)
-       .text(seller.name, L, 137, { width: 240 });
-    let sy = doc.y + 3;
-
-    doc.font('Helvetica').fontSize(9).fillColor(C.inkSoft);
-    doc.text(seller.address, L, sy, { width: 240 }); sy = doc.y + 1;
-    doc.text(`${seller.postalCode} ${seller.city} · ${seller.country}`, L, sy, { width: 240 }); sy = doc.y + 4;
-
-    doc.font('Helvetica').fontSize(8).fillColor(C.inkMute);
-    if (seller.email) { doc.text(seller.email, L, sy, { width: 240 }); sy = doc.y + 1; }
-    if (seller.phone) { doc.text(seller.phone, L, sy, { width: 240 }); sy = doc.y + 4; }
-
-    if (isKlein) {
-      doc.font('Helvetica').fontSize(7).fillColor(C.inkMute)
-         .text('Kleinunternehmer gem. § 19 UStG', L, sy, { width: 240 });
-      sy = doc.y;
-    } else if (seller.vatId) {
-      doc.font('Helvetica').fontSize(7).fillColor(C.inkMute)
-         .text(`USt-IdNr.: ${seller.vatId}`, L, sy, { width: 240 });
-      sy = doc.y;
-    }
-    // Steuernummer oder USt-IdNr. ist Pflichtangabe (§ 14 Abs. 4 Nr. 2 UStG) –
-    // vorher fehlte die Steuernummer im PDF, nur die HTML-Fassung zeigte sie (Befund R7).
-    if (seller.taxNumber && (isKlein || !seller.vatId)) {
-      doc.font('Helvetica').fontSize(7).fillColor(C.inkMute)
-         .text(`Steuernr.: ${seller.taxNumber}`, L, sy, { width: 240 });
-      sy = doc.y;
-    }
-
-    const CX = 315;
-    doc.font('Helvetica').fontSize(7).fillColor(C.brass)
-       .text('AUFTRAGGEBER', CX, 125, { characterSpacing: 0.8, width: 230 });
-
-    let cy = 137;
-    if (customer.company) {
-      doc.font('Helvetica').fontSize(9).fillColor(C.inkSoft).text(customer.company, CX, cy, { width: 230 });
-      cy = doc.y + 1;
-    }
-    doc.font('Times-Italic').fontSize(13).fillColor(C.ink).text(customer.name, CX, cy, { width: 230 });
-    cy = doc.y + 3;
-
-    doc.font('Helvetica').fontSize(9).fillColor(C.inkSoft);
-    if (customer.addressLine1) { doc.text(customer.addressLine1, CX, cy, { width: 230 }); cy = doc.y + 1; }
-    if (customer.postalCode || customer.city) {
-      doc.text(`${customer.postalCode ?? ''} ${customer.city ?? ''}`.trim(), CX, cy, { width: 230 });
-      cy = doc.y + 4;
-    }
-    if (customer.vatNumber) {
-      doc.font('Helvetica').fontSize(7.5).fillColor(C.inkMute)
-         .text(`USt-IdNr.: ${customer.vatNumber}`, CX, cy, { width: 230 });
-      cy = doc.y + 2;
-    }
-    // Stufe 4 T13: Klienten ohne E-Mail – der interne Platzhalter erscheint nie auf der Rechnung.
-    if (hatEchteEmail(customer.email)) doc.font('Helvetica').fontSize(8).fillColor(C.inkMute).text(customer.email, CX, cy, { width: 230 });
-    cy = doc.y;
-
-    // ── Separator + intro ─────────────────────────────────────────────────────
-    const partiesEnd = Math.max(sy, cy) + 12;
-    doc.moveTo(L, partiesEnd).lineTo(R, partiesEnd).strokeColor(C.line).lineWidth(0.5).stroke();
-    let y = partiesEnd + 10;
-
-    if (templateTexts?.introText) {
-      doc.font('Helvetica').fontSize(8.5).fillColor(C.inkMute)
-         .text(templateTexts.introText, L, y, { width: W });
-      y = doc.y + 8;
-    }
-
-    // ── Table ─────────────────────────────────────────────────────────────────
-    const COL = {
-      desc: { x: L + 4,   w: 268 },
-      qty:  { x: L + 276, w: 50  },
-      up:   { x: L + 330, w: 82  },
-      tot:  { x: L + 416, w: 79  },
-    } as const;
-
-    doc.rect(L, y, W, 17).fill(C.paper2);
-    doc.font('Helvetica').fontSize(7.5).fillColor(C.inkMute);
-    doc.text('Leistung',    COL.desc.x, y + 5, { width: COL.desc.w });
-    doc.text('Menge',       COL.qty.x,  y + 5, { width: COL.qty.w,  align: 'right' });
-    doc.text('Einzelpreis', COL.up.x,   y + 5, { width: COL.up.w,   align: 'right' });
-    doc.text('Gesamt',      COL.tot.x,  y + 5, { width: COL.tot.w,  align: 'right' });
-    y += 19;
-
-    for (const [i, l] of lines.entries()) {
-      const rowY = y;
-      doc.font('Helvetica').fontSize(9.5).fillColor(C.ink)
-         .text(l.description, COL.desc.x, rowY, { width: COL.desc.w });
-      let descEnd = doc.y;
-      // Stufe 3 T10a: Leistungsdatum je Position, z. B. „Leistung: 05.–07.11.2026 · Stunde“.
-      const unterzeile = [leistungsdatumZeile(l), l.unit].filter(Boolean).join(' · ');
-      if (unterzeile) {
-        doc.font('Helvetica').fontSize(8).fillColor(C.inkMute)
-           .text(unterzeile, COL.desc.x, descEnd, { width: COL.desc.w });
-        descEnd = doc.y;
-      }
-      doc.font('Courier').fontSize(9).fillColor(C.inkSoft);
-      doc.text(String(l.quantity), COL.qty.x, rowY, { width: COL.qty.w, align: 'right' });
-      doc.text(fmt(l.unitPrice),   COL.up.x,  rowY, { width: COL.up.w,  align: 'right' });
-      doc.font('Courier').fontSize(9).fillColor(C.ink);
-      doc.text(fmt(l.netAmount),   COL.tot.x, rowY, { width: COL.tot.w, align: 'right' });
-
-      y = Math.max(descEnd, doc.y) + 8;
-      if (i < lines.length - 1) {
-        doc.moveTo(L, y - 2).lineTo(R, y - 2).strokeColor(C.line).lineWidth(0.3).stroke();
-      }
-    }
-
-    // ── Totals ────────────────────────────────────────────────────────────────
-    y += 4;
-    doc.moveTo(L, y).lineTo(R, y).strokeColor(C.line).lineWidth(0.5).stroke();
-    y += 8;
-
-    const TLX = COL.up.x;
-    const totRow = (label: string, value: string, muted = false) => {
-      doc.font('Helvetica').fontSize(9).fillColor(muted ? C.inkMute : C.inkSoft)
-         .text(label, TLX, y, { width: COL.up.w - 4, align: 'right' });
-      doc.font('Courier').fontSize(9).fillColor(muted ? C.inkMute : C.ink)
-         .text(value, COL.tot.x, y, { width: COL.tot.w, align: 'right' });
-      y += 14;
-    };
-
-    if (!isKlein) {
-      totRow('Zwischensumme', fmt(inv.netAmount));
-      totRow(`Umsatzsteuer ${inv.taxRate} %`, fmt(inv.taxAmount));
-    } else {
-      totRow('Zwischensumme', fmt(inv.grossAmount));
-      totRow('USt (§ 19 UStG)', '— €', true);
-    }
-
-    // Reverse Charge / Export notices
-    if (supplyTypeForMeta && supplyNoticeMap[supplyTypeForMeta]) {
-      totRow('Hinweis', supplyNoticeMap[supplyTypeForMeta], true);
-    }
-
-    y += 2;
-    doc.moveTo(TLX, y).lineTo(R, y).strokeColor(C.brass).lineWidth(0.75).stroke();
-    y += 7;
-
-    doc.font('Helvetica-Bold').fontSize(10).fillColor(C.ink)
-       .text('GESAMT', TLX, y, { width: COL.up.w - 4, align: 'right' });
-    doc.font('Courier').fontSize(11).fillColor(C.brass)
-       .text(fmt(inv.grossAmount), COL.tot.x, y, { width: COL.tot.w, align: 'right' });
-    y = doc.y + 14;
-
-    // ── Legal + payment ref ───────────────────────────────────────────────────
-    if (isKlein) {
-      doc.font('Helvetica').fontSize(7.5).fillColor(C.inkMute)
-         .text(kleinNote, L, y, { width: W });
-      y = doc.y + 6;
-    } else {
-      if (seller.vatId) {
-        doc.font('Helvetica').fontSize(7.5).fillColor(C.inkMute)
-           .text(`USt-IdNr.: ${seller.vatId}`, L, y, { width: W });
-        y = doc.y + 4;
-      }
-      const supplyType = inv.supplyType;
-      if (supplyType && supplyNoticeMap[supplyType]) {
-        doc.font('Helvetica').fontSize(7.5).fillColor(C.inkMute)
-           .text(supplyNoticeMap[supplyType], L, y, { width: W });
-        y = doc.y + 6;
-      }
-    }
-
-    if (!p.angebot) {
-      doc.font('Helvetica').fontSize(8.5).fillColor(C.inkSoft)
-         .text(
-           `Bitte überweisen Sie unter Angabe des Verwendungszwecks „${inv.paymentReference ?? inv.number}".`,
-           L, y, { width: W });
-      y = doc.y + 6;
-    }
-
-    // ── Outro / notes ─────────────────────────────────────────────────────────
-    if (templateTexts?.outroText) {
-      doc.font('Times-Italic').fontSize(9).fillColor(C.inkMute)
-         .text(templateTexts.outroText, L, y, { width: W });
-      y = doc.y + 6;
-    }
-    if (inv.notes) {
-      doc.font('Helvetica').fontSize(8).fillColor(C.inkMute).text(inv.notes, L, y, { width: W });
-    }
-
-    // ── Footer ────────────────────────────────────────────────────────────────
-    const FY = 757;
-    doc.moveTo(L, FY).lineTo(R, FY).strokeColor(C.brass).lineWidth(0.75).stroke();
-    const fy = FY + 9;
-    const fcw = Math.floor(W / 3) - 6;
-
-    // Bank
-    doc.font('Helvetica').fontSize(7).fillColor(C.brass)
-       .text('BANKVERBINDUNG', L, fy, { characterSpacing: 0.5, width: fcw });
-    doc.font('Helvetica').fontSize(8).fillColor(C.inkSoft)
-       .text(seller.bankName,          L, fy + 12, { width: fcw });
-    doc.text(`IBAN ${seller.iban}`, L, doc.y + 1, { width: fcw });
-    doc.text(`BIC ${seller.bic}`,  L, doc.y + 1, { width: fcw });
-
-    // Payment
-    const px = L + fcw + 16;
-    if (p.angebot) {
-      doc.font('Helvetica').fontSize(7).fillColor(C.brass)
-         .text('GÜLTIGKEIT', px, fy, { characterSpacing: 0.5, width: fcw });
-      doc.font('Helvetica').fontSize(8).fillColor(C.inkSoft);
-      doc.text(`Gültig bis ${fd(p.angebot.gueltigBis)}`, px, fy + 12, { width: fcw });
-    } else {
-      doc.font('Helvetica').fontSize(7).fillColor(C.brass)
-         .text('ZAHLUNG', px, fy, { characterSpacing: 0.5, width: fcw });
-      doc.font('Helvetica').fontSize(8).fillColor(C.inkSoft);
-      doc.text(`Fällig am ${fd(inv.dueDate)}`, px, fy + 12, { width: fcw });
-      // Prüfung L3 (B1, K38): Zahlungsziel aus der Rechnung selbst, nicht fest 14 Tage.
-      const zielTage = Math.max(0, Math.round((Date.parse(inv.dueDate) - Date.parse(inv.issueDate)) / 86_400_000));
-      doc.text(`${Number.isFinite(zielTage) ? zielTage : 14} Tage netto · SEPA`, px, doc.y + 1, { width: fcw });
-    }
-
-    // Contact
-    const kx = L + (fcw + 16) * 2;
-    doc.font('Helvetica').fontSize(7).fillColor(C.brass)
-       .text('KONTAKT', kx, fy, { characterSpacing: 0.5, width: fcw });
-    doc.font('Helvetica').fontSize(8).fillColor(C.inkSoft);
-    let kl = fy + 12;
-    if (seller.email)   { doc.text(seller.email,   kx, kl, { width: fcw }); kl = doc.y + 1; }
-    if (seller.phone)   { doc.text(seller.phone,   kx, kl, { width: fcw }); kl = doc.y + 1; }
-    if (seller.website) { doc.text(seller.website, kx, kl, { width: fcw }); }
-
-    doc.end();
-  });
+  abschliessen(doc, seller);
+  const basePdf = await fertig;
 
   // Stufe 4: Ein Angebot ist keine Rechnung – keine E-Rechnung einbetten.
   if (p.angebot) return basePdf;

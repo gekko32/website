@@ -136,11 +136,22 @@ const hinweis = 'font-size:0.75rem;color:var(--mute);line-height:1.4;margin:0.37
         <input type="text" id="invoice_tax_number" name="invoice_tax_number" value={steuerFeld} placeholder="z. B. 12/345/67890" style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
         <p style="font-size:0.75rem;color:var(--mute);line-height:1.4;margin:0;">Nicht öffentlich: steht auf Rechnungen und in der E-Rechnung (Pflichtangabe), nie im Impressum.</p>
         {altWertVerschoben && <p style="font-size:0.8rem;color:#fcd34d;margin:0;">Im Feld USt-IdNr. stand eine Steuernummer. Sie steht jetzt unter Steuernummer – bitte einmal speichern.</p>}
-        <input type="text" name="invoice_manager" value={s.invoice_manager} placeholder="Geschäftsführer (Vollname)"   style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
+        <input type="text" name="invoice_manager" value={s.invoice_manager} placeholder="Inhaber (Vollname) – Fußzeile und Ansprechpartner auf Belegen" aria-label="Inhaber" style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
       </div>
 
       <button type="submit" style="background:var(--brass);color:var(--ink-900);border:none;border-radius:8px;padding:0.625rem 1.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;">Speichern</button>
     </form>
+
+    {/* Beleg-Design (K115): Blanko-Briefbogen im selben Briefbild, zum Weiterbearbeiten in Word oder LibreOffice. */}
+    <section style="margin-top:2.5rem;border:1px solid var(--line);border-radius:12px;padding:1.25rem;">
+      <h2 style="font-size:0.95rem;font-weight:600;color:var(--brass);margin:0 0 0.5rem;">Briefbogen zum Bearbeiten (Word)</h2>
+      <p style="font-size:0.8rem;color:var(--mute);margin:0 0 0.9rem;">Leere Vorlage im Briefbild der Rechnungen – mit Logo, Anschriftfeld für Fensterumschläge und den Angaben von oben in der Fußzeile. Platzhalter stehen in [eckigen Klammern]. Erst speichern, dann herunterladen.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+        <a href="/api/admin/einstellungen/briefbogen?art=rechnung" style="border:1px solid var(--brass);color:var(--brass);border-radius:8px;padding:0.5rem 1rem;font-size:0.85rem;text-decoration:none;">Rechnung (.docx)</a>
+        <a href="/api/admin/einstellungen/briefbogen?art=angebot" style="border:1px solid var(--brass);color:var(--brass);border-radius:8px;padding:0.5rem 1rem;font-size:0.85rem;text-decoration:none;">Angebot (.docx)</a>
+        <a href="/api/admin/einstellungen/briefbogen?art=brief" style="border:1px solid var(--brass);color:var(--brass);border-radius:8px;padding:0.5rem 1rem;font-size:0.85rem;text-decoration:none;">Allgemeiner Brief (.docx)</a>
+      </div>
+    </section>
   </div>
 </AdminLayout>
 

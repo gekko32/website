@@ -8,7 +8,7 @@ import { ladeAbsender } from '../../../../../lib/billing-absender';
 import { pruefeZahlungsziel } from '../../../../../lib/billing-regeln';
 import { hatEchteEmail, pruefeVersandweg } from '../../../../../lib/billing-versand';
 import { logBillingEvent } from '../../../../../lib/billing-audit';
-import { aktuellerEmpfaenger, AnschriftFehlt, alsKunde, fehlendeAngaben, kaeuferName } from '../../../../../lib/billing-empfaenger';
+import { aktuellerEmpfaenger, AnschriftFehlt, alsKunde, fehlendeAngaben, kaeuferName, kundennummerVon } from '../../../../../lib/billing-empfaenger';
 
 
 export const POST: APIRoute = async ({ request, params , locals }) => {
@@ -165,6 +165,8 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
       postalCode: customer.postalCode,
       country: customer.landIso ?? 'DE',
       vatNumber: customer.vatNumber,
+      // Beleg-Design (K109): Kundennummer aus der Klientenakte.
+      customerNumber: await kundennummerVon(draftCheck.rows[0].klient_id),
     };
     pdf = await generateInvoicePdf({
       invoice: tempInvoice, lines, customer: pdfCustomer, seller,

@@ -6,7 +6,7 @@ import { archiveBillingPdf } from './billing-archive';
 import { ladeAbsender } from './billing-absender';
 import { logBillingEvent, type BillingActor } from './billing-audit';
 import { gibPostenFrei, initPostenTabelle } from './billing-posten';
-import { alsKunde, leseEmpfaenger } from './billing-empfaenger';
+import { alsKunde, leseEmpfaenger, kundennummerDerRechnung } from './billing-empfaenger';
 
 function iso(d: Date): string {
   return d.toISOString().split('T')[0];
@@ -204,6 +204,7 @@ export async function generateCreditNotePdf(invoiceId: string): Promise<Buffer |
       country: customer.landIso ?? 'DE',
       vatNumber: customer.vatNumber,
       email: customer.email,
+      customerNumber: await kundennummerDerRechnung(invoiceId),
     },
     seller,
     templateTexts: { title: 'GUTSCHRIFT' },

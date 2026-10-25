@@ -43,6 +43,8 @@ async function buildDunningPdf(params: {
   outstanding: number;
   feeAmount: number;
   interestAmount: number;
+  /** Beleg-Design (K109): Kundennummer aus der Klientenakte. */
+  kundennummer?: string | null;
 }): Promise<Buffer> {
   // Prüfung Runde 1 (K36, K36a): Absender aus derselben Quelle wie alle Rechnungen.
   const absender = await ladeAbsender(params.brand);
@@ -55,6 +57,8 @@ async function buildDunningPdf(params: {
     postalCode: params.customer.postalCode,
     country: params.customer.landIso,
     email: params.customer.email,
+    // Beleg-Design (K109): Kundennummer aus der Klientenakte (kommt mit der Abfrage der Rechnung).
+    customerNumber: params.kundennummer ?? undefined,
   };
 
   const seller: InvoicePdfSeller = { ...absender, name: absender.name || params.brand };
@@ -97,7 +101,8 @@ export async function runDunningDetection(brand: string): Promise<{ generated: n
     // v_billing_invoices_with_state aus billing_invoice_payments bzw.
     // billing_invoice_dunnings berechnet.
     `SELECT id, number, status, dunning_level, due_date, last_dunning_at, gross_amount, paid_amount, customer_id,
-            (SELECT b.empfaenger FROM billing_invoices b WHERE b.id = v.id) AS empfaenger
+            (SELECT b.empfaenger FROM billing_invoices b WHERE b.id = v.id) AS empfaenger,
+            (SELECT c.customer_number FROM billing_invoices b JOIN customers c ON c.id = b.klient_id WHERE b.id = v.id) AS kundennummer
        FROM v_billing_invoices_with_state v
       WHERE brand=$1
         AND status IN ('open','partially_paid','overdue','dunning_1','dunning_2')
@@ -133,6 +138,7 @@ export async function runDunningDetection(brand: string): Promise<{ generated: n
       brand,
       invoice,
       customer,
+      kundennummer: row.kundennummer,
       level: nextLevel,
       outstanding,
       feeAmount,
@@ -266,7 +272,8 @@ export async function sendDunning(id: string, actorEmail: string): Promise<false
 export async function mahnungsPdf(brand: string, dunningId: string): Promise<{ pdf: Buffer; dateiname: string } | null> {
   await initBillingTables();
   const r = await pool.query(
-    `SELECT d.level, d.fee_amount, d.interest_amount, d.outstanding_at_generation, d.invoice_id, i.customer_id, i.number, i.empfaenger
+    `SELECT d.level, d.fee_amount, d.interest_amount, d.outstanding_at_generation, d.invoice_id, i.customer_id, i.number, i.empfaenger,
+            (SELECT c.customer_number FROM customers c WHERE c.id = i.klient_id) AS kundennummer
        FROM billing_invoice_dunnings d JOIN billing_invoices i ON i.id = d.invoice_id
       WHERE d.id = $1 AND d.brand = $2`, [dunningId, brand]);
   const row = r.rows[0];
@@ -276,7 +283,7 @@ export async function mahnungsPdf(brand: string, dunningId: string): Promise<{ p
   if (!invoice || !rechnungskunde) return null;
   const kopie = leseEmpfaenger(row.empfaenger);
   const pdf = await buildDunningPdf({
-    brand, invoice, customer: kopie ? alsKunde(rechnungskunde, kopie) : rechnungskunde,
+    brand, invoice, customer: kopie ? alsKunde(rechnungskunde, kopie) : rechnungskunde, kundennummer: row.kundennummer,
     level: Number(row.level), outstanding: Number(row.outstanding_at_generation),
     feeAmount: Number(row.fee_amount), interestAmount: Number(row.interest_amount),
   });

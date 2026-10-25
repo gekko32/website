@@ -114,3 +114,15 @@ export class AnschriftFehlt extends Error {
     this.name = 'AnschriftFehlt';
   }
 }
+
+/** Beleg-Design (K109): Kundennummer aus der Klientenakte – zu einer Rechnung bzw. einem Klienten. */
+export async function kundennummerDerRechnung(invoiceId: string): Promise<string | undefined> {
+  const r = await pool.query(
+    `SELECT c.customer_number FROM billing_invoices i JOIN customers c ON c.id = i.klient_id WHERE i.id = $1`, [invoiceId]).catch(() => null);
+  return (r?.rows[0]?.customer_number as string | null) ?? undefined;
+}
+export async function kundennummerVon(klientId: string | null | undefined): Promise<string | undefined> {
+  if (!klientId) return undefined;
+  const k = await getKlient(klientId).catch(() => null);
+  return k?.customer_number ?? undefined;
+}

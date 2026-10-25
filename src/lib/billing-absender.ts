@@ -8,6 +8,8 @@ import { getSiteSetting } from './website-db';
 export const ABSENDER_KEYS = [
   'invoice_sender_name', 'invoice_sender_street', 'invoice_sender_city', 'invoice_sender_phone',
   'invoice_bank_iban', 'invoice_bank_bic', 'invoice_bank_name', 'invoice_vat_id', 'invoice_tax_number',
+  // Beleg-Design (K111): Inhaber – Fußzeile und Ansprechpartner.
+  'invoice_manager',
 ] as const;
 
 export type AbsenderEinstellungen = Partial<Record<(typeof ABSENDER_KEYS)[number], string | null>>;
@@ -16,6 +18,8 @@ export interface Absender {
   name: string; address: string; postalCode: string; city: string; country: string;
   vatId: string; taxNumber: string;
   iban: string; bic: string; bankName: string; email: string; phone: string; website: string;
+  /** Beleg-Design (K111): „Inhaber: …“ in der Fußzeile, Ansprechpartner im Infoblock. */
+  inhaber: string;
 }
 
 export function normalisiereUstId(roh: string | null | undefined): string {
@@ -60,6 +64,7 @@ export function absenderAus(s: AbsenderEinstellungen, env: Env = process.env): A
     email: env.SELLER_EMAIL || env.CONTACT_EMAIL || '',
     phone: feld('invoice_sender_phone') || env.SELLER_PHONE || '',
     website: env.LEGAL_WEBSITE || env.PROD_DOMAIN || '',
+    inhaber: feld('invoice_manager'),
   };
 }
 

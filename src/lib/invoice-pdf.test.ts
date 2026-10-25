@@ -171,3 +171,35 @@ it('generateInvoicePdf renders a single service period date when no end date is 
   });
   expect(buf.subarray(0, 4).toString()).toBe('%PDF');
 });
+
+// Beleg-Design (SPEZ-BELEG-DESIGN, 25.10.2026): Briefbild, Infoblock, Folgeseiten.
+it('Beleg-Design: Anschrift DIN 5008, Infoblock, Fußzeile mit Inhaber (K108, K109, K111)', async () => {
+  const buf = await generateInvoicePdf({
+    invoice: { ...dunningInvoice, servicePeriodStart: '2026-02-15' },
+    lines: [{ description: 'Coaching', quantity: 1, unitPrice: 100, netAmount: 100 }],
+    customer: { name: 'Max Mustermann', company: 'Muster AG', email: 'max@test.de', country: 'AT', addressLine1: 'Weg 2', postalCode: '1010', city: 'Wien', customerNumber: 'M1088' },
+    seller: { ...dunningSeller, inhaber: 'Gerald Korczewski' },
+  });
+  const text = await extractText(buf);
+  expect(text).toContain('ÖSTERREICH');
+  expect(text).not.toMatch(/D-\d{5}/);
+  expect(text).toContain('Kundennr.');
+  expect(text).toContain('M1088');
+  expect(text).toContain('Inhaber: Gerald Korczewski');
+  expect(text).toContain('Ansprechpartner');
+  expect(text).not.toContain('Seite 1 von'); // eine Seite: keine Seitenzahl
+});
+
+it('Beleg-Design: viele Positionen → Folgeseiten mit „Seite x von y“ (K113)', async () => {
+  const lines = Array.from({ length: 30 }, (_, i) => ({
+    description: `Sitzung ${i + 1}: ausführliche Beschreibung der Leistung, die über mehrere Zeilen läuft`, quantity: 1, unitPrice: 50, netAmount: 50,
+    leistungVon: '2026-02-10',
+  }));
+  const buf = await generateInvoicePdf({
+    invoice: dunningInvoice, lines, customer: { name: 'Max Mustermann', email: 'max@test.de', country: 'DE' }, seller: dunningSeller,
+  });
+  const text = await extractText(buf);
+  expect(text).toMatch(/Seite 1 von [2-9]/);
+  expect(text).toContain('Sitzung 30');
+  expect(text).toContain('Gesamtsumme');
+});
