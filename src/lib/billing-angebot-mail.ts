@@ -14,7 +14,8 @@ const ohneDoppelEuro = (t: string) => t.replace(/€\s*€/g, '€');
 
 export async function angebotMailVorschlag(brand: string, id: string): Promise<MailVorschlag | null> {
   const a = await holeAngebot(brand, id);
-  if (!a || a.status === 'entwurf' || !a.empfaenger) return null;
+  // Prüfung D1: nur die aktuelle, noch unbeantwortete Fassung.
+  if (!a || a.status !== 'verschickt' || !a.empfaenger) return null;
   const [m, von] = await Promise.all([angebotsMail(brand, a, a.empfaenger), absenderAnzeige()]);
   return {
     an: hatEchteEmail(a.empfaenger.email) ? a.empfaenger.email : '',
@@ -33,6 +34,7 @@ export async function sendeAngebotsMail(
   const a = await holeAngebot(brand, id);
   if (!a) return { ok: false, status: 404, fehler: 'Angebot nicht gefunden.' };
   if (a.status === 'entwurf' || !a.empfaenger) return { ok: false, status: 409, fehler: 'Das Angebot ist noch ein Entwurf. Bitte zuerst nummerieren.' };
+  if (a.status !== 'verschickt') return { ok: false, status: 409, fehler: 'Diese Fassung ist ersetzt oder schon beantwortet und wird nicht mehr verschickt.' };
   let pdf: Buffer | null = (await pool.query('SELECT pdf FROM billing_quotes WHERE id = $1', [id])).rows[0]?.pdf ?? null;
   if (!pdf) {
     pdf = await erzeugeAngebotsPdf(brand, a, a.positionen, a.empfaenger);
@@ -44,6 +46,7 @@ export async function sendeAngebotsMail(
   if (!gesendet.ok) {
     return { ok: false, status: 502, fehler: `${gesendet.grund} Das Angebot ${a.number} bleibt nummeriert – bitte später erneut senden oder das PDF selbst verschicken. (Server: ${gesendet.detail})` };
   }
-  await pool.query(`UPDATE billing_quotes SET versandweg = 'email', versendet_am = now() WHERE id = $1`, [id]);
+  // Prüfung D3: der erste Versand bleibt maßgeblich (Antwortdatum, Versandweg); weitere stehen im Protokoll.
+  await pool.query(`UPDATE billing_quotes SET versandweg = COALESCE(versandweg, 'email'), versendet_am = COALESCE(versendet_am, now()) WHERE id = $1`, [id]);
   return { ok: true, nummer: a.number };
 }

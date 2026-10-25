@@ -61,7 +61,7 @@ export function initAkteDokumente(): Promise<void> {
         IF TG_OP <> 'UPDATE' THEN
           RAISE EXCEPTION 'Notizen und Dokumente lassen sich nicht löschen, nur zurückziehen (K105).';
         END IF;
-        IF OLD.zurueckgezogen_am IS NOT NULL
+        IF OLD.zurueckgezogen_am IS NOT NULL OR NEW.zurueckgezogen_am IS NULL OR NEW.id IS DISTINCT FROM OLD.id
            OR (NEW.brand, NEW.klient_id, NEW.angebot_id, NEW.art, NEW.weg, NEW.datum, NEW.notiz, NEW.datei_name,
                NEW.datei_mime, NEW.datei_groesse, NEW.datei_inhalt, NEW.erstellt_am, NEW.erstellt_von)
               IS DISTINCT FROM
@@ -69,6 +69,7 @@ export function initAkteDokumente(): Promise<void> {
                OLD.datei_mime, OLD.datei_groesse, OLD.datei_inhalt, OLD.erstellt_am, OLD.erstellt_von) THEN
           RAISE EXCEPTION 'Notizen und Dokumente lassen sich nicht ändern, nur einmal zurückziehen (K105).';
         END IF;
+        NEW.zurueckgezogen_am := now(); -- Prüfung D7: nicht zurückdatierbar
         RETURN NEW;
       END $$ LANGUAGE plpgsql;
       DROP TRIGGER IF EXISTS akte_eintraege_sperre ON akte_eintraege;
@@ -82,8 +83,13 @@ export function initAkteDokumente(): Promise<void> {
 
 const endung = (name: string) => (name.toLowerCase().match(/\.([a-z0-9]{1,5})$/)?.[1] ?? '');
 /** Dateiname ohne Pfad, ohne Steuerzeichen und Anführungszeichen (für den Download-Kopf). */
-export const sichererName = (name: string) =>
-  [...(name.split(/[\\/]/).pop() ?? 'datei')].filter((z) => z.charCodeAt(0) >= 32 && z !== '"' && z !== '\\').join('').trim().slice(0, 150) || 'datei';
+export function sichererName(name: string): string {
+  const roh = [...(name.split(/[\\/]/).pop() ?? 'datei')].filter((z) => z.charCodeAt(0) >= 32 && z !== '"' && z !== '\\').join('').trim();
+  // Prüfung D4: nach Zeichen (nicht UTF-16-Einheiten) kürzen und die Endung behalten.
+  const ext = roh.match(/\.[A-Za-z0-9]{1,5}$/)?.[0] ?? '';
+  const stamm = [...roh.slice(0, roh.length - ext.length)].slice(0, 150 - ext.length).join('').trim();
+  return (stamm || 'datei') + ext;
+}
 
 /** K104: Datei prüfen, bevor irgendetwas gespeichert wird. */
 export function pruefeDatei(d: Datei | null): string | null {

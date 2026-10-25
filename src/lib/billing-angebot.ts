@@ -66,6 +66,11 @@ export interface Angebot {
   vorlageName: string | null;
 }
 
+/** Prüfung D5: nummeriert, aber (noch) nicht verschickt – in Listen eigens benennen. */
+export function standText(a: Pick<Angebot, 'stand' | 'status' | 'versendetAm'>): string {
+  return a.status === 'verschickt' && !a.versendetAm ? `nummeriert, noch nicht verschickt${a.stand === 'abgelaufen' ? ' (abgelaufen)' : ''}` : ANGEBOT_STAND_TEXT[a.stand];
+}
+
 /** K84: aktive Angebote zuerst, dann die abgeschlossenen. */
 export const AKTIVE_STAENDE: AngebotStand[] = ['entwurf', 'verschickt', 'abgelaufen'];
 export const istAktiv = (a: Pick<Angebot, 'stand'>) => AKTIVE_STAENDE.includes(a.stand);

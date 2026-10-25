@@ -5,7 +5,7 @@ import AdminLayout from '../../../layouts/AdminLayout.astro';
 import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
 import ZustandLegende from '../../../components/admin/ZustandLegende.astro';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
-import { alleAngebote, istAktiv, ANGEBOT_STAND_TEXT, type AngebotFilter } from '../../../lib/billing-angebot';
+import { alleAngebote, istAktiv, standText, type AngebotFilter } from '../../../lib/billing-angebot';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -62,7 +62,7 @@ const eingabe = 'px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm 
             <td class="py-1 pr-3">{fd(x.datum)}</td>
             <td class="py-1 pr-3">{fd(x.gueltigBis)}</td>
             <td class="py-1 pr-3 text-right">{euro(x.brutto)}</td>
-            <td class={`py-1 ${x.stand === 'abgelaufen' ? 'text-gold' : x.status === 'angenommen' ? 'text-green-400' : 'text-muted'}`}>{ANGEBOT_STAND_TEXT[x.stand]}</td>
+            <td class={`py-1 ${x.stand === 'abgelaufen' ? 'text-gold' : x.status === 'angenommen' ? 'text-green-400' : 'text-muted'}`}>{standText(x)}</td>
           </tr></>))}
         </tbody>
       </table>

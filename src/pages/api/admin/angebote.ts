@@ -59,6 +59,8 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     return json(200, { ok: true, number: r.angebot.number, versand: 'email', mail: true });
   }
 
+  // Prüfung D6: übergroße Uploads gar nicht erst einlesen.
+  if (Number(request.headers.get('content-length') ?? 0) > 16 * 1024 * 1024) return new Response('Die Datei ist größer als 15 MB.', { status: 413 });
   const form = await request.formData();
   const text = (k: string) => String(form.get(k) ?? '');
   const aktion = text('aktion');
@@ -126,14 +128,28 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     if (!r.ok) return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent(r.fehler)}`, 303);
     const weg = istWeg(text('weg')) ? text('weg') : null;
     const notiz = [aktion === 'abgelehnt' && text('grund').trim() ? `Grund: ${text('grund').trim()}` : '', text('notiz').trim()].filter(Boolean).join('\n');
-    if (a.klientId && (weg || notiz || datei)) {
-      const e = await legeEintragAn(brand, { klientId: a.klientId, angebotId: a.id, art: aktion === 'angenommen' ? 'annahme' : 'ablehnung',
-        weg, datum: d.wert, notiz: notiz || `${aktion === 'angenommen' ? 'Annahme' : 'Ablehnung'} vermerkt`, datei }, session.email);
-      if (!e.ok) locals.requestLogger.warn({ fehler: e.fehler }, '[angebote] Nachweis nicht gespeichert');
+    // Prüfung D2: Scheitert der Nachweis, wird das deutlich gemeldet (die Antwort selbst ist vermerkt).
+    let nachweisFehler: string | null = null;
+    if (weg || notiz || datei) {
+      if (!a.klientId) nachweisFehler = 'Das Angebot gehört zu keiner Klientenakte.';
+      else {
+        try {
+          const e = await legeEintragAn(brand, { klientId: a.klientId, angebotId: a.id, art: aktion === 'angenommen' ? 'annahme' : 'ablehnung',
+            weg, datum: d.wert, notiz: notiz || `${aktion === 'angenommen' ? 'Annahme' : 'Ablehnung'} vermerkt`, datei }, session.email);
+          if (!e.ok) nachweisFehler = e.fehler;
+        } catch (err) {
+          locals.requestLogger.error({ err }, '[angebote] Nachweis nicht gespeichert');
+          nachweisFehler = 'Fehler beim Speichern.';
+        }
+      }
     }
     await log({ aktion: aktion === 'angenommen' ? 'Annahme vermerkt' : 'Ablehnung vermerkt', klientId: a.klientId, objekt: a.number,
       nachher: { am: d.wert, weg: weg ? WEG_TEXT[weg as keyof typeof WEG_TEXT] : null, grund: aktion === 'abgelehnt' ? text('grund').trim() || null : null,
         notiz: text('notiz').trim().slice(0, 200), datei: datei?.name } });
+    if (nachweisFehler) {
+      const was = aktion === 'angenommen' ? 'Annahme' : 'Ablehnung';
+      return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent(`${was} ist vermerkt, aber der Nachweis wurde nicht gespeichert: ${nachweisFehler} Bitte unten unter „Nachweise und Notizen“ erneut ablegen.`)}#notizen`, 303);
+    }
     return redirect(`/admin/angebote/${a.id}?gespeichert=1`, 303);
   }
   return new Response('Unbekannte Aktion', { status: 400 });

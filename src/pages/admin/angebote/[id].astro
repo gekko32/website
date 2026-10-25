@@ -8,7 +8,7 @@ import ZustandLegende from '../../../components/admin/ZustandLegende.astro';
 import AkteEintraege from '../../../components/admin/AkteEintraege.astro';
 import { eintraegeDesAngebots, WEG_TEXT, ERLAUBTE_ENDUNGEN, type AkteEintrag } from '../../../lib/akte-dokumente';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
-import { holeAngebot, angebotVorschau, geplantePositionenDesAuftrags, ANGEBOT_STAND_TEXT } from '../../../lib/billing-angebot';
+import { holeAngebot, angebotVorschau, geplantePositionenDesAuftrags, standText } from '../../../lib/billing-angebot';
 import { fehlendeAngaben } from '../../../lib/billing-empfaenger';
 import { anzeigeEmail, versandwege } from '../../../lib/billing-versand';
 import { leistungsdatumZeile } from '../../../lib/leistungszeitraum';
@@ -62,7 +62,7 @@ const eingabe = 'block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dar
       <span class="mx-2">·</span><a class="hover:underline" href="/admin/angebote">Alle Angebote</a>
     </p>
     <AdminPageHeader title={`Angebot ${a.number}`}
-      description={`${a.auftragTitel ?? ''} · ${ANGEBOT_STAND_TEXT[a.stand]}${a.fassung > 1 ? ` · Fassung ${a.fassung}` : ''}${a.vorlageName ? ` · Vorlage „${a.vorlageName}“` : ''}`} />
+      description={`${a.auftragTitel ?? ''} · ${standText(a)}${a.fassung > 1 ? ` · Fassung ${a.fassung}` : ''}${a.vorlageName ? ` · Vorlage „${a.vorlageName}“` : ''}`} />
 
     {q.get('neu') === '1' && <p class="text-sm text-green-400 mb-3">Neuer Angebotsentwurf angelegt. Positionen lassen sich hier ändern, löschen und ergänzen.</p>}
     {(gespeichert || q.get('eintragGespeichert') === '1') && <p class="text-sm text-green-400 mb-3">Gespeichert.</p>}
@@ -207,7 +207,7 @@ const eingabe = 'block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dar
     {!entwurf && (
       <div class="flex flex-wrap gap-2 justify-end mb-6">
         <a href={`/api/admin/angebote/${a.id}/pdf`} target="_blank" rel="noopener" class={`${knopf} border border-dark-lighter`}>PDF ↗</a>
-        <button type="button" id="mail-oeffnen" class={`${knopf} bg-gold text-dark font-semibold`}>{a.versandweg === 'email' ? 'Erneut per E-Mail senden' : 'Per E-Mail senden'}</button>
+        {a.status === 'verschickt' && <button type="button" id="mail-oeffnen" class={`${knopf} bg-gold text-dark font-semibold`}>{a.versandweg === 'email' ? 'Erneut per E-Mail senden' : 'Per E-Mail senden'}</button>}
         {a.status === 'verschickt' && (
           <form method="POST" action="/api/admin/angebote" class="mit-rueckfrage" data-frage="Neue Fassung anlegen? Diese Fassung steht danach auf „ersetzt“ und bleibt lesbar; die neue ist ein änderbarer Entwurf." data-ja="Neue Fassung">
             <input type="hidden" name="aktion" value="neue_fassung" /><input type="hidden" name="id" value={a.id} />
@@ -263,7 +263,7 @@ const eingabe = 'block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dar
     {a.status === 'angenommen' && <p class="text-sm text-green-400 mb-6">Angenommen{a.abgelaufenAngenommen ? ' (nach Ablauf)' : ''}. Daraus wurde der Auftrag <a class="underline" href={`/admin/klienten/${a.klientId}#auftrag-${a.auftragId}`}>„{a.auftragTitel}“</a> beauftragt; seine Positionen sind offene Posten und werden wie alle Posten abgerechnet.</p>}
 
     {/* K100: E-Mail vor dem Senden prüfen und anpassen (wie Rechnung). */}
-    {!entwurf && (
+    {a.status === 'verschickt' && (
     <section id="mail" hidden class="border border-gold/60 rounded-xl p-4 mb-6">
       <h2 class="text-sm font-semibold text-gold mb-3">E-Mail mit Angebot {a.number}</h2>
       <div class="grid gap-3 text-sm">

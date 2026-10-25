@@ -10,10 +10,13 @@ export const GET: APIRoute = async ({ request, params }) => {
   const d = await holeDatei(process.env.BRAND || 'mentolder', params.id ?? '');
   if (!d) return new Response('Datei nicht gefunden', { status: 404 });
   const ascii = d.name.replace(/[^\x20-\x7e]/g, '_');
+  // Prüfung D4: kaputte Zeichen im Namen dürfen den Download nicht abbrechen.
+  let utf8 = ascii;
+  try { utf8 = encodeURIComponent(d.name); } catch { /* bleibt bei der ASCII-Fassung */ }
   return new Response(new Uint8Array(d.inhalt), {
     headers: {
       'Content-Type': d.mime,
-      'Content-Disposition': `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(d.name)}`,
+      'Content-Disposition': `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`,
       'X-Content-Type-Options': 'nosniff',
       'Cache-Control': 'no-store',
     },

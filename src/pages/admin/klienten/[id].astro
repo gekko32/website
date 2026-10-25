@@ -14,7 +14,7 @@ import { listeLeistungen, listeKategorien, preisAnzeige } from '../../../lib/bil
 import { gebuchteTermine } from '../../../lib/billing-ausfall';
 import { ladeEinheiten } from '../../../lib/billing-einheiten';
 import { verbucheUndEntwerfe, wirksameAbrechnungsart } from '../../../lib/billing-abrechnungslauf';
-import { angeboteDesKlienten, sortiereAngebote, istAktiv, ANGEBOT_STAND_TEXT, type Angebot } from '../../../lib/billing-angebot';
+import { angeboteDesKlienten, sortiereAngebote, istAktiv, standText, type Angebot } from '../../../lib/billing-angebot';
 import { ladeRegeln } from '../../../lib/billing-regeln';
 import { anzeigeEmail, hatEchteEmail } from '../../../lib/billing-versand';
 import { postenDesKlienten, postenBetrag, AUFTRAG_STAND_TEXT, auftragMitAngebotLoeschbar, postenImEntwurfAenderbar, auftraegeDesKlienten, terminAbgesagt, postenLoeschbar, auftragLoeschbar, leistungszeitraum, HERKUNFT_TEXT, ZUSTAND_TEXT, type Posten, type Auftrag } from '../../../lib/billing-posten';
@@ -400,7 +400,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                 {angeboteVon(a.id).length > 0 && (
                   <ul class="text-xs mt-2 space-y-0.5">{angeboteVon(a.id).map((x) => (
                     <li><a class="hover:underline font-mono" href={`/admin/angebote/${x.id}`}>{x.number}</a>
-                      <span class={x.stand === 'abgelaufen' ? 'text-gold' : 'text-muted'}> · {ANGEBOT_STAND_TEXT[x.stand]} · {euro(x.brutto)}</span></li>))}
+                      <span class={x.stand === 'abgelaufen' ? 'text-gold' : 'text-muted'}> · {standText(x)} · {euro(x.brutto)}</span></li>))}
                   </ul>
                 )}
               </div>
@@ -554,7 +554,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
               <td class="py-1 pr-3">{datum(x.datum)}</td>
               <td class="py-1 pr-3">{datum(x.gueltigBis)}</td>
               <td class="py-1 pr-3 text-right">{euro(x.brutto)}</td>
-              <td class={`py-1 ${x.stand === 'abgelaufen' ? 'text-gold' : x.status === 'angenommen' ? 'text-green-400' : 'text-muted'}`}>{ANGEBOT_STAND_TEXT[x.stand]}</td>
+              <td class={`py-1 ${x.stand === 'abgelaufen' ? 'text-gold' : x.status === 'angenommen' ? 'text-green-400' : 'text-muted'}`}>{standText(x)}</td>
             </tr></>))}
           </tbody>
         </table>

@@ -14,6 +14,8 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   if (!session) return new Response('Nicht angemeldet', { status: 401 });
   if (!isAdmin(session)) return new Response('Forbidden', { status: 403 });
   const brand = process.env.BRAND || 'mentolder';
+  // Prüfung D6: übergroße Uploads gar nicht erst einlesen.
+  if (Number(request.headers.get('content-length') ?? 0) > 16 * 1024 * 1024) return new Response('Die Datei ist größer als 15 MB.', { status: 413 });
   let form: FormData;
   try { form = await request.formData(); } catch { return new Response('Ungültiges Formular', { status: 400 }); }
   const text = (k: string) => String(form.get(k) ?? '');
@@ -24,7 +26,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const e = await holeEintrag(brand, text('id'));
     if (!e) return new Response('Eintrag nicht gefunden', { status: 404 });
     const ok = await zieheZurueck(brand, e.id, session.email, text('grund'));
-    if (ok) await protokolliere(brand, session.email, { bereich: 'stammdaten', aktion: 'Notiz/Dokument zurückgezogen', klientId: e.klientId,
+    if (ok) await protokolliere(brand, session.email, { bereich: e.angebotId ? 'angebot' : 'stammdaten', aktion: 'Notiz/Dokument zurückgezogen', klientId: e.klientId,
       objekt: e.dateiName ?? e.notiz?.slice(0, 80) ?? null, beschreibung: text('grund').trim() || null });
     return redirect(ziel(ok ? 'eintragGespeichert=1' : `eintragFehler=${encodeURIComponent('Der Eintrag war schon zurückgezogen.')}`), 303);
   }

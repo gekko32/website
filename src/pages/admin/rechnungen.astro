@@ -5,7 +5,7 @@ import AdminTabs from '../../components/admin/ui/AdminTabs.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
 import { getAllBillingInvoices, getDraftInvoices } from '../../lib/stripe-billing';
 import { verbucheUndEntwerfe } from '../../lib/billing-abrechnungslauf';
-import { offeneAngebote, ANGEBOT_STAND_TEXT } from '../../lib/billing-angebot';
+import { offeneAngebote, standText } from '../../lib/billing-angebot';
 import { listPendingDunnings, type PendingDunning } from '../../lib/invoice-dunning';
 import type { AdminBillingInvoice } from '../../lib/stripe-billing';
 import TaxMonitorWidget from '../../components/admin/TaxMonitorWidget.svelte';
@@ -158,7 +158,7 @@ const STATUS_TABS = [
               <a href={`/admin/angebote/${x.id}`} class={`flex flex-wrap items-center justify-between gap-2 bg-surface border rounded-xl p-3 hover:border-gold ${x.stand === 'abgelaufen' ? 'border-gold' : 'border-border'}`}>
                 <span><span class="font-mono text-sm">{x.number}</span> <span class="text-light">{x.klientName}</span> <span class="text-muted text-sm">· {x.auftragTitel}</span></span>
                 <span class={`text-sm ${x.stand === 'abgelaufen' ? 'text-gold font-semibold' : 'text-muted'}`}>
-                  {x.brutto.toFixed(2).replace('.', ',')} € · gültig bis {x.gueltigBis.split('-').reverse().join('.')} · {ANGEBOT_STAND_TEXT[x.stand]}</span>
+                  {x.brutto.toFixed(2).replace('.', ',')} € · gültig bis {x.gueltigBis.split('-').reverse().join('.')} · {standText(x)}</span>
               </a>
             ))}
           </div>
