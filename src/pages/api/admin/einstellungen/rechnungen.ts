@@ -6,7 +6,7 @@ import { setTaxMode } from '../../../../lib/tax-monitor';
 import { normalisiereUstId, pruefeSteuerangaben } from '../../../../lib/billing-absender';
 import { pruefeZahlungsziel } from '../../../../lib/billing-regeln';
 
-const STRING_KEYS = ['invoice_sender_name','invoice_sender_street','invoice_sender_city','invoice_sender_phone','invoice_bank_iban','invoice_bank_bic','invoice_bank_name','invoice_tax_number','invoice_manager'] as const;
+const STRING_KEYS = ['invoice_sender_name','invoice_sender_street','invoice_sender_city','invoice_sender_phone','invoice_bank_iban','invoice_bank_bic','invoice_bank_name','invoice_tax_number','invoice_manager','invoice_sender_email','invoice_sender_website'] as const;
 
 export const POST: APIRoute = async ({ request, redirect }) => {
   const session = await getSession(request.headers.get('cookie'));

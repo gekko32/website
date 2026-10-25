@@ -14,7 +14,7 @@ if (!isAdmin(session)) return Astro.redirect('/admin');
 const BRAND = process.env.BRAND || 'mentolder';
 const saved = Astro.url.searchParams.get('saved') === '1';
 
-const keys = ['invoice_payment_days','invoice_tax_rate','invoice_sender_name','invoice_sender_street','invoice_sender_city','invoice_sender_phone','invoice_bank_iban','invoice_bank_bic','invoice_bank_name','invoice_vat_id','invoice_tax_number','invoice_manager'] as const;
+const keys = ['invoice_payment_days','invoice_tax_rate','invoice_sender_name','invoice_sender_street','invoice_sender_city','invoice_sender_phone','invoice_bank_iban','invoice_bank_bic','invoice_bank_name','invoice_vat_id','invoice_tax_number','invoice_manager','invoice_sender_email','invoice_sender_website'] as const;
 const [results, taxMode] = await Promise.all([
   Promise.all(keys.map(k => getSiteSetting(BRAND, k))),
   getTaxMode(BRAND),
@@ -113,6 +113,8 @@ const hinweis = 'font-size:0.75rem;color:var(--mute);line-height:1.4;margin:0.37
         <input type="text" name="invoice_sender_street" value={s.invoice_sender_street} placeholder="Straße, Hausnummer" style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
         <input type="text" name="invoice_sender_city"   value={s.invoice_sender_city}   placeholder="PLZ Ort"           style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
         <input type="text" name="invoice_sender_phone"  value={s.invoice_sender_phone}  placeholder="Telefon (für Footer)" style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
+        <input type="email" name="invoice_sender_email" value={s.invoice_sender_email} placeholder="E-Mail für die Fußzeile (z. B. info@mentolder.de)" aria-label="E-Mail für die Fußzeile" style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
+        <input type="text" name="invoice_sender_website" value={s.invoice_sender_website} placeholder="Website für die Fußzeile (z. B. www.mentolder.de)" aria-label="Website für die Fußzeile" style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
         <p style={hinweis}>Erscheint als Absender auf Rechnungen, E-Rechnungen, Stornos und Mahnungen. Bitte die Geschäftsanschrift eintragen, nicht die Privatanschrift.</p>
       </div>
 

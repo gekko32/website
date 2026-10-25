@@ -5,7 +5,7 @@ import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join, dirname } from 'path';
 import { zip } from './zip-schreiber';
-import type { BelegAbsender } from './beleg-layout';
+import { fussSpalten, FUSS_ANTEILE, type BelegAbsender } from './beleg-layout';
 
 export type VorlagenArt = 'rechnung' | 'angebot' | 'brief';
 
@@ -18,26 +18,30 @@ const LOGO: Buffer | null = (() => {
   return null;
 })();
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+// Prüfung B5: Steuerzeichen sind in XML 1.0 verboten und machen die Datei unlesbar – entfernen.
+const esc = (s: string) => [...s].filter((z) => { const c = z.charCodeAt(0); return c >= 0x20 || c === 0x09 || c === 0x0a; }).join('')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
 
 interface Lauf { text: string; fett?: boolean; groesse?: number; farbe?: string; unterstrichen?: boolean }
-const lauf = (l: Lauf) => `<w:r><w:rPr>${l.fett ? '<w:b/>' : ''}${l.unterstrichen ? '<w:u w:val="single"/>' : ''}${l.farbe ? `<w:color w:val="${l.farbe}"/>` : ''}<w:sz w:val="${Math.round((l.groesse ?? 10) * 2)}"/></w:rPr><w:t xml:space="preserve">${esc(l.text)}</w:t></w:r>`;
+// Prüfung B8: Reihenfolge im rPr nach Schema (b, color, sz, u); Prüfung B5: Zeilenumbruch als <w:br/>.
+const lauf = (l: Lauf) => `<w:r><w:rPr>${l.fett ? '<w:b/>' : ''}${l.farbe ? `<w:color w:val="${l.farbe}"/>` : ''}<w:sz w:val="${Math.round((l.groesse ?? 10) * 2)}"/>${l.unterstrichen ? '<w:u w:val="single"/>' : ''}</w:rPr>${
+  l.text.replace(/\r\n?/g, '\n').split('\n').map((t) => `<w:t xml:space="preserve">${esc(t)}</w:t>`).join('<w:br/>')}</w:r>`;
 
 interface Absatz { laeufe: Lauf[]; ausrichtung?: 'left' | 'right' | 'center'; vor?: number; nach?: number; linieUnten?: boolean; linieOben?: boolean }
 const absatz = (a: Absatz) =>
-  `<w:p><w:pPr><w:spacing w:before="${a.vor ?? 0}" w:after="${a.nach ?? 0}"/>${a.ausrichtung ? `<w:jc w:val="${a.ausrichtung}"/>` : ''}${
+  `<w:p><w:pPr>${
     a.linieUnten || a.linieOben ? `<w:pBdr>${a.linieOben ? '<w:top w:val="single" w:sz="12" w:space="4" w:color="1A1A1A"/>' : ''}${a.linieUnten ? '<w:bottom w:val="single" w:sz="12" w:space="4" w:color="1A1A1A"/>' : ''}</w:pBdr>` : ''
-  }</w:pPr>${a.laeufe.map(lauf).join('')}</w:p>`;
+  }<w:spacing w:before="${a.vor ?? 0}" w:after="${a.nach ?? 0}"/>${a.ausrichtung ? `<w:jc w:val="${a.ausrichtung}"/>` : ''}</w:pPr>${a.laeufe.map(lauf).join('')}</w:p>`;
 const text = (t: string, opts: Omit<Lauf, 'text'> & Omit<Absatz, 'laeufe'> = {}) => absatz({ ...opts, laeufe: [{ text: t, ...opts }] });
 
 interface Zelle { breite: number; inhalt: string; grau?: string; ausrichtung?: 'left' | 'right' | 'center' }
 const tabelle = (zeilen: Zelle[][], opts: { rahmen?: boolean; linienZwischen?: boolean } = {}) => {
   const breiten = zeilen[0].map((z) => z.breite);
   const rahmen = opts.rahmen || opts.linienZwischen
-    ? `<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:right w:val="nil"/><w:bottom w:val="single" w:sz="12" w:color="1A1A1A"/><w:insideH w:val="single" w:sz="4" w:color="BFBFBF"/><w:insideV w:val="nil"/></w:tblBorders>`
+    ? `<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="single" w:sz="12" w:color="1A1A1A"/><w:right w:val="nil"/><w:insideH w:val="single" w:sz="4" w:color="BFBFBF"/><w:insideV w:val="nil"/></w:tblBorders>`
     : '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders>';
-  return `<w:tbl><w:tblPr><w:tblW w:w="${breiten.reduce((a, b) => a + b, 0)}" w:type="dxa"/><w:tblLayout w:type="fixed"/>${rahmen}<w:tblCellMar><w:left w:w="60" w:type="dxa"/><w:right w:w="60" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${breiten.map((b) => `<w:gridCol w:w="${b}"/>`).join('')}</w:tblGrid>${
+  return `<w:tbl><w:tblPr><w:tblW w:w="${breiten.reduce((a, b) => a + b, 0)}" w:type="dxa"/>${rahmen}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="60" w:type="dxa"/><w:right w:w="60" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${breiten.map((b) => `<w:gridCol w:w="${b}"/>`).join('')}</w:tblGrid>${
     zeilen.map((z) => `<w:tr>${z.map((c) => `<w:tc><w:tcPr><w:tcW w:w="${c.breite}" w:type="dxa"/>${c.grau ? `<w:shd w:val="clear" w:color="auto" w:fill="${c.grau}"/>` : ''}</w:tcPr>${c.inhalt || '<w:p/>'}</w:tc>`).join('')}</w:tr>`).join('')
   }</w:tbl>`;
 };
@@ -57,14 +61,11 @@ export function briefbogenDocx(art: VorlagenArt, a: BelegAbsender, t: VorlagenTe
   ]])}${text(' ', { linieUnten: true, groesse: 4 })}</w:hdr>`;
 
   // ── Fußzeile: vier Spalten wie im PDF ─────────────────────────────────────
-  const spalte = (zeilen: string[], breite: number): Zelle => ({ breite, inhalt: zeilen.filter(Boolean).map((z) => text(z, { groesse: 7, ausrichtung: 'center' })).join('') || '<w:p/>' });
-  const anteile = [0.22, 0.24, 0.31, 0.23].map((x) => Math.round(nutzbar * x));
-  const fuss = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr ${NS}>${text(' ', { linieOben: true, groesse: 4 })}${tabelle([[
-    spalte([a.name, a.address, [a.postalCode, a.city].filter(Boolean).join(' ')], anteile[0]),
-    spalte([a.phone ?? '', a.website ? a.website.replace(/^https?:\/\//, '').replace(/^(?!www\.)/, 'www.') : '', a.email ?? ''], anteile[1]),
-    spalte([a.bankName ? `Bank: ${a.bankName}` : '', a.iban ? `IBAN: ${a.iban.replace(/(.{4})/g, '$1 ').trim()}` : '', a.bic ? `BIC: ${a.bic}` : ''], anteile[2]),
-    spalte([a.vatId ? `USt-IdNr.: ${a.vatId}` : '', a.taxNumber ? `Steuernr.: ${a.taxNumber}` : '', a.inhaber ? `Inhaber: ${a.inhaber}` : ''], anteile[3]),
-  ]])}</w:ftr>`;
+  const spalte = (zeilen: string[], breite: number): Zelle => ({ breite, inhalt: zeilen.map((z) => text(z, { groesse: 7, ausrichtung: 'center' })).join('') || '<w:p/>' });
+  // Prüfung B7: dieselben Spalten wie die PDF-Fußzeile (kein erzwungenes „www.“).
+  const fuss = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr ${NS}>${text(' ', { linieOben: true, groesse: 4 })}${tabelle([
+    fussSpalten(a).map((z, i) => spalte(z, Math.round(nutzbar * FUSS_ANTEILE[i]))),
+  ])}<w:p/></w:ftr>`;
 
   // ── Inhalt ───────────────────────────────────────────────────────────────
   const ruecksende = [a.name, a.address, [a.postalCode, a.city].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
@@ -110,7 +111,7 @@ export function briefbogenDocx(art: VorlagenArt, a: BelegAbsender, t: VorlagenTe
     teile.push(text(' ', { groesse: 4 }));
     teile.push(tabelle([
       summe('Summe Netto', '0,00 €', true),
-      summe(t.kleinunternehmerAktiv ? 'USt. (§ 19 UStG)' : 'zzgl. USt. 19 %', '0,00 €'),
+      summe(t.kleinunternehmerAktiv ? 'USt. (§ 19 UStG)' : 'zzgl. USt. [Satz] %', '0,00 €'),
       summe('Gesamtsumme', '0,00 €', true, 'BFBFBF'),
     ]));
     if (t.kleinunternehmerAktiv) teile.push(text(t.kleinunternehmer || 'Kein Ausweis der Umsatzsteuer aufgrund der Anwendung der Kleinunternehmerregelung gemäß § 19 UStG.', { fett: true, groesse: 7.5, vor: 240 }));

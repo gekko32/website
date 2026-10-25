@@ -203,3 +203,29 @@ it('Beleg-Design: viele Positionen → Folgeseiten mit „Seite x von y“ (K113
   expect(text).toContain('Sitzung 30');
   expect(text).toContain('Gesamtsumme');
 });
+
+it('Beleg-Design (Prüfung B1): eine Position länger als eine Seite bricht sauber um', async () => {
+  const lang = Array.from({ length: 140 }, (_, i) => `Absatz ${i + 1} der sehr langen Beschreibung.`).join(' ') + ' ENDE-DER-BESCHREIBUNG';
+  const buf = await generateInvoicePdf({
+    invoice: dunningInvoice, lines: [{ description: lang, quantity: 1, unitPrice: 10, netAmount: 10 }],
+    customer: { name: 'Max Mustermann', email: 'max@test.de', country: 'DE' }, seller: dunningSeller,
+    templateTexts: { outroText: Array.from({ length: 80 }, () => 'Schlusstext lang.').join(' ') + ' ENDE-SCHLUSS' },
+  });
+  const text = await extractText(buf);
+  expect(text).toMatch(/Seite 1 von [2-9]/);
+  expect(text).toContain('ENDE-DER-BESCHREIBUNG');
+  expect(text).toContain('ENDE-SCHLUSS');
+  expect(text).toContain('Gesamtsumme');
+});
+
+it('Beleg-Design (Prüfung B4): Zeichen außerhalb der Standardschrift werden ersetzt statt zerstört', async () => {
+  const buf = await generateInvoicePdf({
+    invoice: dunningInvoice, lines: [{ description: 'Workshop Dvořák 🎉 Świętokrzyska', quantity: 1, unitPrice: 10, netAmount: 10 }],
+    customer: { name: 'Łukasz Wójcik', email: 'l@test.de', country: 'PL', addressLine1: 'ul. Świętokrzyska 1', postalCode: '00-001', city: 'Warszawa' },
+    seller: dunningSeller,
+  });
+  const text = await extractText(buf);
+  expect(text).toContain('Lukasz Wójcik');
+  expect(text).toContain('Workshop Dvorák Swietokrzyska'); // á gibt es in der Standardschrift, ř nicht
+  expect(text).toContain('POLEN');
+});

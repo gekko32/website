@@ -7,8 +7,8 @@ import { generateEInvoiceXml, type EInvoiceProfile } from './einvoice-profile';
 import type { EInvoiceInput } from './einvoice-types';
 import { leistungsdatumZeile } from './leistungszeitraum';
 import {
-  neuerBeleg, zeichneKopf, zeichneAnschrift, zeichneInfo, infoEmailUndAnsprechpartner, platz, abschliessen,
-  S, W, FARBE, euro, datumDe, mengeDe, type BelegAbsender, type BelegEmpfaenger,
+  neuerBeleg, zeichneKopf, zeichneAnschrift, zeichneInfo, infoEmailUndAnsprechpartner, platz, abschliessen, einzeilig,
+  fliesstext, zeilen, S, W, MM, FARBE, euro, datumDe, mengeDe, type BelegAbsender, type BelegEmpfaenger,
 } from './beleg-layout';
 
 export interface InvoicePdfLine {
@@ -35,17 +35,26 @@ export interface Dunning {
   outstandingAtGeneration: number;
 }
 
+type Doc = ReturnType<typeof neuerBeleg>['doc'];
+
 /** Anrede: bei bekannter Person persönlich, sonst allgemein. */
 function anrede(c: InvoicePdfCustomer): string {
   return c.name && c.name.trim() && c.name !== c.company ? `Guten Tag ${c.name.trim()},` : 'Sehr geehrte Damen und Herren,';
 }
 
-function grussformel(doc: ReturnType<typeof neuerBeleg>['doc'], y: number, seller: InvoicePdfSeller, titel: string): number {
+/** Gruß – bleibt zusammen auf einer Seite. */
+function grussformel(doc: Doc, y: number, seller: InvoicePdfSeller, titel: string): number {
   y = platz(doc, y, 40, titel);
-  doc.font('Helvetica').fontSize(10).fillColor(FARBE.text).text('Mit freundlichen Grüßen', S.L, y, { width: W });
-  y = doc.y + 14;
-  doc.text(seller.inhaber || seller.name, S.L, y, { width: W });
-  return doc.y;
+  einzeilig(doc, 'Mit freundlichen Grüßen', S.L, y, W);
+  einzeilig(doc, seller.inhaber || seller.name, S.L, y + 26, W);
+  return y + 40;
+}
+
+/** Betreffzeile nach DIN 5008 Form B (98,4 mm), unter Anschrift und Infoblock. */
+function betreff(doc: Doc, text: string, aEnde: number, iEnde: number): number {
+  const y = Math.max(aEnde, iEnde, 98.4 * MM) + 10;
+  einzeilig(doc, text, S.L, y, W, { schrift: 'Helvetica-Bold', groesse: 11, min: 8 });
+  return y + 26;
 }
 
 export async function generateDunningPdf(p: {
@@ -67,28 +76,24 @@ export async function generateDunningPdf(p: {
     ...infoEmailUndAnsprechpartner(customer, seller),
   ]);
 
-  let y = Math.max(aEnde, iEnde, 98 * MM_Y) + 10;
-  doc.font('Helvetica-Bold').fontSize(11).fillColor(FARBE.text).text(`${d.level === 1 ? 'ZAHLUNGSERINNERUNG' : `${d.level - 1}. MAHNUNG`} ZU RECHNUNG NR. ${inv.number}`, S.L, y, { width: W });
-  y = doc.y + 14;
-  doc.font('Helvetica').fontSize(10).fillColor(FARBE.text).text(anrede(customer), S.L, y, { width: W });
-  y = doc.y + 8;
-  const intro = d.level === 1
+  let y = betreff(doc, `${d.level === 1 ? 'ZAHLUNGSERINNERUNG' : `${d.level - 1}. MAHNUNG`} ZU RECHNUNG NR. ${inv.number}`, aEnde, iEnde);
+  // Prüfung B11: alle Texte laufen über den Fließtext und brechen bei Bedarf auf die nächste Seite um.
+  const absatz = (t: string, abstand = 8) => { y = fliesstext(doc, t, S.L, y, W, titel) + abstand; };
+  absatz(anrede(customer));
+  absatz(d.level === 1
     ? `sicher haben Sie nur übersehen, dass die Rechnung Nr. ${inv.number} vom ${datumDe(inv.issueDate)} am ${datumDe(inv.dueDate)} zur Zahlung fällig war.`
-    : `leider konnten wir bis heute keinen Zahlungseingang für die Rechnung Nr. ${inv.number} vom ${datumDe(inv.issueDate)} feststellen.`;
-  doc.text(intro, S.L, y, { width: W });
-  y = doc.y + 8;
-  doc.text('Wir bitten Sie höflich, den offenen Betrag bis spätestens 7 Tage nach Erhalt dieses Schreibens zu begleichen.', S.L, y, { width: W });
-  y = doc.y + 16;
+    : `leider konnten wir bis heute keinen Zahlungseingang für die Rechnung Nr. ${inv.number} vom ${datumDe(inv.issueDate)} feststellen.`);
+  absatz('Wir bitten Sie höflich, den offenen Betrag bis spätestens 7 Tage nach Erhalt dieses Schreibens zu begleichen.', 14);
 
   // Posten wie die Rechnungstabelle, nur Beschreibung und Betrag.
+  y = platz(doc, y, 110, titel);
   doc.rect(S.L, y, W, 18).fill(FARBE.kopf);
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(FARBE.text);
-  doc.text('Posten', S.L + 6, y + 5, { width: W - 120 });
-  doc.text('Betrag', S.R - 106, y + 5, { width: 100, align: 'right' });
+  einzeilig(doc, 'Posten', S.L + 6, y + 5, W - 130, { schrift: 'Helvetica-Bold', groesse: 9 });
+  einzeilig(doc, 'Betrag', S.R - 106, y + 5, 100, { schrift: 'Helvetica-Bold', groesse: 9, ausrichtung: 'right' });
   y += 24;
   const zeile = (label: string, wert: number) => {
-    doc.font('Helvetica').fontSize(9.5).fillColor(FARBE.text).text(label, S.L + 6, y, { width: W - 120 });
-    doc.text(euro(wert), S.R - 106, y, { width: 100, align: 'right' });
+    einzeilig(doc, label, S.L + 6, y, W - 130, { groesse: 9.5, min: 7 });
+    einzeilig(doc, euro(wert), S.R - 106, y, 100, { groesse: 9.5, min: 7, ausrichtung: 'right' });
     y += 16;
     doc.moveTo(S.L, y - 4).lineTo(S.R, y - 4).lineWidth(0.4).strokeColor(FARBE.linie).stroke();
   };
@@ -99,23 +104,17 @@ export async function generateDunningPdf(p: {
   const total = d.outstandingAtGeneration + d.feeAmount + d.interestAmount;
   doc.moveTo(S.L, y).lineTo(S.R, y).lineWidth(1.4).strokeColor(FARBE.text).stroke();
   doc.rect(S.R - 200, y + 2, 200, 18).fill(FARBE.summe);
-  doc.font('Helvetica-Bold').fontSize(10).fillColor(FARBE.text).text('Gesamtbetrag', S.R - 194, y + 7, { width: 90 });
-  doc.text(euro(total), S.R - 106, y + 7, { width: 100, align: 'right' });
+  einzeilig(doc, 'Gesamtbetrag', S.R - 194, y + 7, 90, { schrift: 'Helvetica-Bold', groesse: 10 });
+  einzeilig(doc, euro(total), S.R - 106, y + 7, 100, { schrift: 'Helvetica-Bold', groesse: 10, min: 7, ausrichtung: 'right' });
   y += 34;
 
-  doc.font('Helvetica').fontSize(10).fillColor(FARBE.text)
-    .text(`Bitte überweisen Sie den Gesamtbetrag auf das unten angegebene Konto unter Angabe des Verwendungszwecks „${inv.paymentReference ?? inv.number}“.`, S.L, y, { width: W });
-  y = doc.y + 8;
-  doc.text('Sollten Sie die Zahlung in der Zwischenzeit bereits veranlasst haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.', S.L, y, { width: W });
-  y = doc.y + 16;
+  absatz(`Bitte überweisen Sie den Gesamtbetrag auf das unten angegebene Konto unter Angabe des Verwendungszwecks „${inv.paymentReference ?? inv.number}“.`);
+  absatz('Sollten Sie die Zahlung in der Zwischenzeit bereits veranlasst haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.', 16);
   grussformel(doc, y, seller, titel);
 
   abschliessen(doc, seller);
   return fertig;
 }
-
-/** 98,4 mm: Lage der Betreffzeile nach DIN 5008 Form B. */
-const MM_Y = 72 / 25.4;
 
 export async function generateInvoicePdf(p: {
   invoice: Invoice; lines: InvoicePdfLine[];
@@ -156,14 +155,14 @@ export async function generateInvoicePdf(p: {
     : null;
   const info: [string, string][] = [
     [`${titelWort} Nr.`, inv.number],
-    [p.angebot ? 'Datum' : `${titelWort}sdatum`.replace('Gutschriftsdatum', 'Datum'), datumDe(inv.issueDate)],
+    [p.angebot || inv.kind === 'gutschrift' ? 'Datum' : 'Rechnungsdatum', datumDe(inv.issueDate)],
   ];
   if (p.angebot) {
     info.push(['Gültig bis', datumDe(p.angebot.gueltigBis)]);
     if (zeitraum) info.push(['Leistungszeitraum', zeitraum]);
   } else {
     // Leistungszeitpunkt ist Pflichtangabe (§ 14 Abs. 4 Nr. 6 UStG, Befund R7).
-    info.push([zeitraum && zeitraum.includes('–') ? 'Leistungszeitraum' : 'Leistungsdatum', zeitraum ?? 'wie Rechnungsdatum']);
+    info.push([zeitraum && zeitraum.includes('–') ? 'Leistungszeitraum' : 'Leistungsdatum', zeitraum ?? `wie ${inv.kind === 'gutschrift' ? 'Datum' : 'Rechnungsdatum'}`]);
     if (inv.kind !== 'gutschrift') info.push(['Fällig am', datumDe(inv.dueDate)]);
   }
   if (customer.customerNumber) info.push(['Kundennr.', customer.customerNumber]);
@@ -172,65 +171,69 @@ export async function generateInvoicePdf(p: {
   const iEnde = zeichneInfo(doc, info);
 
   // ── Betreff, Anrede, Einleitung ─────────────────────────────────────────────
-  let y = Math.max(aEnde, iEnde, 98.4 * MM_Y) + 10;
-  doc.font('Helvetica-Bold').fontSize(11).fillColor(FARBE.text).text(`${titel} NR. ${inv.number}`, S.L, y, { width: W });
-  y = doc.y + 14;
-  doc.font('Helvetica').fontSize(10).fillColor(FARBE.text).text(anrede(customer), S.L, y, { width: W });
-  y = doc.y + 8;
-  if (templateTexts?.introText) {
-    doc.text(templateTexts.introText, S.L, y, { width: W });
-    y = doc.y + 12;
-  } else y += 4;
+  let y = betreff(doc, `${titel} NR. ${inv.number}`, aEnde, iEnde);
+  y = fliesstext(doc, anrede(customer), S.L, y, W, titel) + 8;
+  if (templateTexts?.introText) y = fliesstext(doc, templateTexts.introText, S.L, y, W, titel) + 12;
+  else y += 4;
 
-  // ── Tabelle (K110, Folgeseiten K113) ────────────────────────────────────────
+  // ── Tabelle (K110, Folgeseiten K113, Prüfung B1/B3) ─────────────────────────
   const COL = {
     pos:  { x: S.L + 2,   w: 24 },
-    desc: { x: S.L + 32,  w: W - 32 - 216 },
-    qty:  { x: S.R - 212, w: 64 },
-    up:   { x: S.R - 144, w: 64 },
-    tot:  { x: S.R - 76,  w: 70 },
+    desc: { x: S.L + 32,  w: W - 32 - 226 },
+    qty:  { x: S.R - 222, w: 72 },
+    up:   { x: S.R - 146, w: 64 },
+    tot:  { x: S.R - 78,  w: 72 },
   } as const;
   const tabellenkopf = (yy: number): number => {
     doc.rect(S.L, yy, W, 18).fill(FARBE.kopf);
-    doc.font('Helvetica-Bold').fontSize(9).fillColor(FARBE.text);
-    doc.text('Pos.', COL.pos.x, yy + 5, { width: COL.pos.w });
-    doc.text('Beschreibung', COL.desc.x, yy + 5, { width: COL.desc.w });
-    doc.text('Menge', COL.qty.x, yy + 5, { width: COL.qty.w, align: 'right' });
-    doc.text('Einzelpreis', COL.up.x, yy + 5, { width: COL.up.w, align: 'right' });
-    doc.text('Gesamtpreis', COL.tot.x, yy + 5, { width: COL.tot.w, align: 'right' });
+    const k = { schrift: 'Helvetica-Bold' as const, groesse: 9 };
+    einzeilig(doc, 'Pos.', COL.pos.x, yy + 5, COL.pos.w, k);
+    einzeilig(doc, 'Beschreibung', COL.desc.x, yy + 5, COL.desc.w, k);
+    einzeilig(doc, 'Menge', COL.qty.x, yy + 5, COL.qty.w, { ...k, ausrichtung: 'right' });
+    einzeilig(doc, 'Einzelpreis', COL.up.x, yy + 5, COL.up.w, { ...k, ausrichtung: 'right' });
+    einzeilig(doc, 'Gesamtpreis', COL.tot.x, yy + 5, COL.tot.w, { ...k, ausrichtung: 'right' });
     return yy + 22;
   };
   y = platz(doc, y, 60, titel);
   y = tabellenkopf(y);
 
+  const ZH = 11.5, ZH_KLEIN = 9.6;
   for (const [i, l] of lines.entries()) {
-    const unterzeile = leistungsdatumZeile(l) ?? '';
     doc.font('Helvetica').fontSize(9.5);
-    const hDesc = doc.heightOfString(l.description, { width: COL.desc.w });
+    const textZeilen = zeilen(doc, l.description, COL.desc.w);
     doc.fontSize(8);
-    const hUnter = unterzeile ? doc.heightOfString(unterzeile, { width: COL.desc.w }) : 0;
-    const hoehe = hDesc + hUnter + 8;
-    y = platz(doc, y, hoehe, titel, (ny) => tabellenkopf(ny));
-    doc.font('Helvetica').fontSize(9.5).fillColor(FARBE.text);
-    doc.text(`${i + 1}.`, COL.pos.x, y, { width: COL.pos.w, align: 'right' });
-    doc.text(l.description, COL.desc.x, y, { width: COL.desc.w });
-    if (unterzeile) doc.font('Helvetica').fontSize(8).fillColor(FARBE.grau).text(unterzeile, COL.desc.x, y + hDesc, { width: COL.desc.w });
-    doc.font('Helvetica').fontSize(9.5).fillColor(FARBE.text);
-    doc.text(`${mengeDe(l.quantity)}${l.unit ? ` ${l.unit}` : ''}`, COL.qty.x, y, { width: COL.qty.w, align: 'right' });
-    doc.text(euro(l.unitPrice), COL.up.x, y, { width: COL.up.w, align: 'right' });
-    doc.text(euro(l.netAmount), COL.tot.x, y, { width: COL.tot.w, align: 'right' });
-    y += hoehe;
+    const unter = leistungsdatumZeile(l) ?? '';
+    const unterZeilen = unter ? zeilen(doc, unter, COL.desc.w) : [];
+    // Anfang der Position mit Zahlen zusammenhalten (erste Zeile + Leistungsdatum, falls kurz).
+    y = platz(doc, y, ZH + (textZeilen.length === 1 ? unterZeilen.length * ZH_KLEIN : 0) + 6, titel, tabellenkopf);
+    const k = { groesse: 9.5, min: 6.5 };
+    einzeilig(doc, `${i + 1}.`, COL.pos.x, y, COL.pos.w, { ...k, ausrichtung: 'right' });
+    einzeilig(doc, `${mengeDe(l.quantity)}${l.unit ? ` ${l.unit}` : ''}`, COL.qty.x, y, COL.qty.w, { ...k, ausrichtung: 'right' });
+    einzeilig(doc, euro(l.unitPrice), COL.up.x, y, COL.up.w, { ...k, ausrichtung: 'right' });
+    einzeilig(doc, euro(l.netAmount), COL.tot.x, y, COL.tot.w, { ...k, ausrichtung: 'right' });
+    // Beschreibung Zeile für Zeile – auch über einen Seitenwechsel hinweg.
+    for (const z of textZeilen) {
+      y = platz(doc, y, ZH, titel, tabellenkopf);
+      doc.font('Helvetica').fontSize(9.5).fillColor(FARBE.text).text(z, COL.desc.x, y, { lineBreak: false });
+      y += ZH;
+    }
+    for (const z of unterZeilen) {
+      y = platz(doc, y, ZH_KLEIN, titel, tabellenkopf);
+      doc.font('Helvetica').fontSize(8).fillColor(FARBE.grau).text(z, COL.desc.x, y, { lineBreak: false });
+      y += ZH_KLEIN;
+    }
+    y += 6;
     if (i < lines.length - 1) doc.moveTo(S.L, y - 4).lineTo(S.R, y - 4).lineWidth(0.4).strokeColor(FARBE.linie).stroke();
   }
   doc.moveTo(S.L, y - 2).lineTo(S.R, y - 2).lineWidth(1.4).strokeColor(FARBE.text).stroke();
 
   // ── Summen ──────────────────────────────────────────────────────────────────
   y = platz(doc, y + 2, 70, titel);
-  const sx = S.R - 200;
+  const sx = S.R - 210;
   const summenZeile = (label: string, wert: string, fett = false) => {
-    doc.font(fett ? 'Helvetica-Bold' : 'Helvetica').fontSize(9.5).fillColor(FARBE.text);
-    doc.text(label, sx + 6, y + 4, { width: 120, align: 'right' });
-    doc.text(wert, COL.tot.x, y + 4, { width: COL.tot.w, align: 'right' });
+    const o = { schrift: (fett ? 'Helvetica-Bold' : 'Helvetica') as 'Helvetica-Bold' | 'Helvetica', groesse: 9.5, min: 7 };
+    einzeilig(doc, label, sx + 4, y + 4, 124, { ...o, ausrichtung: 'right' });
+    einzeilig(doc, wert, COL.tot.x - 8, y + 4, COL.tot.w + 8, { ...o, ausrichtung: 'right' });
     y += 18;
     doc.moveTo(sx, y).lineTo(S.R, y).lineWidth(0.4).strokeColor(FARBE.linie).stroke();
   };
@@ -242,20 +245,14 @@ export async function generateInvoicePdf(p: {
     summenZeile('USt. (§ 19 UStG)', euro(0));
   }
   doc.moveTo(sx, y).lineTo(S.R, y).lineWidth(1.4).strokeColor(FARBE.text).stroke();
-  doc.rect(sx, y + 1, 200, 20).fill(FARBE.summe);
-  doc.font('Helvetica-Bold').fontSize(10).fillColor(FARBE.text);
-  doc.text('Gesamtsumme', sx + 6, y + 7, { width: 120, align: 'right' });
-  doc.text(euro(inv.grossAmount), COL.tot.x, y + 7, { width: COL.tot.w, align: 'right' });
+  doc.rect(sx, y + 1, 210, 20).fill(FARBE.summe);
+  einzeilig(doc, 'Gesamtsumme', sx + 4, y + 7, 124, { schrift: 'Helvetica-Bold', groesse: 10, ausrichtung: 'right' });
+  einzeilig(doc, euro(inv.grossAmount), COL.tot.x - 8, y + 7, COL.tot.w + 8, { schrift: 'Helvetica-Bold', groesse: 10, min: 7, ausrichtung: 'right' });
   y += 32;
 
-  // ── Hinweise, Zahlung, Schluss ──────────────────────────────────────────────
-  const absatz = (text: string, opts: { fett?: boolean; groesse?: number; abstand?: number } = {}) => {
-    const schrift = () => doc.font(opts.fett ? 'Helvetica-Bold' : 'Helvetica').fontSize(opts.groesse ?? 10);
-    schrift();
-    y = platz(doc, y, doc.heightOfString(text, { width: W }) + 4, titel);
-    // Nach einem Seitenwechsel hat der Kopf die Titelschrift eingestellt – Schrift neu setzen.
-    schrift().fillColor(FARBE.text).text(text, S.L, y, { width: W });
-    y = doc.y + (opts.abstand ?? 6);
+  // ── Hinweise, Zahlung, Schluss (Fließtext, Prüfung B1) ──────────────────────
+  const absatz = (t: string, o: { fett?: boolean; groesse?: number; abstand?: number } = {}) => {
+    y = fliesstext(doc, t, S.L, y, W, titel, { schrift: o.fett ? 'Helvetica-Bold' : 'Helvetica', groesse: o.groesse ?? 10 }) + (o.abstand ?? 4);
   };
   if (isKlein) absatz(kleinNote, { fett: true, groesse: 7.5 });
   else if (seller.vatId) absatz(`USt-IdNr.: ${seller.vatId}`, { groesse: 7.5 });

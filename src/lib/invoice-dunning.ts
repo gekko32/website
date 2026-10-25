@@ -95,6 +95,7 @@ export async function runDunningDetection(brand: string): Promise<{ generated: n
     paid_amount: number | null;
     customer_id: string;
     empfaenger: unknown;
+    kundennummer: string | null;
   }>(
     // T000375 (View-Migration): paid_amount/dunning_level/last_dunning_at sind
     // keine Spalten von billing_invoices mehr, sondern werden von

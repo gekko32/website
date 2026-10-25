@@ -47,6 +47,15 @@ describe('Blanko-Briefbogen als Word-Datei (K115)', () => {
     expect(z.get('word/header1.xml')!.toString()).toContain('RECHNUNG');
     expect(z.has('word/media/logo.png')).toBe(true);
   });
+  it('Prüfung B5: Steuerzeichen entfernt, Zeilenumbrüche als <w:br/>', () => {
+    const steuer = String.fromCharCode(1) + String.fromCharCode(11);
+    const z = entpacke(briefbogenDocx('rechnung', { ...absender, name: `mentolder${steuer}` }, { einleitung: `Zeile 1${String.fromCharCode(10)}Zeile 2`, kleinunternehmerAktiv: false, zahlungszielTage: 14 }));
+    const dok = z.get('word/document.xml')!.toString();
+    const fuss = z.get('word/footer1.xml')!.toString();
+    for (const c of [1, 11]) { expect(dok.includes(String.fromCharCode(c))).toBe(false); expect(fuss.includes(String.fromCharCode(c))).toBe(false); }
+    expect(dok).toContain('Zeile 1</w:t><w:br/><w:t xml:space="preserve">Zeile 2');
+    expect(dok).toContain('[Satz] %');
+  });
   it('Brief: ohne Tabelle und ohne Titel', () => {
     const dok = entpacke(briefbogenDocx('brief', absender, { kleinunternehmerAktiv: true, zahlungszielTage: 14 })).get('word/document.xml')!.toString();
     expect(dok).toContain('[Betreff]');

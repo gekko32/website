@@ -10,6 +10,8 @@ export const ABSENDER_KEYS = [
   'invoice_bank_iban', 'invoice_bank_bic', 'invoice_bank_name', 'invoice_vat_id', 'invoice_tax_number',
   // Beleg-Design (K111): Inhaber – Fußzeile und Ansprechpartner.
   'invoice_manager',
+  // Prüfung B7: E-Mail und Website der Fußzeile aus den Einstellungen (Rückfall: Server-Werte).
+  'invoice_sender_email', 'invoice_sender_website',
 ] as const;
 
 export type AbsenderEinstellungen = Partial<Record<(typeof ABSENDER_KEYS)[number], string | null>>;
@@ -61,9 +63,9 @@ export function absenderAus(s: AbsenderEinstellungen, env: Env = process.env): A
     iban: feld('invoice_bank_iban') || env.SELLER_IBAN || '',
     bic: feld('invoice_bank_bic') || env.SELLER_BIC || '',
     bankName: feld('invoice_bank_name'),
-    email: env.SELLER_EMAIL || env.CONTACT_EMAIL || '',
+    email: feld('invoice_sender_email') || env.SELLER_EMAIL || env.CONTACT_EMAIL || '',
     phone: feld('invoice_sender_phone') || env.SELLER_PHONE || '',
-    website: env.LEGAL_WEBSITE || env.PROD_DOMAIN || '',
+    website: feld('invoice_sender_website') || env.LEGAL_WEBSITE || env.PROD_DOMAIN || '',
     inhaber: feld('invoice_manager'),
   };
 }

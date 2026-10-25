@@ -187,6 +187,8 @@ export async function generateCreditNotePdf(invoiceId: string): Promise<Buffer |
       currencyRate: inv.currency_rate != null ? Number(inv.currency_rate) : null,
       netAmountEur: inv.net_amount_eur != null ? Number(inv.net_amount_eur) : Number(inv.net_amount),
       grossAmountEur: inv.gross_amount_eur != null ? Number(inv.gross_amount_eur) : Number(inv.gross_amount),
+      // Prüfung B10: Reverse-Charge-/Export-Hinweis auch auf der Gutschrift.
+      supplyType: inv.supply_type ?? undefined,
     },
     lines: linesR.rows.map((l: Record<string, unknown>) => ({
       description: l.description as string,
