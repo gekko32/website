@@ -408,7 +408,7 @@ const eingabe = 'block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dar
     if (!res.ok) { b.disabled = false; if (meldung) { meldung.className = 'text-sm text-red-400 mb-3'; meldung.textContent = data.error ?? 'Nicht verschickt.'; } }
     if (data.pdfUrl) {
       const link = document.createElement('a');
-      link.href = data.pdfUrl; link.download = `${data.number ?? 'Angebot'}.pdf`;
+      link.href = data.pdfUrl; link.download = ''; // Dateiname vom Server (K117)
       document.body.appendChild(link); link.click(); link.remove();
     }
     if (res.ok) setTimeout(() => { window.location.href = `/admin/angebote/${id}${weg === 'email' ? '?mail=1' : ''}`; }, data.pdfUrl ? 1500 : 0);

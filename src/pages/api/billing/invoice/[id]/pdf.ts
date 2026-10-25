@@ -4,6 +4,7 @@ import { pool, initBillingTables } from '../../../../../lib/website-db';
 import { getInvoiceForEInvoice } from '../../../../../lib/native-billing';
 import { generateInvoicePdf } from '../../../../../lib/invoice-pdf';
 import type { EInvoiceProfile } from '../../../../../lib/einvoice-profile';
+import { rechnungsDateiname } from '../../../../../lib/beleg-dateiname';
 
 const VALID_PROFILES: ReadonlySet<EInvoiceProfile> = new Set(['factur-x-minimum', 'xrechnung-cii', 'xrechnung-ubl']);
 
@@ -29,6 +30,8 @@ export const GET: APIRoute = async ({ request, params }) => {
   );
   const row = r.rows[0];
   if (!row) return new Response('Not found', { status: 404 });
+  // K117: sprechender Dateiname (JJJJMMTT_Art_Nummer_Kundennr_Name_Inhalt.pdf).
+  const dateiname = (await rechnungsDateiname(id)) ?? `${row.number}.pdf`;
 
   if (profileParam) {
     if (!isAdmin(session)) return new Response('Forbidden', { status: 403 });
@@ -49,7 +52,7 @@ export const GET: APIRoute = async ({ request, params }) => {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${row.number}-${profileParam}.pdf"`,
+        'Content-Disposition': `attachment; filename="${dateiname.replace(/\.pdf$/, `_${profileParam}.pdf`)}"`,
       },
     });
   }
@@ -63,7 +66,7 @@ export const GET: APIRoute = async ({ request, params }) => {
     status: 200,
     headers: {
       'Content-Type': row.pdf_mime || 'application/pdf',
-      'Content-Disposition': `attachment; filename="${row.number}.pdf"`,
+      'Content-Disposition': `attachment; filename="${dateiname}"`,
     },
   });
 };

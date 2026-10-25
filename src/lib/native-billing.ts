@@ -371,10 +371,12 @@ export async function finalizeInvoice(id: string, opts: FinalizeOpts = {}): Prom
 
     if (pdfBlob) {
       const { archiveBillingPdf } = await import('./billing-archive');
+      const { rechnungsDateiname, inTransaktion } = await import('./beleg-dateiname');
       const pdfPath = await archiveBillingPdf({
         brand: inv.brand,
         invoiceNumber: inv.number,
-        filename: `${inv.number}.pdf`,
+        // K119: sprechender Name auch in der Ablage.
+        filename: (await rechnungsDateiname(id, inTransaktion(client))) ?? `${inv.number}.pdf`,
         content: pdfBlob,
       });
       if (pdfPath) {

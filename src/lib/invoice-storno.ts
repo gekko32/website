@@ -7,6 +7,7 @@ import { ladeAbsender } from './billing-absender';
 import { logBillingEvent, type BillingActor } from './billing-audit';
 import { gibPostenFrei, initPostenTabelle } from './billing-posten';
 import { alsKunde, leseEmpfaenger, kundennummerDerRechnung } from './billing-empfaenger';
+import { rechnungsDateiname } from './beleg-dateiname';
 
 function iso(d: Date): string {
   return d.toISOString().split('T')[0];
@@ -214,7 +215,7 @@ export async function generateCreditNotePdf(invoiceId: string): Promise<Buffer |
   const pdfPath = await archiveBillingPdf({
     brand: inv.brand,
     invoiceNumber: inv.number,
-    filename: `${inv.number}.pdf`,
+    filename: (await rechnungsDateiname(invoiceId)) ?? `${inv.number}.pdf`,
     content: pdf,
   });
   await pool.query(

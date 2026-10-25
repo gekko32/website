@@ -6,6 +6,7 @@ import { sendEmailMitGrund, absenderAnzeige } from './email';
 import { holeAngebot } from './billing-angebot';
 import { angebotsMail, erzeugeAngebotsPdf } from './billing-angebot-pdf';
 import { hatEchteEmail } from './billing-versand';
+import { angebotsDateiname } from './beleg-dateiname';
 import type { MailVorschlag, MailErgebnis } from './billing-mail';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -19,7 +20,7 @@ export async function angebotMailVorschlag(brand: string, id: string): Promise<M
   const [m, von] = await Promise.all([angebotsMail(brand, a, a.empfaenger), absenderAnzeige()]);
   return {
     an: hatEchteEmail(a.empfaenger.email) ? a.empfaenger.email : '',
-    von, betreff: ohneDoppelEuro(m.betreff), text: ohneDoppelEuro(m.text), anhaenge: [`${a.number}.pdf`], nummer: a.number,
+    von, betreff: ohneDoppelEuro(m.betreff), text: ohneDoppelEuro(m.text), anhaenge: [await angebotsDateiname(a)], nummer: a.number,
   };
 }
 
@@ -41,7 +42,7 @@ export async function sendeAngebotsMail(
     await pool.query('UPDATE billing_quotes SET pdf = $2 WHERE id = $1 AND pdf IS NULL', [id, pdf]);
   }
   const gesendet = await sendEmailMitGrund({
-    to: an, subject: m.betreff.trim(), text: m.text, attachments: [{ filename: `${a.number}.pdf`, content: pdf }],
+    to: an, subject: m.betreff.trim(), text: m.text, attachments: [{ filename: await angebotsDateiname(a), content: pdf }],
   });
   if (!gesendet.ok) {
     return { ok: false, status: 502, fehler: `${gesendet.grund} Das Angebot ${a.number} bleibt nummeriert – bitte später erneut senden oder das PDF selbst verschicken. (Server: ${gesendet.detail})` };

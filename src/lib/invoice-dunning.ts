@@ -7,6 +7,7 @@ import { archiveBillingPdf } from './billing-archive';
 import { ladeAbsender } from './billing-absender';
 import { sendEmail } from './email';
 import { logBillingEvent } from './billing-audit';
+import { mahnungsDateiname } from './beleg-dateiname';
 
 export interface PendingDunning {
   id: string;
@@ -145,12 +146,17 @@ export async function runDunningDetection(brand: string): Promise<{ generated: n
       feeAmount,
       interestAmount,
     });
+    // K119: sprechender Name auch in der Ablage.
+    const dateiname = mahnungsDateiname({
+      stufe: nextLevel, datum: new Date(), rechnungsnummer: invoice.number, rechnungsdatum: invoice.issueDate,
+      kundennummer: row.kundennummer, empfaenger: customer,
+    });
     const pdfPath = await archiveBillingPdf({
       brand,
       invoiceNumber: invoice.number,
-      filename: `mahnung-${nextLevel}-${invoice.number}.pdf`,
+      filename: dateiname,
       content: pdf,
-    }) ?? `Billing/${brand}/${invoice.number}/mahnung-${nextLevel}-${invoice.number}.pdf`;
+    }) ?? `Billing/${brand}/${invoice.number}/${dateiname}`;
 
     try {
       await pool.query(
@@ -274,6 +280,7 @@ export async function mahnungsPdf(brand: string, dunningId: string): Promise<{ p
   await initBillingTables();
   const r = await pool.query(
     `SELECT d.level, d.fee_amount, d.interest_amount, d.outstanding_at_generation, d.invoice_id, i.customer_id, i.number, i.empfaenger,
+            d.generated_at, i.issue_date,
             (SELECT c.customer_number FROM customers c WHERE c.id = i.klient_id) AS kundennummer
        FROM billing_invoice_dunnings d JOIN billing_invoices i ON i.id = d.invoice_id
       WHERE d.id = $1 AND d.brand = $2`, [dunningId, brand]);
@@ -283,10 +290,17 @@ export async function mahnungsPdf(brand: string, dunningId: string): Promise<{ p
   const rechnungskunde = await getCustomerById(brand, row.customer_id as string);
   if (!invoice || !rechnungskunde) return null;
   const kopie = leseEmpfaenger(row.empfaenger);
+  const customer = kopie ? alsKunde(rechnungskunde, kopie) : rechnungskunde;
   const pdf = await buildDunningPdf({
-    brand, invoice, customer: kopie ? alsKunde(rechnungskunde, kopie) : rechnungskunde, kundennummer: row.kundennummer,
+    brand, invoice, customer, kundennummer: row.kundennummer,
     level: Number(row.level), outstanding: Number(row.outstanding_at_generation),
     feeAmount: Number(row.fee_amount), interestAmount: Number(row.interest_amount),
   });
-  return { pdf, dateiname: `Mahnung-${row.level}-${row.number}.pdf` };
+  return {
+    pdf,
+    dateiname: mahnungsDateiname({
+      stufe: Number(row.level), datum: row.generated_at ?? new Date(), rechnungsnummer: row.number as string,
+      rechnungsdatum: row.issue_date ?? invoice.issueDate, kundennummer: row.kundennummer, empfaenger: customer,
+    }),
+  };
 }

@@ -297,7 +297,7 @@ const feld = 'zfeld';
     const data = await res.json().catch(() => ({}));
     if (data.pdfUrl) {
       const link = document.createElement('a');
-      link.href = data.pdfUrl; link.download = `${data.number ?? 'Rechnung'}.pdf`;
+      link.href = data.pdfUrl; link.download = ''; // Dateiname vom Server (K117)
       document.body.appendChild(link); link.click(); link.remove();
     }
     // Dieselbe Seite zeigt jetzt die festgeschriebene Rechnung; bei E-Mail gleich mit geöffneter Mail.

@@ -9,6 +9,7 @@ import { ladeAbsender } from './billing-absender';
 import { empfaengerDerRechnung, kaeuferName } from './billing-empfaenger';
 import { hatEchteEmail } from './billing-versand';
 import { logBillingEvent } from './billing-audit';
+import { rechnungsDateiname } from './beleg-dateiname';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -44,7 +45,10 @@ export async function rechnungsMailVorschlag(brand: string, invoiceId: string): 
     von,
     betreff: ersetze(texte.invoice_email_subject || 'Rechnung {{number}}', vars),
     text: ersetze(texte.invoice_email_body, vars),
-    anhaenge: [`${r.number}.pdf`, ...(r.leitweg_id ? [`xrechnung-${r.number}.xml`] : [])],
+    anhaenge: [
+      (await rechnungsDateiname(invoiceId)) ?? `${r.number}.pdf`,
+      ...(r.leitweg_id ? [(await rechnungsDateiname(invoiceId, undefined, 'xml')) ?? `xrechnung-${r.number}.xml`] : []),
+    ],
     nummer: r.number as string,
   };
 }
@@ -70,8 +74,8 @@ export async function sendeRechnungsMail(
   const gesendet = await sendEmailMitGrund({
     to: an, subject: m.betreff.trim(), text: m.text,
     attachments: [
-      { filename: `${r.number}.pdf`, content: pdf },
-      ...(r.leitweg_id && xr ? [{ filename: `xrechnung-${r.number}.xml`, content: xr }] : []),
+      { filename: (await rechnungsDateiname(invoiceId)) ?? `${r.number}.pdf`, content: pdf },
+      ...(r.leitweg_id && xr ? [{ filename: (await rechnungsDateiname(invoiceId, undefined, 'xml')) ?? `xrechnung-${r.number}.xml`, content: xr }] : []),
     ],
   });
   if (!gesendet.ok) {

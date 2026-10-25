@@ -5,6 +5,7 @@ import { getSession, isAdmin } from '../../../../../lib/auth';
 import { pool } from '../../../../../lib/website-db';
 import { holeAngebot, angebotVorschau, initAngebotTabelle } from '../../../../../lib/billing-angebot';
 import { erzeugeAngebotsPdf } from '../../../../../lib/billing-angebot-pdf';
+import { angebotsDateiname } from '../../../../../lib/beleg-dateiname';
 
 export const GET: APIRoute = async ({ request, params }) => {
   const session = await getSession(request.headers.get('cookie'));
@@ -21,6 +22,6 @@ export const GET: APIRoute = async ({ request, params }) => {
     pdf = await erzeugeAngebotsPdf(brand, a, v.positionen, v.empfaenger);
   }
   return new Response(new Uint8Array(pdf), {
-    headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${a.number}.pdf"` },
+    headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${await angebotsDateiname(a)}"` },
   });
 };

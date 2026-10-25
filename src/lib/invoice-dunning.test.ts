@@ -274,6 +274,7 @@ describe('invoice-dunning.runDunningDetection (no-op end-to-end)', () => {
 
     await runDunningDetection('mentolder');
     const insertCall = query.mock.calls.find((c) => /INSERT INTO billing_invoice_dunnings/.test(c[0] as string));
-    expect((insertCall![1] as unknown[])[6]).toBe('Billing/mentolder/R-1/mahnung-1-R-1.pdf');
+    // K119: sprechender Name (JJJJMMTT_Zahlungserinnerung_Nummer_Name); ohne Rechnungsdatum kein Inhalt.
+    expect((insertCall![1] as unknown[])[6]).toMatch(/^Billing\/mentolder\/R-1\/\d{8}_Zahlungserinnerung_R-1_Alice\.pdf$/);
   });
 });
