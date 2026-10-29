@@ -349,22 +349,23 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
         du kannst neu einen Angebotsvorschlag erstellen.</p>}
 
       {/* Handtest 22.10.2026: Anlegen oberhalb der Liste – der neue Auftrag erscheint direkt darunter (neueste zuerst).
-          K150 (Handtest 29.10.2026, H23): die Anlege-Zeile direkt unter der Überschrift, Erklärung und Legende darunter. */}
-      <div class="mb-4">
-        <form method="POST" action="/api/admin/posten" class="flex flex-col items-start gap-2">
+          K150 (Handtest 29.10.2026, H23, Gerald): Aufklapp-Knopf wie „+ Sitzung erfassen“, Erklärung und Legende darunter. */}
+      <details class="mb-3">
+        <summary class="cursor-pointer inline-block px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Auftrag anlegen</summary>
+        <form method="POST" action="/api/admin/posten" autocomplete="off" class="mt-2 p-3 rounded-lg border border-gold/60 bg-dark flex flex-col items-start gap-2 merk-ungespeichert">
           <input type="hidden" name="aktion" value="auftrag" />
           <input type="hidden" name="klientId" value={klient.id} />
-          <input name="titel" required minlength="2" maxlength="120" placeholder="Neuer Auftrag, z. B. Moderation Strategietag" aria-label="Titel des Auftrags"
-            class="w-full px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+          <label class="w-full text-xs text-muted">Titel des Auftrags
+            <input name="titel" required minlength="2" maxlength="120" placeholder="z. B. Moderation Strategietag"
+              class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
+          </label>
           {/* Nachtrag 24.10.2026 (K89): der Haken gehört zum Knopf und steht direkt daneben. */}
-          <div class="flex flex-wrap items-center gap-3">
-            <button type="submit" class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Auftrag anlegen</button>
-            <label class="text-sm text-light"><input type="checkbox" name="mitAngebot" /> mit Angebot – Positionen werden erst nach Annahme des Angebotsvorschlags abrechenbar</label>
-          </div>
+          <label class="text-sm text-light"><input type="checkbox" name="mitAngebot" /> mit Angebot – Positionen werden erst nach Annahme des Angebotsvorschlags abrechenbar</label>
+          <button type="submit" class="px-4 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Anlegen</button>
         </form>
-        <p class="text-xs text-muted mt-2">Oder einen früheren Angebotsvorschlag als Grundlage nehmen: <a class="underline" href="/admin/angebote?vorlage=1">Angebotsvorschläge → Vorlagen</a>.</p>
-      </div>
-      <p class="text-xs text-muted mb-2">Vorträge, Moderationen, Analysen … So geht es: 1. oben einen Auftrag mit Titel anlegen,
+      </details>
+      <p class="text-xs text-muted mb-2">Oder einen früheren Angebotsvorschlag als Grundlage nehmen: <a class="underline" href="/admin/angebote?vorlage=1">Angebotsvorschläge → Vorlagen</a>.</p>
+      <p class="text-xs text-muted mb-2">Vorträge, Moderationen, Analysen … So geht es: 1. „+ Auftrag anlegen“ öffnen, Titel eintragen,
         2. im Auftrag „+ Neue Position mit Preis“ öffnen – erst die Positionen werden abgerechnet. Sie erscheinen nicht auf der Website.</p>
       <ZustandLegende teile={['posten', 'angebot']} />
 
