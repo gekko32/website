@@ -277,8 +277,13 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       if (!klientId) return new Response('Auftrag nicht gefunden', { status: 404 });
       auftragNachher = auftragId;
       // Prüfung Stufe 4 (B1): verschicktes Angebot – Positionen nur über eine neue Fassung ändern.
-      if ((await holeAuftrag(brand, auftragId))?.stand === 'angeboten') {
+      const standAuftrag = (await holeAuftrag(brand, auftragId))?.stand;
+      if (standAuftrag === 'angeboten') {
         return weiter(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent('Das Angebot ist verschickt. Für Änderungen auf der Angebotsseite eine neue Fassung anlegen.')}#auftraege`, 303);
+      }
+      // K149 (Handtest 29.10.2026, H22): im abgelehnten Auftrag würde eine neue Position nie abrechenbar.
+      if (standAuftrag === 'abgelehnt') {
+        return weiter(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent('Der Angebotsvorschlag zu diesem Auftrag wurde abgelehnt. Neue Positionen gehen hier nicht mehr – auf der Angebotsseite „Neues Angebot aus diesem Angebot“ nehmen.')}#auftraege`, 303);
       }
       if (!werte) return weiter(`/admin/klienten/${klientId}?auftragFehler=${encodeURIComponent(fehler.map((f) => f.meldung).join(' '))}#auftraege`, 303);
       await legePositionAn(brand, klientId, auftragId, werte);

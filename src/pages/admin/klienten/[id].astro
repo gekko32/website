@@ -160,7 +160,6 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       {entwurfAngelegt && offeneEntwuerfe.length === 0 && <p class="text-sm text-green-400 mb-2">Rechnungsentwurf {entwurfAngelegt} angelegt. Noch nichts verschickt:
         prüfen und versenden unter <a class="underline" href="/admin/rechnungen">Fakturierung → Rechnungsentwürfe</a>.</p>}
       {postenFehler && <p role="alert" class="text-sm text-red-400 mb-2">{postenFehler}</p>}
-      <ZustandLegende teile={['posten', 'rechnung']} />
 
       {/* Handtest 22.10.2026: über der Liste, als Knopf wie „Auftrag anlegen“. */}
       <details class="mb-3" open={sitzungFehler.length > 0}>
@@ -214,8 +213,10 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
         </form>
         </div>
       </details>
+      {/* K150 (Handtest 29.10.2026, H23): Erklärung und Legende unter dem Anlegen. */}
       {abrechnungsart === 'je_sitzung' && <p class="text-xs text-muted mb-2">Abrechnung je Sitzung: Jeder Posten mit Preis kommt von selbst
-        auf einen eigenen Entwurf (Rechnungen → Entwürfe). Wird ein Entwurf verworfen, bleiben seine Posten offen, bis du sie hier selbst abrechnest.</p>}
+        auf einen Entwurf (Posten aus demselben Angebotsvorschlag zusammen; Fakturierung → Rechnungsentwürfe). Wird ein Entwurf verworfen, bleiben seine Posten offen, bis du sie hier selbst abrechnest.</p>}
+      <ZustandLegende teile={['posten', 'rechnung']} />
       {/* T10a: links anlegen (Regel Gerald 22.10.2026): Häkchen bei den offenen Posten, dann Rechnung erstellen. */}
       {!posten.some(waehlbar) && <p id="rechnung-hinweis-leer" hidden class="text-sm text-gold mb-2">Keine offenen Posten mit Preis.
         Zuerst über „+ Sitzung erfassen“ oder einen Auftrag anlegen – dann hier ankreuzen und „Rechnung aus Auswahl erstellen“.</p>}
@@ -342,15 +343,13 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
     <section id="auftraege" class="mb-8">
       <details class="liste" open>
       <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Individuelle Aufträge ({auftraege.length})</summary>
-      <p class="text-xs text-muted mb-2">Vorträge, Moderationen, Analysen … So geht es: 1. hier einen Auftrag mit Titel anlegen,
-        2. im Auftrag „+ Neue Position mit Preis“ öffnen – erst die Positionen werden abgerechnet. Sie erscheinen nicht auf der Website.</p>
       {auftragFehler && <p role="alert" class="text-sm text-red-400 mb-2">{auftragFehler}</p>}
       {/* K129 (Handtest 29.10.2026) */}
       {q.get('angebotVerworfen') === '1' && <p class="text-sm text-green-400 mb-2">Angebotsentwurf verworfen. Der Auftrag bleibt erhalten,
         du kannst neu einen Angebotsvorschlag erstellen.</p>}
-      <ZustandLegende teile={['posten', 'angebot']} />
 
-      {/* Handtest 22.10.2026: Anlegen oberhalb der Liste – der neue Auftrag erscheint direkt darunter (neueste zuerst). */}
+      {/* Handtest 22.10.2026: Anlegen oberhalb der Liste – der neue Auftrag erscheint direkt darunter (neueste zuerst).
+          K150 (Handtest 29.10.2026, H23): die Anlege-Zeile direkt unter der Überschrift, Erklärung und Legende darunter. */}
       <div class="mb-4">
         <form method="POST" action="/api/admin/posten" class="flex flex-col items-start gap-2">
           <input type="hidden" name="aktion" value="auftrag" />
@@ -365,6 +364,9 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
         </form>
         <p class="text-xs text-muted mt-2">Oder einen früheren Angebotsvorschlag als Grundlage nehmen: <a class="underline" href="/admin/angebote?vorlage=1">Angebotsvorschläge → Vorlagen</a>.</p>
       </div>
+      <p class="text-xs text-muted mb-2">Vorträge, Moderationen, Analysen … So geht es: 1. oben einen Auftrag mit Titel anlegen,
+        2. im Auftrag „+ Neue Position mit Preis“ öffnen – erst die Positionen werden abgerechnet. Sie erscheinen nicht auf der Website.</p>
+      <ZustandLegende teile={['posten', 'angebot']} />
 
       {auftraege.map((a) => {
         const pos = positionenVon(a.id);
@@ -417,13 +419,18 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                 {angeboteVon(a.id).length > 0 && (
                   <ul class="text-xs mt-2 space-y-0.5">{angeboteVon(a.id).map((x) => (
                     <li><a class="hover:underline font-mono" href={`/admin/angebote/${x.id}`}>{x.number}</a>
-                      <span class={x.stand === 'abgelaufen' ? 'text-gold' : 'text-muted'}> · {standText(x)} · {euro(x.brutto)}</span></li>))}
+                      <span class={x.stand === 'abgelaufen' ? 'text-gold' : 'text-muted'}> · {standText(x)} · {euro(x.brutto)}</span>
+                      {/* K147 (H19): Antwort direkt aus dem Auftrag vermerken. */}
+                      {x.status === 'verschickt' && <a href={`/admin/angebote/${x.id}#antwort`} class="ml-2 px-2 py-0.5 rounded bg-gold text-dark font-semibold">Antwort vermerken</a>}</li>))}
                   </ul>
                 )}
               </div>
             )}
             {a.stand === 'angeboten' && <p class="text-xs text-gold mb-2">Angebot verschickt: Positionen sind gesperrt, bis die Antwort vermerkt ist. Änderungen über „Neue Fassung“ auf der Angebotsseite.</p>}
-            <details class="mb-3" hidden={a.stand === 'angeboten'}>
+            {/* K149 (Handtest 29.10.2026, H22): im abgelehnten Auftrag keine neuen Positionen. */}
+            {a.stand === 'abgelehnt' && <p class="text-xs text-muted mb-2">Angebotsvorschlag abgelehnt: Der Auftrag bleibt als Verlauf, neue Positionen gehen hier nicht.
+              Für einen neuen Anlauf auf der Angebotsseite „Neues Angebot aus diesem Angebot“ nehmen.</p>}
+            <details class="mb-3" hidden={a.stand === 'angeboten' || a.stand === 'abgelehnt'}>
               <summary class="cursor-pointer inline-block px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Neue Position mit Preis</summary>
             <form method="POST" action="/api/admin/posten" autocomplete="off" class="mt-2 p-3 rounded-lg border border-gold/60 bg-dark merk-ungespeichert">
               <p class="text-xs text-muted mb-2"><a href="/admin/einstellungen/regeln" class="hover:underline">Einheiten-Liste pflegen</a></p>
@@ -555,8 +562,6 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
     <section id="angebote" class="mb-8">
       <details class="liste" open>
       <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Angebotsvorschläge ({angebote.length})</summary>
-      <p class="text-xs text-muted mb-2">Alle Angebotsvorschläge dieses Klienten, aktive zuerst. <a class="underline" href="/admin/angebote">Alle Angebotsvorschläge aller Klienten und Vorlagen ›</a></p>
-      <ZustandLegende teile={['angebot']} />
       {angebote.length === 0 ? <p class="text-sm text-muted">Noch keine Angebotsvorschläge. Sie entstehen in einem Auftrag „mit Angebot“.</p> : (
         <table class="w-full text-sm">
           <thead><tr class="text-left text-xs text-muted"><th class="py-1 pr-3 font-normal">Nummer</th><th class="py-1 pr-3 font-normal">Auftrag</th>
@@ -574,7 +579,9 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
               <td class={`py-1 pr-3 ${x.stand === 'abgelaufen' ? 'text-gold' : x.status === 'angenommen' ? 'text-green-400' : 'text-muted'}`}>{standText(x)}</td>
               {/* K126, K135 (Handtest 29.10.2026): Ändern und Verwerfen direkt in der Liste. */}
               <td class="py-1 text-right whitespace-nowrap">
-                {x.status === 'verschickt' && <a href={`/admin/angebote/${x.id}?neueFassung=1`} class="px-2 py-1 rounded border border-gold text-gold text-xs">Ändern (neue Fassung)</a>}
+                {/* K147 (H19): Antwort direkt aus der Akte vermerken. */}
+                {x.status === 'verschickt' && <a href={`/admin/angebote/${x.id}#antwort`} class="px-2 py-1 rounded bg-gold text-dark font-semibold text-xs">Antwort vermerken</a>}
+                {x.status === 'verschickt' && <a href={`/admin/angebote/${x.id}?neueFassung=1`} class="ml-1 px-2 py-1 rounded border border-gold text-gold text-xs">Ändern (neue Fassung)</a>}
                 {x.status === 'entwurf' && (
                   <form method="POST" action="/api/admin/angebote" class="posten-loeschen inline" data-frage="Angebotsentwurf verwerfen? Der Auftrag und seine Positionen bleiben erhalten.">
                     <input type="hidden" name="aktion" value="verwerfen" /><input type="hidden" name="id" value={x.id} />
@@ -586,6 +593,9 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
           </tbody>
         </table>
       )}
+      {/* K150 (H23): Erklärung und Legende unter der Liste. */}
+      <p class="text-xs text-muted mt-3 mb-2">Alle Angebotsvorschläge dieses Klienten, aktive zuerst. <a class="underline" href="/admin/angebote">Alle Angebotsvorschläge aller Klienten und Vorlagen ›</a></p>
+      <ZustandLegende teile={['angebot']} />
       </details>
     </section>
 

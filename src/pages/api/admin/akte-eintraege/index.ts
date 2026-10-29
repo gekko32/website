@@ -25,6 +25,10 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   if (text('aktion') === 'zurueckziehen') {
     const e = await holeEintrag(brand, text('id'));
     if (!e) return new Response('Eintrag nicht gefunden', { status: 404 });
+    // K148 (Handtest 29.10.2026, H20): Antwort-Vermerke nur über „Vermerk korrigieren“ auf der Angebotsseite.
+    if (e.angebotId && (e.art === 'annahme' || e.art === 'ablehnung')) {
+      return redirect(ziel(`eintragFehler=${encodeURIComponent('Annahme und Ablehnung bitte auf der Angebotsseite über „Vermerk korrigieren“ ändern.')}`), 303);
+    }
     const ok = await zieheZurueck(brand, e.id, session.email, text('grund'));
     if (ok) await protokolliere(brand, session.email, { bereich: e.angebotId ? 'angebot' : 'stammdaten', aktion: 'Notiz/Dokument zurückgezogen', klientId: e.klientId,
       objekt: e.dateiName ?? e.notiz?.slice(0, 80) ?? null, beschreibung: text('grund').trim() || null });

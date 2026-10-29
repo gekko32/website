@@ -248,7 +248,7 @@ const eingabe = 'block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dar
     {/* K132, K133 (Handtest 29.10.2026): Antwort-Felder als erkennbare Eingabe-Kästen; die Rückfrage
         zeigt die eingegebenen Werte noch einmal. */}
     {a.status === 'verschickt' && (
-      <section class="mb-6">
+      <section id="antwort" class="mb-6" style="scroll-margin-top:1rem;">
         <h2 class="text-sm font-semibold text-light mb-1">Antwort des Klienten vermerken</h2>
         <p class="text-xs text-muted mb-3">Die Felder sind vorbelegt und änderbar. Bitte vor dem Vermerken prüfen.</p>
         <div class="grid gap-4" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));">
@@ -445,6 +445,10 @@ const eingabe = 'block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dar
     const text = f.classList.contains('mit-werten') ? `${f.dataset.frage}\n\n${werteText(f)}` : f.dataset.frage;
     if (await frage(text, f.dataset.ja)) { f.dataset.bestaetigt = '1'; f.requestSubmit(); }
   }));
+  // K148 (Prüfung D1): „Vermerk korrigieren ›“ springt auf #korrektur – dann gleich aufklappen.
+  const oeffneKorrektur = () => { if (location.hash === '#korrektur') document.getElementById('korrektur')?.setAttribute('open', ''); };
+  oeffneKorrektur();
+  window.addEventListener('hashchange', oeffneKorrektur);
   // K126: aus der Akte „Ändern (neue Fassung)“ → gleich die Rückfrage zur neuen Fassung zeigen.
   if (new URLSearchParams(location.search).get('neueFassung') === '1') {
     // Prüfung B7: beim Neuladen nicht noch einmal fragen.
