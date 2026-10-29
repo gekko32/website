@@ -15,6 +15,8 @@ import { pool } from './website-db';
 import { ensureCustomerCrmSchema } from './customer-crm-db';
 import type { Abrechnungsart } from './billing-regeln';
 import { hatEchteEmail, platzhalterEmail } from './billing-versand';
+import { ensureKundennummer } from './kundennummer';
+import { logger } from './logger';
 
 export type RechnungAn = 'person' | 'firma';
 
@@ -190,16 +192,30 @@ export async function createKlient(input: KlientEingabe): Promise<{ ok: true; kl
     }
   }
   const email = k.email ?? platzhalterEmail();
-  const r = await pool.query(
-    `INSERT INTO customers (name, email, phone, address, postal_code, city,
-       rechnung_an, rechnung_firma, rechnung_firma_adresse, rechnung_firma_plz, rechnung_firma_ort,
-       rechnung_email, rechnung_ust_id, notiz, company, acquisition_source, abrechnungsart)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$8,'manuell',$15)
-     RETURNING ${SPALTEN}`,
-    [k.name, email, k.phone, k.address, k.postal_code, k.city,
-     k.rechnung_an, k.rechnung_firma, k.rechnung_firma_adresse, k.rechnung_firma_plz, k.rechnung_firma_ort,
-     k.rechnung_email, k.rechnung_ust_id, k.notiz, k.abrechnungsart],
-  );
+  // K145 (Handtest 29.10.2026): Kundennummer nie kürzen, vergebene überspringen. Vor jedem Anlegen
+  // prüfen (Prüfung C1); scheitert das, wird nur gewarnt – die Akte bleibt nutzbar.
+  await ensureKundennummer().catch((err) => logger.warn({ err }, '[klientenakte] Kundennummer-Regel nicht gesetzt'));
+  let r;
+  try {
+    r = await pool.query(
+      `INSERT INTO customers (name, email, phone, address, postal_code, city,
+         rechnung_an, rechnung_firma, rechnung_firma_adresse, rechnung_firma_plz, rechnung_firma_ort,
+         rechnung_email, rechnung_ust_id, notiz, company, acquisition_source, abrechnungsart)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$8,'manuell',$15)
+       RETURNING ${SPALTEN}`,
+      [k.name, email, k.phone, k.address, k.postal_code, k.city,
+       k.rechnung_an, k.rechnung_firma, k.rechnung_firma_adresse, k.rechnung_firma_plz, k.rechnung_firma_ort,
+       k.rechnung_email, k.rechnung_ust_id, k.notiz, k.abrechnungsart],
+    );
+  } catch (e) {
+    // K145 (Handtest 29.10.2026): statt stummem Abbruch eine verständliche Meldung.
+    const err = e as { code?: string; constraint?: string };
+    if (err.code === '23505' && err.constraint === 'customers_customer_number_key') {
+      return { ok: false, error: 'Die Kundennummer war schon vergeben. Bitte noch einmal „Anlegen“ klicken; bleibt es dabei, unter Einstellungen → Regeln „Nächste Kundennummer“ prüfen.' };
+    }
+    if (err.code === '23505') return { ok: false, error: 'Diese Angaben gibt es schon bei einem anderen Klienten (z. B. die E-Mail-Adresse).' };
+    throw e;
+  }
   return { ok: true, klient: r.rows[0] };
 }
 

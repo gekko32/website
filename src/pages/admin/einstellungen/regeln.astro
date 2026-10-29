@@ -6,6 +6,7 @@ import AdminEinstellungenTabs from '../../../components/AdminEinstellungenTabs.a
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { REGEL_FELDER, formAus, ladeRegeln, type RegelFehler } from '../../../lib/billing-regeln';
 import { ladeEinheiten } from '../../../lib/billing-einheiten';
+import { leseKundennummerStand, kundennummerText } from '../../../lib/kundennummer';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -26,6 +27,8 @@ const eingabe: Record<string, string> = eingabeRoh && typeof eingabeRoh === 'obj
 const gespeichert = formAus(await ladeRegeln(BRAND));
 const einheitenText = typeof eingabe.einheiten === 'string' ? eingabe.einheiten : (await ladeEinheiten(BRAND)).join('\n');
 const v = { ...gespeichert, ...eingabe };
+// K146 (Handtest 29.10.2026): Stand der Kundennummern.
+const kdStand = await leseKundennummerStand().catch(() => null);
 const fehlerFuer = (key: string) => fehler.find((f) => f.key === key)?.meldung;
 const feld = (key: string) => REGEL_FELDER.find((f) => f.key === key)!;
 
@@ -100,6 +103,18 @@ const fehlerStyle = 'font-size:0.8rem;color:#fca5a5;margin-top:0.375rem;';
         <p style={hinweisStyle}>{feld('regel_angebot_gueltig_tage').wirktIn}</p>
         {fehlerFuer('regel_angebot_gueltig_tage') && <p style={fehlerStyle}>{fehlerFuer('regel_angebot_gueltig_tage')}</p>}
       </div>
+
+      {kdStand && (<>
+        <p style={labelStyle}>Kundennummern</p>
+        <div style="margin-bottom:1.25rem;">
+          <label for="naechste-kundennummer" style={labelStyle}>Nächste Kundennummer (Zahl)</label>
+          <input id="naechste-kundennummer" type="number" name="naechste_kundennummer" value={eingabe.naechste_kundennummer ?? String(kdStand.naechste)} min="1" max="999999" step="1" style={inputStyle} />
+          <input type="hidden" name="naechste_kundennummer_vorher" value={String(kdStand.naechste)} />
+          <p style={hinweisStyle}>Der nächste neue Klient bekommt {kundennummerText(kdStand.naechste)}. Schon vergebene Nummern werden übersprungen
+            (höchste vergebene: {kdStand.hoechste > 0 ? kundennummerText(kdStand.hoechste) : '–'}). Bestehende Kundennummern ändern sich nicht.</p>
+          {fehlerFuer('naechste_kundennummer') && <p style={fehlerStyle}>{fehlerFuer('naechste_kundennummer')}</p>}
+        </div>
+      </>)}
 
       <p style={labelStyle}>Einheiten</p>
       <div style="margin-bottom:1.25rem;">

@@ -54,7 +54,7 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        fehler = data.error ?? 'Speichern fehlgeschlagen.';
+        fehler = data.error ?? `Nicht gespeichert (Fehler ${res.status}). Bitte noch einmal versuchen.`;
         vorhandenId = data.vorhandenId ?? '';
         return;
       }
@@ -113,7 +113,8 @@
   </div>
 
   {#if fehler}
-    <p class="text-sm text-red-400">{fehler}
+    <!-- K145 (Handtest 29.10.2026): Fehler deutlich, nicht als kleine rote Zeile. -->
+    <p role="alert" class="text-sm text-red-200 border border-red-400 bg-red-900/30 rounded-lg px-3 py-2">{fehler}
       {#if vorhandenId}<a class="underline ml-1" href={`/admin/klienten/${vorhandenId}`}>Zur vorhandenen Akte</a>{/if}
     </p>
   {/if}

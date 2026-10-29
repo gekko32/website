@@ -102,8 +102,9 @@ export async function setCustomerNumber(
   customerId: string,
   customerNumber: string | null
 ): Promise<{ ok: boolean; error?: string }> {
-  if (customerNumber !== null && !/^M\d{4}$/.test(customerNumber)) {
-    return { ok: false, error: 'Ungültiges Format. Erwartet: M0020–M9999' };
+  // Prüfung C2 (29.10.2026): ab M10000 geht es fünfstellig weiter (K145).
+  if (customerNumber !== null && !/^M\d{4,6}$/.test(customerNumber)) {
+    return { ok: false, error: 'Ungültiges Format. Erwartet: M und 4 bis 6 Ziffern, z. B. M0020 oder M10000' };
   }
   if (customerNumber !== null) {
     const dup = await pool.query(
