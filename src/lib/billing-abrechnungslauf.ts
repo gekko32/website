@@ -3,7 +3,7 @@
 // wird erst nach Geralds Prüfung unter Rechnungen → Entwürfe.
 import { pool } from './website-db';
 import { ladeRegeln, type Abrechnungsart, type Regeln } from './billing-regeln';
-import { alleOffenenPosten, initPostenTabelle, verbucheQuellen, type Posten } from './billing-posten';
+import { alleOffenenPosten, initPostenTabelle, postenBetrag, verbucheQuellen, type Posten } from './billing-posten';
 import { holeLeistung } from './billing-leistungen';
 import { listKlienten, type Klient } from './klientenakte';
 import { erstelleEntwurfAusPosten } from './billing-entwurf';
@@ -46,11 +46,34 @@ export function planeMonatslauf(
   return [...je].map(([klientId, postenIds]) => ({ klientId, postenIds }));
 }
 
-/** K27: für jeden offenen Posten eines Klienten „je Sitzung“ ein eigener Entwurf. */
+/**
+ * K27: für jeden offenen Posten eines Klienten „je Sitzung“ ein eigener Entwurf.
+ * K130 (Handtest 29.10.2026): Posten aus demselben angenommenen Angebot kommen zusammen auf
+ * einen Entwurf. K131: ein 0-€-Posten bekommt keinen eigenen Entwurf – allein bleibt er offen.
+ */
 export function planeJeSitzung(posten: Posten[], art: (klientId: string) => Abrechnungsart): Plan[] {
-  return posten
-    .filter((p) => abrechenbar(p) && p.autoEntwurf !== false && art(p.klientId) === 'je_sitzung')
-    .map((p) => ({ klientId: p.klientId, postenIds: [p.id] }));
+  const plaene: Plan[] = [];
+  const jeAngebot = new Map<string, Plan & { betrag: number }>();
+  for (const p of posten) {
+    if (!abrechenbar(p) || p.autoEntwurf === false || art(p.klientId) !== 'je_sitzung') continue;
+    const betrag = postenBetrag(p);
+    if (p.angebotId) {
+      const schluessel = `${p.klientId}|${p.angebotId}`;
+      let g = jeAngebot.get(schluessel);
+      if (!g) {
+        g = { klientId: p.klientId, postenIds: [], betrag: 0 };
+        jeAngebot.set(schluessel, g);
+        plaene.push(g);
+      }
+      g.postenIds.push(p.id);
+      g.betrag += betrag;
+    } else if (betrag !== 0) {
+      plaene.push({ klientId: p.klientId, postenIds: [p.id] });
+    }
+  }
+  return plaene
+    .filter((g) => !('betrag' in g) || (g as { betrag: number }).betrag !== 0)
+    .map(({ klientId, postenIds }) => ({ klientId, postenIds }));
 }
 
 // ── Datenbank ───────────────────────────────────────────────────────────────

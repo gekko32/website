@@ -14,6 +14,7 @@ import { listeLeistungen, listeKategorien, preisAnzeige } from '../../../lib/bil
 import { gebuchteTermine } from '../../../lib/billing-ausfall';
 import { ladeEinheiten } from '../../../lib/billing-einheiten';
 import { verbucheUndEntwerfe, wirksameAbrechnungsart } from '../../../lib/billing-abrechnungslauf';
+import { getTaxMode } from '../../../lib/tax-monitor';
 import { angeboteDesKlienten, sortiereAngebote, istAktiv, standText, type Angebot } from '../../../lib/billing-angebot';
 import { ladeRegeln } from '../../../lib/billing-regeln';
 import { anzeigeEmail, hatEchteEmail } from '../../../lib/billing-versand';
@@ -83,6 +84,10 @@ const ABSAGE_TEXT: Record<string, string> = { kunde: 'durch Kunde', gerald: 'dur
 const postenFehler = q.get('fehler');
 // T10a: Rechnung aus gewählten Posten; Nummer der Rechnung, auf der ein Posten steht.
 const entwurfAngelegt = q.get('entwurf');
+// K127 (Handtest 29.10.2026): offene Rechnungsentwürfe dieses Klienten deutlich nennen.
+const offeneEntwuerfe = rechnungen.filter((r) => r.status === 'draft');
+// K142: aktuelle Steuerart sichtbar, mit Weg zur Umstellung.
+const steuerart = await getTaxMode(brand).catch(() => 'kleinunternehmer' as const);
 const rechnungNummer = new Map(rechnungen.map((r) => [String(r.id), r.number]));
 // K90: bei „abgerechnet“ auch der Zustand der Rechnung (offen, bezahlt, storniert …).
 const rechnungZustand = new Map(rechnungen.map((r) => [String(r.id), STATUS[r.status] ?? r.status]));
@@ -143,8 +148,17 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
         Abrechnung · offen: {offene.length} {offene.length === 1 ? 'Posten' : 'Posten'} · {euro(offenSumme)}
       </summary>
       {postenGespeichert && <p class="text-sm text-green-400 mb-2">Gespeichert.</p>}
-      {entwurfAngelegt && <p class="text-sm text-green-400 mb-2">Rechnungsentwurf {entwurfAngelegt} angelegt. Noch nichts verschickt:
-        prüfen und versenden unter <a class="underline" href="/admin/rechnungen">Rechnungen → Entwürfe</a>.</p>}
+      <p class="text-xs text-muted mb-2">Steuerart: <span class="text-light">{steuerart === 'kleinunternehmer' ? '§ 19 UStG – keine Umsatzsteuer' : 'Regelbesteuerung – mit Umsatzsteuer'}</span>
+        · <a class="underline" href="/admin/einstellungen/rechnungen">umstellen</a></p>
+      {/* K127 (Handtest 29.10.2026): angelegte Entwürfe nicht nur unter Fakturierung verstecken. */}
+      {offeneEntwuerfe.map((r) => (
+        <div class="entwurf-hinweis mb-2">
+          <span><strong>Rechnungsentwurf angelegt – noch nicht verschickt</strong> · {euro(Number(r.gross_amount))}</span>
+          <a href={`/admin/rechnungen/entwurf/${r.id}`} class="px-3 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Entwurf prüfen</a>
+        </div>
+      ))}
+      {entwurfAngelegt && offeneEntwuerfe.length === 0 && <p class="text-sm text-green-400 mb-2">Rechnungsentwurf {entwurfAngelegt} angelegt. Noch nichts verschickt:
+        prüfen und versenden unter <a class="underline" href="/admin/rechnungen">Fakturierung → Rechnungsentwürfe</a>.</p>}
       {postenFehler && <p role="alert" class="text-sm text-red-400 mb-2">{postenFehler}</p>}
       <ZustandLegende teile={['posten', 'rechnung']} />
 
@@ -331,6 +345,9 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       <p class="text-xs text-muted mb-2">Vorträge, Moderationen, Analysen … So geht es: 1. hier einen Auftrag mit Titel anlegen,
         2. im Auftrag „+ Neue Position mit Preis“ öffnen – erst die Positionen werden abgerechnet. Sie erscheinen nicht auf der Website.</p>
       {auftragFehler && <p role="alert" class="text-sm text-red-400 mb-2">{auftragFehler}</p>}
+      {/* K129 (Handtest 29.10.2026) */}
+      {q.get('angebotVerworfen') === '1' && <p class="text-sm text-green-400 mb-2">Angebotsentwurf verworfen. Der Auftrag bleibt erhalten,
+        du kannst neu einen Angebotsvorschlag erstellen.</p>}
       <ZustandLegende teile={['posten', 'angebot']} />
 
       {/* Handtest 22.10.2026: Anlegen oberhalb der Liste – der neue Auftrag erscheint direkt darunter (neueste zuerst). */}
@@ -343,10 +360,10 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
           {/* Nachtrag 24.10.2026 (K89): der Haken gehört zum Knopf und steht direkt daneben. */}
           <div class="flex flex-wrap items-center gap-3">
             <button type="submit" class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Auftrag anlegen</button>
-            <label class="text-sm text-light"><input type="checkbox" name="mitAngebot" /> mit Angebot – Positionen werden erst nach Annahme des Angebots abrechenbar</label>
+            <label class="text-sm text-light"><input type="checkbox" name="mitAngebot" /> mit Angebot – Positionen werden erst nach Annahme des Angebotsvorschlags abrechenbar</label>
           </div>
         </form>
-        <p class="text-xs text-muted mt-2">Oder ein früheres Angebot als Grundlage nehmen: <a class="underline" href="/admin/angebote?vorlage=1">Angebote → Vorlagen</a>.</p>
+        <p class="text-xs text-muted mt-2">Oder einen früheren Angebotsvorschlag als Grundlage nehmen: <a class="underline" href="/admin/angebote?vorlage=1">Angebotsvorschläge → Vorlagen</a>.</p>
       </div>
 
       {auftraege.map((a) => {
@@ -358,7 +375,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
             {/* Kopf: links Titel, rechts Umbenennen / Auftrag löschen; Umbenennen direkt im Titel (Handtest 22.10.2026). */}
             <div class="zeile flex flex-wrap items-center gap-2 mb-2 rounded px-1">
               <h3 class="ansicht text-sm font-semibold text-light">{a.titel}
-                <span class="text-xs text-muted font-normal">· offen {euro(summe)}{a.modus === 'mit_angebot' && <> · geplant {euro(geplantSumme)} · <span class="text-gold">{AUFTRAG_STAND_TEXT[a.stand ?? 'geplant']}</span></>}</span></h3>
+                <span class="text-xs text-muted font-normal">· offen {euro(summe)}{a.modus === 'mit_angebot' && <> · in Vorbereitung {euro(geplantSumme)} · <span class="text-gold">{AUFTRAG_STAND_TEXT[a.stand ?? 'geplant']}</span></>}</span></h3>
               <span class="bearbeiten flex-1">
                 <input name="titel" value={a.titel} required minlength="2" maxlength="120" form={`t-${a.id}`} aria-label="Neuer Titel" class="zfeld" />
               </span>
@@ -393,8 +410,8 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
                     <input type="hidden" name="klientId" value={klient.id} />
                     <input type="hidden" name="auftragId" value={a.id} />
                     <button type="submit" disabled={!pos.some((p) => p.zustand === 'geplant')}
-                      title={pos.some((p) => p.zustand === 'geplant') ? 'Angebot aus den geplanten Positionen' : 'Zuerst mindestens eine Position anlegen'}
-                      class="px-3 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold disabled:opacity-40">{angeboteVon(a.id).some((x) => x.status === 'entwurf') ? 'Angebotsentwurf öffnen' : 'Angebot erstellen'}</button>
+                      title={pos.some((p) => p.zustand === 'geplant') ? 'Angebotsvorschlag aus den Positionen in Vorbereitung' : 'Zuerst mindestens eine Position anlegen'}
+                      class="px-3 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold disabled:opacity-40">{angeboteVon(a.id).some((x) => x.status === 'entwurf') ? 'Angebotsentwurf öffnen' : 'Angebotsvorschlag erstellen'}</button>
                   </form>
                 )}
                 {angeboteVon(a.id).length > 0 && (
@@ -537,15 +554,15 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
     {/* Stufe 4 T18 (K56): alle Angebote der Akte. */}
     <section id="angebote" class="mb-8">
       <details class="liste" open>
-      <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Angebote ({angebote.length})</summary>
-      <p class="text-xs text-muted mb-2">Alle Angebote dieses Klienten, aktive zuerst. <a class="underline" href="/admin/angebote">Alle Angebote aller Klienten und Vorlagen ›</a></p>
+      <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Angebotsvorschläge ({angebote.length})</summary>
+      <p class="text-xs text-muted mb-2">Alle Angebotsvorschläge dieses Klienten, aktive zuerst. <a class="underline" href="/admin/angebote">Alle Angebotsvorschläge aller Klienten und Vorlagen ›</a></p>
       <ZustandLegende teile={['angebot']} />
-      {angebote.length === 0 ? <p class="text-sm text-muted">Noch keine Angebote. Angebote entstehen in einem Auftrag „mit Angebot“.</p> : (
+      {angebote.length === 0 ? <p class="text-sm text-muted">Noch keine Angebotsvorschläge. Sie entstehen in einem Auftrag „mit Angebot“.</p> : (
         <table class="w-full text-sm">
           <thead><tr class="text-left text-xs text-muted"><th class="py-1 pr-3 font-normal">Nummer</th><th class="py-1 pr-3 font-normal">Auftrag</th>
-            <th class="py-1 pr-3 font-normal">Datum</th><th class="py-1 pr-3 font-normal">gültig bis</th><th class="py-1 pr-3 font-normal text-right">Betrag</th><th class="py-1 font-normal">Stand</th></tr></thead>
+            <th class="py-1 pr-3 font-normal">Datum</th><th class="py-1 pr-3 font-normal">gültig bis</th><th class="py-1 pr-3 font-normal text-right">Betrag</th><th class="py-1 pr-3 font-normal">Stand</th><th></th></tr></thead>
           <tbody>{angebote.map((x, i) => (<>
-            {i === ersterAbgeschlossen && i > 0 && <tr><td colspan="6" class="pt-3 pb-1 text-xs text-muted uppercase tracking-wide">Abgeschlossen</td></tr>}
+            {i === ersterAbgeschlossen && i > 0 && <tr><td colspan="7" class="pt-3 pb-1 text-xs text-muted uppercase tracking-wide">Abgeschlossen</td></tr>}
             <tr class={`border-t border-dark-lighter ${x.status === 'ersetzt' ? 'opacity-60' : ''}`}>
               <td class="py-1 pr-3 font-mono"><a class="hover:underline" href={`/admin/angebote/${x.id}`}>{x.number}</a>
                 {x.vorlageName && <span class="block text-xs font-sans text-gold" title="Als Vorlage markiert">★ Vorlage: {x.vorlageName}</span>}</td>
@@ -554,7 +571,17 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
               <td class="py-1 pr-3">{datum(x.datum)}</td>
               <td class="py-1 pr-3">{datum(x.gueltigBis)}</td>
               <td class="py-1 pr-3 text-right">{euro(x.brutto)}</td>
-              <td class={`py-1 ${x.stand === 'abgelaufen' ? 'text-gold' : x.status === 'angenommen' ? 'text-green-400' : 'text-muted'}`}>{standText(x)}</td>
+              <td class={`py-1 pr-3 ${x.stand === 'abgelaufen' ? 'text-gold' : x.status === 'angenommen' ? 'text-green-400' : 'text-muted'}`}>{standText(x)}</td>
+              {/* K126, K135 (Handtest 29.10.2026): Ändern und Verwerfen direkt in der Liste. */}
+              <td class="py-1 text-right whitespace-nowrap">
+                {x.status === 'verschickt' && <a href={`/admin/angebote/${x.id}?neueFassung=1`} class="px-2 py-1 rounded border border-gold text-gold text-xs">Ändern (neue Fassung)</a>}
+                {x.status === 'entwurf' && (
+                  <form method="POST" action="/api/admin/angebote" class="posten-loeschen inline" data-frage="Angebotsentwurf verwerfen? Der Auftrag und seine Positionen bleiben erhalten.">
+                    <input type="hidden" name="aktion" value="verwerfen" /><input type="hidden" name="id" value={x.id} />
+                    <button type="submit" class="px-2 py-1 rounded border border-red-400 text-red-300 text-xs">Verwerfen</button>
+                  </form>
+                )}
+              </td>
             </tr></>))}
           </tbody>
         </table>
@@ -678,6 +705,9 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
   .inline-flex > .zfeld { display: inline-block; }
   /* „Rechnung erstellen“: Häkchen kurz hervorheben */
   input.rechnung-wahl.hervorheben { outline: 2px solid var(--color-gold, #c9a227); outline-offset: 2px; }
+  /* K127 (Handtest 29.10.2026): angelegter Rechnungsentwurf, deutlich und mit Knopf. */
+  .entwurf-hinweis { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;
+    padding: 0.6rem 0.9rem; border: 1px solid var(--color-gold, #c9a227); background: rgba(201, 162, 39, 0.12); border-radius: 0.75rem; font-size: 0.875rem; }
 </style>
 
 <script>

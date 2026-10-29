@@ -69,7 +69,7 @@
     <p class="text-xs font-mono uppercase tracking-widest text-gold mb-2">Zentral gepflegte Elemente</p>
     <p class="text-sm text-muted">🔒 <strong class="text-light">SEO (Seitentitel & Meta-Description)</strong> → <a href="/admin/inhalte?tab=website&section=seo" class="text-gold hover:underline">SEO-Tab</a></p>
     <p class="text-sm text-muted">🔒 <strong class="text-light">Footer & Header-Standort</strong> → <a href="/admin/inhalte?tab=website&section=kontakt" class="text-gold hover:underline">Kontakt-Tab</a></p>
-    <p class="text-sm text-muted">🔒 <strong class="text-light">Angebots-Karten (Reihenfolge & Inhalte)</strong> → <a href="/admin/inhalte?tab=website&section=angebote" class="text-gold hover:underline">Angebote-Tab</a></p>
+    <p class="text-sm text-muted">🔒 <strong class="text-light">Angebots-Karten (Reihenfolge & Inhalte)</strong> → <a href="/admin/inhalte?tab=website&section=angebote" class="text-gold hover:underline">Leistungsangebot (Website)</a></p>
   </div>
 
   <div class={sectionCls}>
@@ -98,10 +98,10 @@
   </div>
 
   <div class={sectionCls}>
-    <h3 class="text-xl font-bold text-light font-serif">Angebote-Sektion</h3>
+    <h3 class="text-xl font-bold text-light font-serif">Leistungsangebot (Website) auf der Startseite</h3>
     <div><label class={labelCls}>Überschrift</label><input type="text" bind:value={data.servicesHeadline} class={inputCls} /></div>
     <div><label class={labelCls}>Unterüberschrift</label><textarea bind:value={data.servicesSubheadline} rows={2} class="{inputCls} resize-none"></textarea></div>
-    <p class="text-xs text-muted">Karten-Reihenfolge &amp; Inhalte → <a href="/admin/inhalte?tab=website&section=angebote" class="text-gold hover:underline">Angebote-Tab</a></p>
+    <p class="text-xs text-muted">Karten-Reihenfolge &amp; Inhalte → <a href="/admin/inhalte?tab=website&section=angebote" class="text-gold hover:underline">Leistungsangebot (Website)</a></p>
   </div>
 
   <div class={sectionCls}>

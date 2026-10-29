@@ -24,10 +24,10 @@ describe('Positionen eines Auftrags (K44, K45)', () => {
 });
 
 describe('Geplante Positionen sind keine offenen Posten (K44)', () => {
-  it('änderbar und löschbar, Zustand heißt „geplant (Angebot)“', () => {
+  it('änderbar und löschbar, Zustand heißt „in Vorbereitung (Angebot)“', () => {
     expect(postenAenderbar('geplant')).toBe(true);
     expect(postenLoeschbar('auftrag', 'geplant')).toBe(true);
-    expect(ZUSTAND_TEXT.geplant).toBe('geplant (Angebot)');
+    expect(ZUSTAND_TEXT.geplant).toBe('in Vorbereitung (Angebot)');
   });
   it('erscheinen nicht in der Übersicht offener Posten', () => {
     expect(summenJeKlient([posten()])).toEqual([]);

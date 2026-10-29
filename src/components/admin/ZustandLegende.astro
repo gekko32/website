@@ -7,7 +7,7 @@ const { teile } = Astro.props;
 const gruppen: { titel: string; liste: ZustandErklaerung[] }[] = [
   ...(teile.includes('posten') ? [{ titel: 'Posten (Sitzungen und Positionen)', liste: POSTEN_ZUSTAENDE }] : []),
   ...(teile.includes('rechnung') ? [{ titel: 'Rechnungen', liste: RECHNUNG_ZUSTAENDE }] : []),
-  ...(teile.includes('angebot') ? [{ titel: 'Angebote', liste: ANGEBOT_ZUSTAENDE }] : []),
+  ...(teile.includes('angebot') ? [{ titel: 'Angebotsvorschläge', liste: ANGEBOT_ZUSTAENDE }] : []),
 ];
 ---
 

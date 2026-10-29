@@ -85,6 +85,26 @@ describe('Entwurf je Sitzung (K27)', () => {
     ], wie)).toEqual([{ klientId: 'p', postenIds: ['a'] }, { klientId: 'p', postenIds: ['b'] }]);
   });
 
+  it('K130: Posten aus demselben Angebot kommen auf einen Entwurf, andere Angebote auf eigene', () => {
+    expect(planeJeSitzung([
+      posten({ id: 'a', klientId: 'p', angebotId: 'an1' }),
+      posten({ id: 'b', klientId: 'p', angebotId: 'an1', einzelpreis: 0 }),
+      posten({ id: 'c', klientId: 'p', angebotId: 'an2' }),
+      posten({ id: 'd', klientId: 'p' }),
+    ], wie)).toEqual([
+      { klientId: 'p', postenIds: ['a', 'b'] },
+      { klientId: 'p', postenIds: ['c'] },
+      { klientId: 'p', postenIds: ['d'] },
+    ]);
+  });
+
+  it('K131: 0-€-Posten allein bekommen keinen Entwurf (auch ein Angebot nur aus 0-€-Posten nicht)', () => {
+    expect(planeJeSitzung([
+      posten({ id: 'a', klientId: 'p', einzelpreis: 0 }),
+      posten({ id: 'b', klientId: 'p', angebotId: 'an1', einzelpreis: 0 }),
+    ], wie)).toEqual([]);
+  });
+
   it('nicht für Posten ohne Preis oder nach verworfenem Entwurf (sonst käme er beim nächsten Öffnen sofort wieder)', () => {
     expect(planeJeSitzung([
       posten({ id: 'a', klientId: 'p', einzelpreis: null }),

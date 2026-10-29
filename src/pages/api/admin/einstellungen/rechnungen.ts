@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
 import { setSiteSetting, getSiteSetting } from '../../../../lib/website-db';
 import { protokolliere, unterschied } from '../../../../lib/akte-protokoll';
-import { setTaxMode } from '../../../../lib/tax-monitor';
+import { setTaxMode, bestaetigeSteuerHinweis } from '../../../../lib/tax-monitor';
 import { normalisiereUstId, pruefeSteuerangaben } from '../../../../lib/billing-absender';
 import { pruefeZahlungsziel } from '../../../../lib/billing-regeln';
 
@@ -50,6 +50,9 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 
   if (rawMode === 'kleinunternehmer' || rawMode === 'regelbesteuerung') {
     saves.push(setTaxMode(brand, rawMode, { notes: 'Manuell geändert über Einstellungen' }));
+    // K141: Wer die Steuerart hier selbst umstellt, hat den Hinweis zur Kenntnis genommen.
+    // Prüfung B4: nur bei einer echten Änderung – nicht schon, wenn nur die IBAN gespeichert wird.
+    if ((vorher.tax_mode || 'kleinunternehmer') !== rawMode) saves.push(bestaetigeSteuerHinweis(brand));
   }
 
   await Promise.all(saves);

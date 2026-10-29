@@ -13,6 +13,7 @@ import DatevExportWidget from '../../components/admin/DatevExportWidget.svelte';
 import { listKlienten } from '../../lib/klientenakte';
 import { anzeigeEmail } from '../../lib/billing-versand';
 import { logger } from '../../lib/logger';
+import { getTaxMode } from '../../lib/tax-monitor';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -56,6 +57,7 @@ try {
   logger.error({ err }, '[admin/rechnungen] getDraftInvoices');
 }
 
+const steuerart = await getTaxMode(process.env.BRAND || 'mentolder').catch(() => 'kleinunternehmer' as const);
 const today = new Date().toISOString().slice(0, 10);
 const totalOpen       = invoices.filter(i => i.amountRemaining > 0 && !['void','uncollectible'].includes(i.status)).reduce((s, i) => s + i.amountRemaining, 0);
 const totalPaid       = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.amountPaid, 0);
@@ -147,12 +149,17 @@ const STATUS_TABS = [
         <div class="mb-6 p-4 bg-red-900/30 border border-red-800 rounded-xl text-red-300 text-sm">{apiError}</div>
       )}
 
-      <!-- Stufe 4 T18 (K57): offene Angebote, abgelaufene hervorgehoben -->
-      {offeneAngebotListe.length > 0 && (
-        <section class="mb-8">
-          <h2 class="text-lg font-semibold text-light mb-4">Angebote mit offener Antwort
+      <!-- K142 (Handtest 29.10.2026): Steuerart sichtbar -->
+      <p class="text-xs text-muted mb-4">Steuerart: <span class="text-light">{steuerart === 'kleinunternehmer' ? '§ 19 UStG – keine Umsatzsteuer' : 'Regelbesteuerung – mit Umsatzsteuer'}</span>
+        · <a class="underline" href="/admin/einstellungen/rechnungen">umstellen</a> · <a class="underline" href="/admin/steuer">Umsatz zur §19-Grenze</a></p>
+
+      <!-- K136 (Handtest 29.10.2026): drei klar getrennte Bereiche. Stufe 4 T18 (K57): offene Angebote. -->
+      <section class="bereich-kasten mb-8">
+          <h2 class="bereich-titel"><span class="bereich-nr">1</span> Angebotsvorschläge ohne Antwort
             <span class="ml-2 text-sm font-normal text-muted">({offeneAngebotListe.length})</span>
-            <a href="/admin/angebote" class="ml-3 text-sm font-normal text-gold underline">Alle Angebote und Vorlagen ›</a></h2>
+            <a href="/admin/angebote" class="ml-3 text-sm font-normal text-gold underline">Alle Angebotsvorschläge und Vorlagen ›</a></h2>
+          <p class="text-xs text-muted mb-3">Verschickt, die Antwort des Klienten fehlt noch. Abgelehnte und angenommene stehen hier nicht.</p>
+          {offeneAngebotListe.length === 0 && <p class="text-sm text-muted">Keine offenen Angebotsvorschläge.</p>}
           <div class="space-y-2">
             {offeneAngebotListe.map((x) => (
               <a href={`/admin/angebote/${x.id}`} class={`flex flex-wrap items-center justify-between gap-2 bg-surface border rounded-xl p-3 hover:border-gold ${x.stand === 'abgelaufen' ? 'border-gold' : 'border-border'}`}>
@@ -162,16 +169,16 @@ const STATUS_TABS = [
               </a>
             ))}
           </div>
-        </section>
-      )}
+      </section>
 
       <!-- Draft Invoice Section -->
-      {draftInvoices.length > 0 && (
-        <section class="mb-8">
-          <h2 class="text-lg font-semibold text-light mb-4">
+      <section class="bereich-kasten mb-8">
+          <h2 class="bereich-titel"><span class="bereich-nr">2</span>
             Rechnungsentwürfe (noch nicht verschickt)
             <span class="ml-2 text-sm font-normal text-muted">({draftInvoices.length})</span>
           </h2>
+          <p class="text-xs text-muted mb-3">Noch ohne Nummer und änderbar. Erst „Prüfen und ändern“ → Festschreiben gibt die Rechnungsnummer.</p>
+          {draftInvoices.length === 0 && <p class="text-sm text-muted">Keine Rechnungsentwürfe.</p>}
           <div class="space-y-3" id="draft-list">
             {draftInvoices.map(inv => (
               <div
@@ -194,9 +201,11 @@ const STATUS_TABS = [
               </div>
             ))}
           </div>
-        </section>
-      )}
+      </section>
 
+      <section class="bereich-kasten mb-8">
+      <h2 class="bereich-titel"><span class="bereich-nr">3</span> Alle Rechnungen</h2>
+      <p class="text-xs text-muted mb-3">Festgeschriebene Rechnungen haben eine Nummer und sind unveränderlich (korrigieren nur über Storno). Der Reiter „Entwurf“ zeigt dieselben Entwürfe wie Kasten 2.</p>
       <!-- Status filter tabs -->
       <div class="flex gap-1 p-1 bg-dark-light rounded-lg border border-dark-lighter mb-6 w-fit flex-wrap">
         {STATUS_TABS.map(t => (
@@ -324,11 +333,20 @@ const STATUS_TABS = [
           </tbody>
         </table>
       </div>
+      </section>
     </div>
   </section>
 
   <div id="payment-modal-mount"></div>
 
+
+<style>
+  /* K136 (Handtest 29.10.2026): die drei Bereiche der Fakturierung klar voneinander trennen. */
+  .bereich-kasten { border: 1px solid var(--color-dark-lighter, #333); border-radius: 1rem; padding: 1.25rem; background: rgba(255, 255, 255, 0.02); }
+  .bereich-titel { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem; font-size: 1.125rem; font-weight: 600; color: var(--color-light, #eee); margin-bottom: 0.25rem; }
+  .bereich-nr { display: inline-flex; align-items: center; justify-content: center; width: 1.6rem; height: 1.6rem; margin-right: 0.5rem;
+    border-radius: 999px; background: var(--color-gold, #c9a227); color: #111; font-size: 0.85rem; font-weight: 700; }
+</style>
 
 <script>
   document.addEventListener('invoice-created', () => window.location.reload());

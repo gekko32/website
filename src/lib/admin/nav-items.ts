@@ -70,7 +70,8 @@ export function buildNavSections({ inboxPending, brettUrl }: NavOptions): NavSec
         // Rechnungswesen Stufe 3 (T3): Leistungen und Preise selbst pflegen.
         { href: '/admin/offene-posten', label: 'Offene Posten', icon: 'clock' },
         // Nachtrag Stufe 4 (K85, 24.10.2026): zentrale Liste aller Angebote und Vorlagen.
-        { href: '/admin/angebote', label: 'Angebote', icon: 'clipboard' },
+        // Handtest 29.10.2026 (K137): „Angebotsvorschläge“ grenzt vom Leistungsangebot der Website ab.
+        { href: '/admin/angebote', label: 'Angebotsvorschläge', icon: 'clipboard' },
         // Änderungsprotokoll (K97, 24.10.2026): wer hat wann was geändert.
         { href: '/admin/protokoll', label: 'Änderungsprotokoll', icon: 'book' },
         { href: '/admin/leistungen', label: 'Leistungen', icon: 'tag' },
@@ -87,7 +88,8 @@ export function buildNavSections({ inboxPending, brettUrl }: NavOptions): NavSec
             '/admin/inhalte',
             '/admin/startseite',
             '/admin/uebermich',
-            '/admin/angebote',
+            // /admin/angebote sind die Angebotsvorschläge an Klienten (Geschäft), nicht das
+            // Leistungsangebot der Website – sonst leuchtet hier „Content Hub“ (K138).
             '/admin/faq',
             '/admin/kontakt',
             '/admin/referenzen',

@@ -61,7 +61,7 @@
 
 <div class="pt-6 pb-20 space-y-10">
   <div class="flex justify-between items-start">
-    <div><h2 class="text-2xl font-bold text-light font-serif">Angebote</h2><p class="text-muted mt-1 text-sm">Leistungskarten, Leistungskatalog und Preisliste</p></div>
+    <div><h2 class="text-2xl font-bold text-light font-serif">Leistungsangebot (Website)</h2><p class="text-muted mt-1 text-sm">Leistungskarten, Leistungskatalog und Preisliste</p></div>
     <button onclick={save} disabled={saving} class="px-5 py-2 bg-gold text-dark font-semibold rounded-lg hover:bg-gold/90 disabled:opacity-50">{saving?'Speichere…':'Speichern'}</button>
   </div>
 

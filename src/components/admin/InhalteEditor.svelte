@@ -109,7 +109,7 @@
     seo: 'SEO', startseite: 'Startseite', uebermich: 'Über mich',
     coaching: 'Coaching', 'fuehrung-persoenlichkeit': 'Führung & Pers.',
     '50plus-digital': '50+ digital', 'ki-transition': 'KI-Transition', beratung: 'Beratung',
-    angebote: 'Angebote', faq: 'FAQ', kontakt: 'Kontakt',
+    angebote: 'Leistungsangebot (Website)', faq: 'FAQ', kontakt: 'Kontakt',
     referenzen: 'Referenzen', rechtliches: 'Rechtliches',
     stammdaten: 'Stammdaten', navigation: 'Navigation', footer: 'Footer',
     // Kore-Flags only apply to the korczewski brand homepage.

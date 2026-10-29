@@ -254,8 +254,8 @@ export async function generateInvoicePdf(p: {
   const absatz = (t: string, o: { fett?: boolean; groesse?: number; abstand?: number } = {}) => {
     y = fliesstext(doc, t, S.L, y, W, titel, { schrift: o.fett ? 'Helvetica-Bold' : 'Helvetica', groesse: o.groesse ?? 10 }) + (o.abstand ?? 4);
   };
+  // K123 (Handtest 29.10.2026): USt-IdNr. nur im Fuß, nicht noch einmal im Text.
   if (isKlein) absatz(kleinNote, { fett: true, groesse: 7.5 });
-  else if (seller.vatId) absatz(`USt-IdNr.: ${seller.vatId}`, { groesse: 7.5 });
   if (supplyTypeForMeta && supplyNoticeMap[supplyTypeForMeta]) absatz(supplyNoticeMap[supplyTypeForMeta], { groesse: 7.5 });
   if (!p.angebot && inv.kind !== 'gutschrift') {
     // Prüfung L3 (B1, K38): Zahlungsziel aus der Rechnung selbst, nicht fest 14 Tage.

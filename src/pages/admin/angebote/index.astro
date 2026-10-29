@@ -24,9 +24,11 @@ const fd = (iso: string | null) => (iso ? iso.slice(0, 10).split('-').reverse().
 const eingabe = 'px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light';
 ---
 
-<AdminLayout title="Angebote">
+<AdminLayout title="Angebotsvorschläge">
   <div style="padding:2rem;max-width:1100px;">
-    <AdminPageHeader title="Angebote" description="Alle Angebote aller Klienten, aktive zuerst. Jedes Angebot lässt sich als Vorlage merken und als Grundlage für ein neues nehmen." />
+    <AdminPageHeader title="Angebotsvorschläge" description="Angebote an Klienten (nicht das Leistungsangebot der Website), aktive zuerst. Jeder Angebotsvorschlag lässt sich als Vorlage merken und als Grundlage für einen neuen nehmen." />
+    {/* K135 */}
+    {q.get('verworfen') === '1' && <p class="text-sm text-green-400 mb-3">Angebotsentwurf verworfen. Der Auftrag bleibt in der Akte erhalten.</p>}
 
     <form method="GET" class="flex flex-wrap items-end gap-3 mb-3">
       <label class="text-xs text-muted">Anzeigen
@@ -46,14 +48,14 @@ const eingabe = 'px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm 
 
     <ZustandLegende teile={['angebot']} />
 
-    {liste.length === 0 ? <p class="text-sm text-muted">Keine Angebote gefunden. Angebote entstehen in der Klientenakte in einem Auftrag „mit Angebot“.</p> : (
+    {liste.length === 0 ? <p class="text-sm text-muted">Keine Angebotsvorschläge gefunden. Sie entstehen in der Klientenakte in einem Auftrag „mit Angebot“.</p> : (
       <table class="w-full text-sm">
         <thead><tr class="text-left text-xs text-muted">
           <th class="py-1 pr-3 font-normal">Nummer</th><th class="py-1 pr-3 font-normal">Klient</th><th class="py-1 pr-3 font-normal">Auftrag</th>
-          <th class="py-1 pr-3 font-normal">Datum</th><th class="py-1 pr-3 font-normal">gültig bis</th><th class="py-1 pr-3 font-normal text-right">Betrag</th><th class="py-1 font-normal">Stand</th>
+          <th class="py-1 pr-3 font-normal">Datum</th><th class="py-1 pr-3 font-normal">gültig bis</th><th class="py-1 pr-3 font-normal text-right">Betrag</th><th class="py-1 pr-3 font-normal">Stand</th><th></th>
         </tr></thead>
         <tbody>{liste.map((x, i) => (<>
-          {i === ersterAbgeschlossen && i > 0 && <tr><td colspan="7" class="pt-3 pb-1 text-xs text-muted uppercase tracking-wide">Abgeschlossen</td></tr>}
+          {i === ersterAbgeschlossen && i > 0 && <tr><td colspan="8" class="pt-3 pb-1 text-xs text-muted uppercase tracking-wide">Abgeschlossen</td></tr>}
           <tr class={`border-t border-dark-lighter ${x.status === 'ersetzt' ? 'opacity-60' : ''}`}>
             <td class="py-1 pr-3 font-mono"><a class="hover:underline" href={`/admin/angebote/${x.id}`}>{x.number} ›</a>
               {x.vorlageName && <span class="block text-xs font-sans text-gold">★ Vorlage: {x.vorlageName}</span>}</td>
@@ -62,11 +64,44 @@ const eingabe = 'px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm 
             <td class="py-1 pr-3">{fd(x.datum)}</td>
             <td class="py-1 pr-3">{fd(x.gueltigBis)}</td>
             <td class="py-1 pr-3 text-right">{euro(x.brutto)}</td>
-            <td class={`py-1 ${x.stand === 'abgelaufen' ? 'text-gold' : x.status === 'angenommen' ? 'text-green-400' : 'text-muted'}`}>{standText(x)}</td>
+            <td class={`py-1 pr-3 ${x.stand === 'abgelaufen' ? 'text-gold' : x.status === 'angenommen' ? 'text-green-400' : 'text-muted'}`}>{standText(x)}</td>
+            {/* K126, K135 (Handtest 29.10.2026): Ändern und Verwerfen direkt in der Liste. */}
+            <td class="py-1 text-right whitespace-nowrap">
+              {x.status === 'verschickt' && <a href={`/admin/angebote/${x.id}?neueFassung=1`} class="px-2 py-1 rounded border border-gold text-gold text-xs">Ändern (neue Fassung)</a>}
+              {x.status === 'entwurf' && (
+                <form method="POST" action="/api/admin/angebote" class="mit-rueckfrage inline" data-frage="Angebotsentwurf verwerfen? Der Auftrag und seine Positionen bleiben in der Akte erhalten.">
+                  <input type="hidden" name="aktion" value="verwerfen" /><input type="hidden" name="id" value={x.id} /><input type="hidden" name="zurueck" value="liste" />
+                  <button type="submit" class="px-2 py-1 rounded border border-red-400 text-red-300 text-xs">Verwerfen</button>
+                </form>
+              )}
+            </td>
           </tr></>))}
         </tbody>
       </table>
     )}
-    <p class="text-xs text-muted mt-4">Neues Angebot aus einem bestehenden: Angebot öffnen → unten „Neues Angebot aus diesem Angebot“, Klient wählen.</p>
+    <p class="text-xs text-muted mt-4">Neuer Angebotsvorschlag aus einem bestehenden: öffnen → unten „Neues Angebot aus diesem Angebot“, Klient wählen.</p>
+
+    <div id="rueckfrage" hidden class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div class="bg-surface border border-gold/60 rounded-xl p-5 max-w-md w-full shadow-xl">
+        <p id="rueckfrage-text" class="text-sm text-light mb-4"></p>
+        <div class="flex gap-2 justify-end">
+          <button type="button" id="rueckfrage-nein" class="px-3 py-2 rounded-lg border border-dark-lighter text-sm">Abbrechen</button>
+          <button type="button" id="rueckfrage-ja" class="px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">Verwerfen</button>
+        </div>
+      </div>
+    </div>
   </div>
 </AdminLayout>
+
+<script>
+  // Rückfrage auf der Seite statt Browser-Fenster (wie auf der Angebotsseite, K92).
+  const box = document.getElementById('rueckfrage');
+  document.querySelectorAll<HTMLFormElement>('form.mit-rueckfrage').forEach((f) => f.addEventListener('submit', (e) => {
+    if (f.dataset.bestaetigt === '1' || !box) return;
+    e.preventDefault();
+    document.getElementById('rueckfrage-text')!.textContent = f.dataset.frage ?? '';
+    box.hidden = false;
+    document.getElementById('rueckfrage-ja')!.onclick = () => { box.hidden = true; f.dataset.bestaetigt = '1'; f.requestSubmit(); };
+    document.getElementById('rueckfrage-nein')!.onclick = () => { box.hidden = true; };
+  }));
+</script>

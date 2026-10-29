@@ -55,7 +55,7 @@ const hinweis = 'font-size:0.75rem;color:var(--mute);line-height:1.4;margin:0.37
             <div class={`tax-option ${taxMode === 'kleinunternehmer' ? 'tax-option--active' : ''}`}
                  style={`border:1px solid ${taxMode === 'kleinunternehmer' ? 'var(--brass)' : 'var(--line)'};border-radius:8px;padding:0.75rem;background:${taxMode === 'kleinunternehmer' ? 'rgba(181,140,86,0.08)' : 'rgba(255,255,255,0.02)'};`}>
               <p style="font-family:var(--font-mono);font-size:0.8rem;font-weight:600;color:var(--fg);margin-bottom:0.25rem;">Kleinunternehmer</p>
-              <p style="font-size:0.75rem;color:var(--mute);line-height:1.4;">§ 19 UStG — keine Umsatzsteuer auf Rechnungen. Grenze: 25.000 €/Jahr.</p>
+              <p style="font-size:0.75rem;color:var(--mute);line-height:1.4;">§ 19 UStG — keine Umsatzsteuer auf Rechnungen. Grenzen: Vorjahr 25.000 €, laufendes Jahr 100.000 €.</p>
             </div>
           </label>
           <label style="flex:1;cursor:pointer;">
@@ -141,7 +141,11 @@ const hinweis = 'font-size:0.75rem;color:var(--mute);line-height:1.4;margin:0.37
         <input type="text" name="invoice_manager" value={s.invoice_manager} placeholder="Inhaber (Vollname) – Fußzeile und Ansprechpartner auf Belegen" aria-label="Inhaber" style="width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-family:var(--font-mono);font-size:0.875rem;outline:none;" />
       </div>
 
-      <button type="submit" style="background:var(--brass);color:var(--ink-900);border:none;border-radius:8px;padding:0.625rem 1.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;">Speichern</button>
+      {/* K144 (Handtest 29.10.2026, H17): Speichern bleibt beim Scrollen sichtbar und meldet ungespeicherte Änderungen. */}
+      <div id="speicherleiste" style="position:sticky;bottom:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.75rem;margin:0 -0.75rem;padding:0.75rem;background:var(--ink-900, #0b0b0b);border-top:1px solid var(--line);">
+        <span id="speicher-stand" style="font-size:0.8rem;color:var(--mute);">Änderungen gelten erst nach „Speichern“.</span>
+        <button type="submit" style="background:var(--brass);color:var(--ink-900);border:none;border-radius:8px;padding:0.625rem 1.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;">Speichern</button>
+      </div>
     </form>
 
     {/* Beleg-Design (K115): Blanko-Briefbogen im selben Briefbild, zum Weiterbearbeiten in Word oder LibreOffice. */}
@@ -189,4 +193,20 @@ const hinweis = 'font-size:0.75rem;color:var(--mute);line-height:1.4;margin:0.37
       if (checked) applyMode(checked.value);
     });
   });
+
+  // K144 (H17): ungespeicherte Änderungen sichtbar machen und vor dem Verlassen warnen.
+  const formular = document.querySelector<HTMLFormElement>('form[action="/api/admin/einstellungen/rechnungen"]');
+  const stand = document.getElementById('speicher-stand');
+  const leiste = document.getElementById('speicherleiste');
+  let geaendert = false;
+  const markiere = () => {
+    if (geaendert) return;
+    geaendert = true;
+    if (stand) { stand.textContent = 'Ungespeicherte Änderungen – bitte „Speichern“.'; stand.style.color = '#fcd34d'; stand.style.fontWeight = '600'; }
+    if (leiste) leiste.style.borderTop = '2px solid #fcd34d';
+  };
+  formular?.addEventListener('input', markiere);
+  formular?.addEventListener('change', markiere);
+  formular?.addEventListener('submit', () => { geaendert = false; });
+  window.addEventListener('beforeunload', (e) => { if (geaendert) { e.preventDefault(); e.returnValue = ''; } });
 </script>

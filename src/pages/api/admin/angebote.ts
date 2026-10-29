@@ -6,11 +6,13 @@ import { getKlient } from '../../../lib/klientenakte';
 import {
   erstelleAngebotsentwurf, holeAngebot, neueFassung, pruefeGueltigBis, verwirfAngebot, versendeAngebot, angebotVorschau,
   pruefeAntwortDatum, vermerkeAnnahme, vermerkeAblehnung, setzeGueltigBis, markiereVorlage, angebotAusVorlage,
+  korrigiereAntwort,
 } from '../../../lib/billing-angebot';
+import { entwuerfeJeSitzung } from '../../../lib/billing-abrechnungslauf';
 import { pruefeAuftragTitel } from '../../../lib/billing-posten';
 import { protokolliere, type ProtokollEintrag } from '../../../lib/akte-protokoll';
 import { erzeugeAngebotsPdf } from '../../../lib/billing-angebot-pdf';
-import { legeEintragAn, pruefeDatei, dateiAusFormular, istWeg, WEG_TEXT } from '../../../lib/akte-dokumente';
+import { legeEintragAn, pruefeDatei, dateiAusFormular, istWeg, WEG_TEXT, eintraegeDesAngebots, zieheZurueck, holeDatei, type EintragWeg } from '../../../lib/akte-dokumente';
 import { pruefeVersandweg } from '../../../lib/billing-versand';
 
 const json = (status: number, body: unknown) =>
@@ -82,7 +84,11 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
   if (aktion === 'verwerfen') {
     const ok = await verwirfAngebot(brand, a.id);
     if (ok) await log({ aktion: 'Angebotsentwurf verworfen', klientId: a.klientId, objekt: a.auftragTitel });
-    return redirect(ok ? `/admin/klienten/${a.klientId}?gespeichert=1#auftraege` : `/admin/angebote/${a.id}?fehler=${encodeURIComponent('Nur Entwürfe lassen sich verwerfen.')}`, 303);
+    if (!ok) return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent('Nur Entwürfe lassen sich verwerfen.')}`, 303);
+    // K135: Verwerfen auch aus der Liste „Angebotsvorschläge“ – dann dorthin zurück.
+    if (text('zurueck') === 'liste') return redirect('/admin/angebote?verworfen=1', 303);
+    // K129: Meldung in der Akte, dass der Auftrag erhalten bleibt.
+    return redirect(`/admin/klienten/${a.klientId}?angebotVerworfen=1#auftraege`, 303);
   }
   // Nachtrag 24.10.2026 (K86): als Vorlage markieren / Markierung entfernen.
   if (aktion === 'vorlage_markieren' || aktion === 'vorlage_entfernen') {
@@ -146,11 +152,48 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     await log({ aktion: aktion === 'angenommen' ? 'Annahme vermerkt' : 'Ablehnung vermerkt', klientId: a.klientId, objekt: a.number,
       nachher: { am: d.wert, weg: weg ? WEG_TEXT[weg as keyof typeof WEG_TEXT] : null, grund: aktion === 'abgelehnt' ? text('grund').trim() || null : null,
         notiz: text('notiz').trim().slice(0, 200), datei: datei?.name } });
+    // K128: Bei „je Sitzung“ den Rechnungsentwurf gleich anlegen, damit die Seite ihn nennen kann
+    // (Prüfung B5: auch dann, wenn der Nachweis scheitert).
+    if (aktion === 'angenommen' && a.klientId) {
+      const lauf = await entwuerfeJeSitzung(brand, a.klientId).catch((err: Error) => ({ angelegt: 0, fehler: [err.message] }));
+      if (lauf.fehler.length > 0) locals.requestLogger.warn({ fehler: lauf.fehler }, '[angebote] Entwurf nach Annahme nicht angelegt');
+    }
     if (nachweisFehler) {
       const was = aktion === 'angenommen' ? 'Annahme' : 'Ablehnung';
       return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent(`${was} ist vermerkt, aber der Nachweis wurde nicht gespeichert: ${nachweisFehler} Bitte unten unter „Nachweise und Notizen“ erneut ablegen.`)}#notizen`, 303);
     }
-    return redirect(`/admin/angebote/${a.id}?gespeichert=1`, 303);
+    return redirect(`/admin/angebote/${a.id}?${aktion === 'angenommen' ? 'angenommen' : 'abgelehnt'}=1`, 303);
+  }
+  // K134 (Handtest 29.10.2026): vermerkte Antwort korrigieren (Datum, Grund, Weg, Notiz).
+  if (aktion === 'antwort_korrigieren') {
+    const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+    const d = pruefeAntwortDatum(text('datum'), a.versendetAm ?? a.datum, heute);
+    if (!d.wert) return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent(d.fehler!)}#korrektur`, 303);
+    const r = await korrigiereAntwort(brand, a.id, d.wert, text('grund'));
+    if (!r.ok) return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent(r.fehler)}#korrektur`, 303);
+    const art = a.status === 'angenommen' ? 'annahme' : 'ablehnung';
+    const weg = istWeg(text('weg')) ? text('weg') as EintragWeg : null;
+    const grund = a.status === 'abgelehnt' ? text('grund').trim() : '';
+    // Akte-Einträge sind unveränderlich: der alte Vermerk wird zurückgezogen (bleibt ausgegraut
+    // sichtbar), ein neuer angelegt. Prüfung B1: eine Nachweis-Datei geht in den neuen Eintrag mit.
+    const alt = (await eintraegeDesAngebots(brand, a.id)).filter((e) => e.art === art && !e.zurueckgezogenAm);
+    const altWeg = alt[0]?.weg ?? null;
+    const altNotiz = alt[0]?.notiz ?? null;
+    const mitDatei = alt.find((e) => e.dateiName);
+    const altDatei = mitDatei ? await holeDatei(brand, mitDatei.id) : null;
+    const notiz = [grund ? `Grund: ${grund}` : '', text('notiz').trim()].filter(Boolean).join('\n')
+      || `${art === 'annahme' ? 'Annahme' : 'Ablehnung'} vermerkt (korrigiert)`;
+    if (a.klientId) {
+      const neu = await legeEintragAn(brand, { klientId: a.klientId, angebotId: a.id, art, weg, datum: d.wert, notiz,
+        datei: altDatei ? { name: altDatei.name, inhalt: altDatei.inhalt } : null }, session.email);
+      // Erst zurückziehen, wenn der neue Eintrag steht – sonst ginge der Vermerk ganz verloren.
+      if (neu.ok) for (const e of alt) await zieheZurueck(brand, e.id, session.email, 'korrigiert');
+      else return redirect(`/admin/angebote/${a.id}?fehler=${encodeURIComponent(`Datum/Grund sind korrigiert, der Vermerk (Weg, Notiz) aber nicht: ${neu.fehler}`)}#korrektur`, 303);
+    }
+    await log({ aktion: `${art === 'annahme' ? 'Annahme' : 'Ablehnung'} korrigiert`, klientId: a.klientId, objekt: a.number,
+      vorher: { am: a.antwortAm, grund: a.antwortGrund, weg: altWeg ? WEG_TEXT[altWeg as EintragWeg] : null, notiz: altNotiz?.slice(0, 200) ?? null },
+      nachher: { am: d.wert, grund: grund || null, weg: weg ? WEG_TEXT[weg] : null, notiz: text('notiz').trim().slice(0, 200) } });
+    return redirect(`/admin/angebote/${a.id}?korrigiert=1`, 303);
   }
   return new Response('Unbekannte Aktion', { status: 400 });
 };

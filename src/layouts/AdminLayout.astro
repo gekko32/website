@@ -19,6 +19,7 @@ import SessionExpiryWarning from '../components/SessionExpiryWarning.svelte';
 import { countPendingByType } from '../lib/messaging-db';
 import { getSession } from '../lib/auth';
 import AdminSidebarNav from '../components/admin/AdminSidebarNav.astro';
+import { getSteuerHinweis, type SteuerHinweis } from '../lib/tax-monitor';
 
 interface Props {
   title: string;
@@ -30,6 +31,8 @@ const path = Astro.url.pathname;
 function adminSection(p: string): string {
   if (p === '/admin') return 'dashboard';
   if (p.startsWith('/admin/einstellungen')) return 'einstellungen';
+  // K137: /admin/angebote sind die Angebotsvorschläge an Klienten, nicht die Website-Angebote.
+  if (p.startsWith('/admin/angebote')) return 'angebotsvorschlaege';
   const match = p.match(/^\/admin\/([^/]+)/);
   return match ? match[1] : 'dashboard';
 }
@@ -53,7 +56,13 @@ try {
   }
 } catch { /* session unavailable — badge stays empty */ }
 
-const adminInitials = ((adminGivenName[0] ?? '') + (adminFamilyName[0] ?? '')).toUpperCase() || '?';
+// K141 (Handtest 29.10.2026): automatische Steuer-Umstellung sichtbar machen, bis sie bestätigt ist.
+let steuerHinweis: SteuerHinweis | null = null;
+try {
+  steuerHinweis = await getSteuerHinweis(process.env.BRAND || 'mentolder');
+} catch { /* ohne Datenbank kein Hinweis */ }
+
+const adminInitials =((adminGivenName[0] ?? '') + (adminFamilyName[0] ?? '')).toUpperCase() || '?';
 
 const brandId = (process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder').toLowerCase();
 const isKore = brandId === 'korczewski';
@@ -148,6 +157,16 @@ const brandWord = config.meta.siteTitle.replace(/\.de$/i, '').toLowerCase();
     </aside>
 
     <main id="admin-main" style="flex:1; min-height:100vh;">
+      {steuerHinweis && (
+        <div role="alert" style="margin:1rem 2rem 0; padding:0.75rem 1rem; border:1px solid #ef4444; background:rgba(239,68,68,0.15); border-radius:10px; color:#fecaca; font-size:0.875rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center; justify-content:space-between;">
+          <span><strong style="color:#fff;">Steuerart wurde automatisch auf Regelbesteuerung umgestellt</strong>
+            (am {new Date(steuerHinweis.am).toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })}). Grund: {steuerHinweis.grund}.
+            Neue Rechnungen weisen jetzt Umsatzsteuer aus. <a href="/admin/einstellungen/rechnungen" style="color:#fff; text-decoration:underline;">Steuerart prüfen</a></span>
+          <form method="POST" action="/api/admin/einstellungen/steuer-hinweis">
+            <button type="submit" style="padding:0.35rem 0.75rem; border-radius:8px; border:1px solid #fecaca; color:#fff; background:transparent; cursor:pointer;">Gelesen, Umstellung ist richtig</button>
+          </form>
+        </div>
+      )}
       <slot />
     </main>
 

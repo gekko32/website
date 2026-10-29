@@ -15,7 +15,7 @@ vi.mock('./website-db', () => ({
 import {
   getTaxMode, setTaxMode, getYearRevenue, checkThreshold, TaxThresholdStatus,
   checkAndApplyTaxModeSwitch, getMonthlyBreakdown, getUstvaExport,
-  mussRegelbesteuern, resolveEffectiveTaxMode,
+  mussRegelbesteuern, resolveEffectiveTaxMode, getSteuerHinweis, bestaetigeSteuerHinweis,
   THRESHOLD_KLEIN, THRESHOLD_HARD,
 } from './tax-monitor';
 
@@ -147,6 +147,15 @@ describe('checkAndApplyTaxModeSwitch', () => {
     expect(params[5]).toMatch(/Automatischer Wechsel: Vorjahresumsatz/);
   });
 
+  it('K141: merkt sich die automatische Umstellung als Hinweis für den Admin', async () => {
+    umsatz(THRESHOLD_KLEIN + 1, 0);
+    getSiteSetting.mockResolvedValueOnce('kleinunternehmer').mockResolvedValueOnce('kleinunternehmer');
+    await checkAndApplyTaxModeSwitch('mentolder', 'inv-1');
+    const hinweis = setSiteSetting.mock.calls.find((c) => c[1] === 'tax_mode_hinweis');
+    expect(hinweis).toBeDefined();
+    expect(JSON.parse(hinweis![2] as string).grund).toMatch(/Vorjahresumsatz/);
+  });
+
   it('stellt sofort um, wenn das laufende Jahr 100.000 € übersteigt', async () => {
     umsatz(0, THRESHOLD_HARD + 1);
     getSiteSetting.mockResolvedValueOnce('kleinunternehmer').mockResolvedValueOnce('kleinunternehmer');
@@ -162,6 +171,22 @@ describe('checkAndApplyTaxModeSwitch', () => {
     const out = await checkAndApplyTaxModeSwitch('mentolder', 'inv-1');
     expect(out).toBe(false);
     expect(setSiteSetting).not.toHaveBeenCalled();
+  });
+});
+
+describe('Steuer-Hinweis (K141)', () => {
+  it('liest den Hinweis und verwirft kaputte Werte', async () => {
+    getSiteSetting.mockResolvedValueOnce(JSON.stringify({ am: '2026-08-22T03:13:51Z', grund: 'Test' }));
+    expect(await getSteuerHinweis('mentolder')).toEqual({ am: '2026-08-22T03:13:51Z', grund: 'Test' });
+    getSiteSetting.mockResolvedValueOnce('kaputt');
+    expect(await getSteuerHinweis('mentolder')).toBeNull();
+    getSiteSetting.mockResolvedValueOnce('');
+    expect(await getSteuerHinweis('mentolder')).toBeNull();
+  });
+
+  it('bestätigen leert den Hinweis', async () => {
+    await bestaetigeSteuerHinweis('mentolder');
+    expect(setSiteSetting).toHaveBeenCalledWith('mentolder', 'tax_mode_hinweis', '');
   });
 });
 

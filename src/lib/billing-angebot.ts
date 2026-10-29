@@ -522,3 +522,29 @@ export async function vermerkeAblehnung(brand: string, id: string, datum: string
   await pool.query(`UPDATE auftraege SET stand='abgelehnt' WHERE id=$1`, [a.auftragId]);
   return { ok: true };
 }
+
+/**
+ * K134 (Handtest 29.10.2026): Datum und Grund einer vermerkten Antwort korrigieren. Der Zustand
+ * (angenommen/abgelehnt) bleibt; ein Grund gibt es nur bei der Ablehnung.
+ */
+export async function korrigiereAntwort(brand: string, id: string, datum: string, grund: string | null): Promise<Ergebnis<object>> {
+  await initAngebotTabelle();
+  const a = await holeAngebot(brand, id);
+  if (!a || (a.status !== 'angenommen' && a.status !== 'abgelehnt')) return { ok: false, fehler: 'Korrigieren geht nur bei einer vermerkten Annahme oder Ablehnung.' };
+  const g = a.status === 'abgelehnt' ? (grund ?? '').trim().slice(0, 300) || null : null;
+  const upd = await pool.query(
+    `UPDATE billing_quotes SET antwort_am=$3, antwort_grund=$4,
+       abgelaufen_angenommen = CASE WHEN status='angenommen' THEN $3::date > valid_until ELSE abgelaufen_angenommen END
+     WHERE brand=$1 AND id=$2 AND status IN ('angenommen','abgelehnt')`, [brand, id, datum, g]);
+  return (upd.rowCount ?? 0) > 0 ? { ok: true } : { ok: false, fehler: 'Das Angebot wurde inzwischen geändert.' };
+}
+
+/** K128: Rechnungsentwürfe, auf denen Posten dieses Angebots liegen. */
+export async function entwuerfeDesAngebots(brand: string, angebotId: string): Promise<{ id: string; betrag: number }[]> {
+  const { rows } = await pool.query(
+    `SELECT i.id, i.gross_amount FROM billing_invoices i
+      WHERE i.brand=$1 AND i.status='draft'
+        AND i.id::text IN (SELECT invoice_id::text FROM abrechnungsposten WHERE brand=$1 AND angebot_id=$2 AND zustand='auf_entwurf')`,
+    [brand, angebotId]);
+  return rows.map((r) => ({ id: String(r.id), betrag: Number(r.gross_amount) }));
+}

@@ -6,7 +6,8 @@ export interface ZustandErklaerung { name: string; heisst: string; geht: string 
 export const POSTEN_ZUSTAENDE: ZustandErklaerung[] = [
   { name: 'offen', heisst: 'Noch nicht abgerechnet.',
     geht: 'Ändern, ausnehmen, löschen (von Hand erfasste), ankreuzen und auf eine Rechnung setzen.' },
-  { name: 'geplant (Angebot)', heisst: 'Position eines Auftrags „mit Angebot“; das Angebot ist noch nicht angenommen.',
+  // K139 (Handtest 29.10.2026): derselbe Begriff wie beim Auftrag („Angebot in Vorbereitung“).
+  { name: 'in Vorbereitung (Angebot)', heisst: 'Position eines Auftrags „mit Angebot“ (Auftrag: „Angebot in Vorbereitung“ bzw. „Angebot verschickt“). Noch nicht abrechenbar, bis der Angebotsvorschlag angenommen ist.',
     geht: 'Nicht abrechenbar. Änderbar, außer solange ein verschicktes Angebot auf Antwort wartet. Nach der Annahme werden die angebotenen Positionen „offen“, später hinzugekommene „ausgenommen“.' },
   { name: 'auf Rechnungsentwurf', heisst: 'Steht auf einem Rechnungsentwurf, der noch nicht festgeschrieben ist.',
     geht: 'Weiter änderbar (der Entwurf aktualisiert sich). „Vom Entwurf nehmen“ macht ihn wieder „offen“.' },
@@ -38,5 +39,5 @@ export const ANGEBOT_ZUSTAENDE: ZustandErklaerung[] = [
   { name: 'abgelehnt', heisst: 'Der Kunde hat abgelehnt.', geht: 'Positionen werden nicht abgerechnet; der Auftrag bleibt als Verlauf.' },
   { name: 'ersetzt durch neue Fassung', heisst: 'Ältere Fassung eines geänderten Angebots.', geht: 'Nicht mehr zu beantworten; ansehen, als Vorlage merken oder als Grundlage für ein neues Angebot nehmen.' },
   { name: 'Vorlage (Markierung)', heisst: 'Ein beliebiges Angebot, das du als Vorlage gemerkt hast.',
-    geht: 'Unter Angebote → „nur Vorlagen“ finden; „Neues Angebot aus diesem Angebot“ für jeden Klienten.' },
+    geht: 'Unter Angebotsvorschläge → „nur Vorlagen“ finden; „Neues Angebot aus diesem Angebot“ für jeden Klienten.' },
 ];

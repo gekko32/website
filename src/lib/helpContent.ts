@@ -608,8 +608,24 @@ export const helpContent: Record<HelpContext, Record<string, HelpSection>> = {
         },
       ],
     },
+    // Handtest 29.10.2026 (K137): Hilfe für die Angebotsvorschläge an Klienten (/admin/angebote).
+    angebotsvorschlaege: {
+      title: 'Angebotsvorschläge',
+      description: 'Angebote an einzelne Klienten: Entwurf, Versand, neue Fassung, Annahme oder Ablehnung. Nicht zu verwechseln mit dem Leistungsangebot der Website (Content Hub).',
+      actions: ['Angebotsvorschlag öffnen', 'Neue Fassung anlegen', 'Entwurf verwerfen', 'Als Vorlage merken'],
+      guides: [
+        {
+          title: 'Angebotsvorschlag erstellen',
+          steps: [
+            'Klientenakte öffnen → Auftrag mit Häkchen „mit Angebot“ anlegen.',
+            'Positionen eintragen, dann „Angebotsvorschlag erstellen“.',
+            'Prüfen und verschicken; danach führt „← Akte“ zurück.',
+          ],
+        },
+      ],
+    },
     angebote: {
-      title: 'Angebote',
+      title: 'Leistungsangebot (Website)',
       description: 'Leistungsangebote auf der Website pflegen — Karten, Preise und Reihenfolge.',
       actions: ['Angebot bearbeiten', 'Neues Angebot anlegen', 'Angebot deaktivieren'],
       guides: [

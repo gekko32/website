@@ -36,7 +36,8 @@ export async function getYearRevenue(brand: string, year: number): Promise<numbe
     `SELECT COALESCE(SUM(net_amount), 0)::numeric AS total
      FROM billing_invoices
      WHERE brand=$1 AND EXTRACT(YEAR FROM issue_date)=$2
-       AND status IN ('open','paid')`,
+       AND status IN ('open','paid')
+       AND is_test_data = false`,
     [brand, year]
   );
   return Number(r.rows[0].total);
@@ -88,7 +89,50 @@ export async function checkAndApplyTaxModeSwitch(brand: string, invoiceId: strin
     triggerInvoiceId: invoiceId ?? undefined, yearRevenue: laufend,
     notes: `Automatischer Wechsel: ${grund} (§ 19 UStG ab 2025)`,
   });
+  // Prüfung B6: Die Steuerart ist schon umgestellt – ein Fehler beim Hinweis darf die Rechnung nicht abbrechen.
+  await meldeAutomatischeUmstellung(brand, grund).catch(() => {});
   return true;
+}
+
+// ── K141 (Handtest 29.10.2026): eine automatische Umstellung darf nie unbemerkt bleiben ──
+// Die Website stand vom 22.08. bis 29.10.2026 unbemerkt auf Regelbesteuerung, ausgelöst
+// durch Testrechnungen. Deshalb: Hinweis im Admin, bis Gerald ihn bestätigt, und eine Mail.
+
+const HINWEIS_KEY = 'tax_mode_hinweis';
+
+export interface SteuerHinweis { am: string; grund: string }
+
+export async function getSteuerHinweis(brand: string): Promise<SteuerHinweis | null> {
+  const v = await getSiteSetting(brand, HINWEIS_KEY);
+  if (!v) return null;
+  try {
+    const h = JSON.parse(v) as SteuerHinweis;
+    return h && typeof h.am === 'string' && typeof h.grund === 'string' ? h : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function bestaetigeSteuerHinweis(brand: string): Promise<void> {
+  await setSiteSetting(brand, HINWEIS_KEY, '');
+}
+
+async function meldeAutomatischeUmstellung(brand: string, grund: string): Promise<void> {
+  const am = new Date().toISOString();
+  await setSiteSetting(brand, HINWEIS_KEY, JSON.stringify({ am, grund } satisfies SteuerHinweis));
+  const an = process.env.CONTACT_EMAIL;
+  if (!an) return;
+  // Nicht abwarten: Die Rechnung darf an einer gescheiterten Mail nicht hängen bleiben.
+  void import('./email')
+    .then(({ sendEmail }) => sendEmail({
+      to: an,
+      subject: 'Steuerart automatisch auf Regelbesteuerung umgestellt',
+      text: `Die Website hat die Steuerart automatisch von § 19 UStG (Kleinunternehmer) auf Regelbesteuerung umgestellt.\n\n`
+        + `Grund: ${grund}\n\nNeue Rechnungen weisen ab jetzt Umsatzsteuer aus. Bitte prüfen unter `
+        + `Admin → Einstellungen → Rechnungen. Falls die Umstellung falsch ist (z. B. durch Testrechnungen), `
+        + `dort auf § 19 zurückstellen.`,
+    }))
+    .catch(() => {});
 }
 
 /**
@@ -110,6 +154,7 @@ export async function getMonthlyBreakdown(brand: string, year: number): Promise<
      FROM billing_invoices
      WHERE brand=$1 AND EXTRACT(YEAR FROM issue_date)=$2
        AND status IN ('open','paid')
+       AND is_test_data = false
      GROUP BY month ORDER BY month`,
     [brand, year]
   );

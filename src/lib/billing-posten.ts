@@ -33,6 +33,8 @@ export interface Posten {
   /** T10b: false, nachdem ein Entwurf mit diesem Posten verworfen oder storniert wurde –
    *  dann legt „je Sitzung“ keinen neuen Entwurf von selbst an (Gerald korrigiert erst). */
   autoEntwurf?: boolean;
+  /** Herkunft aus einem angenommenen Angebot (K130: ein gemeinsamer Entwurf je Angebot). */
+  angebotId?: string | null;
 }
 
 export const HERKUNFT_TEXT: Record<Herkunft, string> = {
@@ -40,7 +42,7 @@ export const HERKUNFT_TEXT: Record<Herkunft, string> = {
 };
 export const ZUSTAND_TEXT: Record<PostenZustand, string> = {
   offen: 'offen', nicht_abrechnen: 'ausgenommen', erlassen: 'erlassen',
-  auf_entwurf: 'auf Rechnungsentwurf', abgerechnet: 'abgerechnet', geplant: 'geplant (Angebot)',
+  auf_entwurf: 'auf Rechnungsentwurf', abgerechnet: 'abgerechnet', geplant: 'in Vorbereitung (Angebot)',
 };
 
 /** Betrag in Euro, kaufmännisch auf Cent gerundet (in ganzen Cent gerechnet, ohne Gleitkomma-Fehler). */
@@ -381,7 +383,7 @@ export function initPostenTabelle(): Promise<void> {
 
 const POSTEN_SPALTEN = `p.id, p.klient_id, COALESCE(c.name, '') AS klient_name, p.herkunft, p.datum::text AS datum,
   p.leistung_key, p.text, p.menge, p.einheit, p.einzelpreis, p.zustand, p.invoice_id, p.notiz, p.auftrag_id,
-  p.datum_bis::text AS datum_bis, p.auto_entwurf`;
+  p.datum_bis::text AS datum_bis, p.auto_entwurf, p.angebot_id`;
 
 function zeileZuPosten(r: Record<string, unknown>): Posten {
   return {
@@ -392,6 +394,7 @@ function zeileZuPosten(r: Record<string, unknown>): Posten {
     zustand: r.zustand as PostenZustand, invoiceId: (r.invoice_id as string | null) ?? null, notiz: (r.notiz as string | null) ?? null,
     auftragId: (r.auftrag_id as string | null) ?? null, datumBis: (r.datum_bis as string | null) ?? null,
     autoEntwurf: r.auto_entwurf !== false,
+    angebotId: (r.angebot_id as string | null) ?? null,
   };
 }
 

@@ -142,7 +142,7 @@
       <label class={labelCls}>Preis (auf der Karte)</label>
       {#if isCatalogLinked}
         <div class="px-3 py-2 bg-dark-lighter/50 border border-gold/20 rounded-lg text-gold text-sm font-semibold">{data.cardPrice || '—'}</div>
-        <p class="text-xs text-muted mt-1">Abgeleiteter Preis aus dem Katalog. Zum Ändern → <a href="/admin/inhalte?tab=website&section=angebote" class="text-gold hover:underline">Angebote-Tab</a>.</p>
+        <p class="text-xs text-muted mt-1">Abgeleiteter Preis aus dem Katalog. Zum Ändern → <a href="/admin/inhalte?tab=website&section=angebote" class="text-gold hover:underline">Leistungsangebot (Website)</a>.</p>
       {:else}
         <input type="text" bind:value={data.cardPrice} class={inputCls} placeholder="z.B. nach Vereinbarung" />
       {/if}
@@ -230,7 +230,7 @@
       {/if}
     </div>
     {#if isCatalogLinked}
-      <p class="text-xs text-muted mb-3">Preis-Tiers werden aus dem Katalog abgeleitet. Zum Ändern → <a href="/admin/inhalte?tab=website&section=angebote" class="text-gold hover:underline">Angebote-Tab → Leistungskatalog</a>.</p>
+      <p class="text-xs text-muted mb-3">Preis-Tiers werden aus dem Katalog abgeleitet. Zum Ändern → <a href="/admin/inhalte?tab=website&section=angebote" class="text-gold hover:underline">Leistungsangebot (Website) → Leistungskatalog</a>.</p>
       {#each catalogTiers as tier}
         <div class="flex items-center gap-3 px-3 py-1.5 bg-dark-lighter/20 rounded text-xs text-muted mb-1">
           <span class={tier.highlight ? 'text-gold font-semibold' : ''}>{tier.label}</span>

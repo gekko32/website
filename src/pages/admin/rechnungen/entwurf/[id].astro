@@ -61,10 +61,11 @@ const feld = 'zfeld';
 
 <AdminLayout title={entwurf ? `Rechnungsentwurf ${kopf.number}` : `Rechnung ${kopf.number}`}>
   <div style="padding:2rem;max-width:1000px;">
-    <p class="text-xs text-muted mb-2">
-      {klient && <a class="hover:underline" href={`/admin/klienten/${klient.id}#abrechnung`}>← Zur Klientenakte {klient.name}</a>}
-      <span class="mx-2">·</span><a class="hover:underline" href="/admin/rechnungen">Alle Rechnungen und Entwürfe</a>
-    </p>
+    {/* K124 (Handtest 29.10.2026): Rückweg zur Akte als deutlicher Knopf. */}
+    <div class="flex flex-wrap gap-3 items-center mb-3">
+      {klient && <a class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm font-semibold hover:bg-gold hover:text-dark" href={`/admin/klienten/${klient.id}#abrechnung`}>← Akte {klient.name}</a>}
+      <a class="text-xs text-muted hover:underline" href="/admin/rechnungen">Fakturierung (alle Rechnungen und Entwürfe)</a>
+    </div>
     <AdminPageHeader title={entwurf ? `Rechnungsentwurf ${kopf.number}` : `Rechnung ${kopf.number}`}
       description={entwurf ? 'Noch nichts verschickt. Bis zum Festschreiben lässt sich hier alles ändern.'
         : `Festgeschrieben – unveränderlich (GoBD). Datum ${fd(kopf.datum)} · fällig ${fd(kopf.faellig)} · ${STATUS_TEXT[kopf.status] ?? kopf.status}`} />
