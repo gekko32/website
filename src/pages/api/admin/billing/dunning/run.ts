@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../../lib/auth';
 import { runDunningDetection, listPendingDunnings } from '../../../../../lib/invoice-dunning';
+import { meldeNeueMahnungen } from '../../../../../lib/mahnung-meldung';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const cronSecret = request.headers.get('X-Cron-Secret');
@@ -13,6 +14,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const result = await runDunningDetection(brand);
     const pending = await listPendingDunnings(brand);
+    // K160 (Handtest 30.10.2026, H35): neue Mahnungen nicht still anlegen – Mail an Gerald.
+    await meldeNeueMahnungen(brand, result.generated, pending).catch((err) =>
+      locals.requestLogger.warn({ err }, '[api/admin/billing/dunning/run] Mahnungs-Mail gescheitert'));
     return new Response(JSON.stringify({ ...result, pending: pending.length }), {
       headers: { 'Content-Type': 'application/json' },
     });

@@ -7,11 +7,15 @@ vi.mock('../../../../../lib/invoice-dunning', () => ({
   listPendingDunnings: (...a: unknown[]) => listPendingDunnings(...a),
 }));
 
+const meldeNeueMahnungen = vi.fn();
+// K160: die Mahnungs-Mail an Gerald hier nicht wirklich senden.
+vi.mock('../../../../../lib/mahnung-meldung', () => ({ meldeNeueMahnungen: (...a: unknown[]) => meldeNeueMahnungen(...a) }));
+
 import { POST } from './run';
 
 type RouteContext = Parameters<typeof POST>[0];
 
-const requestLogger = { info: vi.fn(), error: vi.fn() };
+const requestLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() };
 
 const req = () =>
   new Request('https://web.example.test/api/admin/billing/dunning/run', {
@@ -25,6 +29,8 @@ beforeEach(() => {
   process.env.CRON_SECRET = 'test-secret';
   runDunningDetection.mockReset();
   listPendingDunnings.mockReset();
+  meldeNeueMahnungen.mockReset();
+  meldeNeueMahnungen.mockResolvedValue(undefined);
   requestLogger.info.mockReset();
   requestLogger.error.mockReset();
 });

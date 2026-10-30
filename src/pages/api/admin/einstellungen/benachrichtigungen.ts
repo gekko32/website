@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
 import { setSiteSetting } from '../../../../lib/website-db';
 
-const TOGGLE_KEYS = ['notify_registration', 'notify_booking', 'notify_contact', 'notify_bug', 'notify_message', 'notify_followup'] as const;
+const TOGGLE_KEYS = ['notify_registration', 'notify_booking', 'notify_contact', 'notify_bug', 'notify_message', 'notify_followup', 'notify_mahnung'] as const;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const POST: APIRoute = async ({ request, redirect }) => {

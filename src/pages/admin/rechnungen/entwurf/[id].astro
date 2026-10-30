@@ -72,7 +72,7 @@ const feld = 'zfeld';
   <div style="padding:2rem;max-width:1000px;">
     {/* K124 (Handtest 29.10.2026): Rückweg zur Akte als deutlicher Knopf. */}
     <div class="flex flex-wrap gap-3 items-center mb-3">
-      {klient && <a class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm font-semibold hover:bg-gold hover:text-dark" href={`/admin/klienten/${klient.id}#abrechnung`}>← Akte {klient.name}</a>}
+      {klient && <a class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm font-semibold hover:bg-gold hover:text-dark" href={`/admin/klienten/${klient.id}${entwurf ? "#abrechnung" : "#rechnungen"}`}>← Akte {klient.name}</a>}
       <a class="text-xs text-muted hover:underline" href="/admin/rechnungen">Fakturierung (alle Rechnungen und Entwürfe)</a>
     </div>
     <AdminPageHeader title={entwurf ? `Rechnungsentwurf ${kopf.number}` : `${belegArt} ${kopf.number}`}
@@ -90,7 +90,7 @@ const feld = 'zfeld';
       <div class="mb-3 p-3 rounded-lg border border-green-500 bg-green-900/20 text-sm text-green-100">
         {q.get('storniert') === '1' ? 'Storniert. ' : ''}Gutschrift zur Rechnung <a class="underline font-mono" href={`/admin/rechnungen/entwurf/${urRechnung.id}`}>{urRechnung.number}</a>.
         Deren Posten sind in der Akte wieder offen und lassen sich neu abrechnen.
-        {klient && <a class="ml-2 underline" href={`/admin/klienten/${klient.id}#abrechnung`}>Zur Akte</a>}
+        {klient && <a class="ml-2 underline" href={`/admin/klienten/${klient.id}#rechnungen`}>Zur Akte</a>}
       </div>
     )}
     {q.get('neu') === '1' && <p class="text-sm text-green-400 mb-3">Entwurf angelegt. Bitte prüfen – Positionen lassen sich hier noch ändern oder herausnehmen.</p>}

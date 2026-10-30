@@ -55,13 +55,19 @@ const eingabe = 'block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dar
           {!e.zurueckgezogenAm && e.angebotId && (e.art === 'annahme' || e.art === 'ablehnung') && (
             <a href={angebotId ? '#korrektur' : `/admin/angebote/${e.angebotId}#korrektur`} class="px-2 py-0.5 rounded border border-gold text-gold text-xs">Vermerk korrigieren ›</a>
           )}
+          {/* K162 (Handtest 30.10.2026, H39): Grund deutlich und als Pflicht – aufklappen statt kleinem Feld. */}
           {!e.zurueckgezogenAm && !(e.angebotId && (e.art === 'annahme' || e.art === 'ablehnung')) && (
-            <form method="POST" action="/api/admin/akte-eintraege" enctype="multipart/form-data" class="inline mit-rueckfrage"
-              data-frage="Diesen Eintrag zurückziehen? Er bleibt mit Vermerk sichtbar, die Datei bleibt erhalten." data-ja="Zurückziehen">
-              <input type="hidden" name="aktion" value="zurueckziehen" /><input type="hidden" name="id" value={e.id} /><input type="hidden" name="zurueck" value={zurueck} />
-              <input name="grund" maxlength="300" placeholder="Grund" aria-label="Grund des Zurückziehens" class="w-28 px-1 py-0.5 rounded bg-dark border border-dark-lighter text-xs text-light" />
-              <button type="submit" class="px-2 py-0.5 rounded border border-red-400 text-red-300 text-xs" title="Falsche Notiz als ungültig markieren – sie bleibt ausgegraut sichtbar.">Notiz zurückziehen</button>
-            </form>
+            <details class="inline-block text-left">
+              <summary class="cursor-pointer list-none px-2 py-0.5 rounded border border-red-400 text-red-300 text-xs" title="Falsche Notiz als ungültig markieren – sie bleibt ausgegraut sichtbar.">Notiz zurückziehen …</summary>
+              <form method="POST" action="/api/admin/akte-eintraege" enctype="multipart/form-data" class="mt-2 p-2 rounded-lg border border-red-400/60 bg-dark w-64">
+                <input type="hidden" name="aktion" value="zurueckziehen" /><input type="hidden" name="id" value={e.id} /><input type="hidden" name="zurueck" value={zurueck} />
+                <label class="block text-xs text-light mb-1">Warum zurückziehen? (Pflicht)
+                  <input name="grund" required minlength="2" maxlength="300" placeholder="z. B. falscher Klient" class="block w-full mt-1 px-2 py-1 rounded bg-dark text-sm text-light" />
+                </label>
+                <p class="text-xs text-muted mb-2">Die Notiz bleibt ausgegraut mit Vermerk sichtbar, eine Datei bleibt erhalten.</p>
+                <button type="submit" class="px-2 py-1 rounded border border-red-400 text-red-300 text-xs">Zurückziehen</button>
+              </form>
+            </details>
           )}
         </td>
       </tr>))}

@@ -43,3 +43,38 @@
 body:has(#admin-sidebar)::before {
   display: none;
 }
+
+/* K156 (Handtest 30.10.2026, H29): Eingabefelder im Admin deutlich erkennbar – heller Rand, goldener
+   Rahmen beim Anklicken. Die ID macht die Regel stärker als Tailwind-Klassen wie border-dark-lighter. */
+#admin-main input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']):not([type='submit']):not([type='button']),
+#admin-main select,
+#admin-main textarea {
+  border-color: rgba(255, 255, 255, 0.38);
+  border-width: 1px;
+  border-style: solid;
+}
+#admin-main input:not([type='checkbox']):not([type='radio']):not([type='file']):focus,
+#admin-main select:focus,
+#admin-main textarea:focus {
+  outline: none;
+  border-color: var(--color-gold, #c9a227);
+  box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.35);
+}
+#admin-main input::placeholder,
+#admin-main textarea::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+/* Prüfung F1: Felder mit Inline-Stil (Einstellungsseiten: border … var(--line); outline:none) bekommen
+   denselben hellen Rand und Fokus. Nur diese – rote Fehlerränder (anderer Inline-Stil) bleiben unberührt. */
+#admin-main input[style*='var(--line)'],
+#admin-main select[style*='var(--line)'],
+#admin-main textarea[style*='var(--line)'] {
+  border-color: rgba(255, 255, 255, 0.38) !important;
+}
+#admin-main input[style*='outline:none']:focus,
+#admin-main input[style*='outline: none']:focus,
+#admin-main select[style*='outline:none']:focus,
+#admin-main textarea[style*='outline:none']:focus {
+  border-color: var(--color-gold, #c9a227) !important;
+  box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.35);
+}

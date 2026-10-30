@@ -37,6 +37,7 @@ export const POST: APIRoute = async ({ request , locals }) => {
     if (r.fehler.length > 0) locals.requestLogger.error({ fehler: r.fehler }, '[billing/monatslauf] einzelne Entwürfe gescheitert');
     return Response.json({
       dryRun, period: r.monat, created: r.angelegt, skipped: r.uebersprungen, errors: r.fehler,
+      entwuerfe: r.entwuerfe, schonGelaufen: r.schonGelaufen,
       ...(dryRun ? { wouldCreate: r.geplant.length, preview: r.geplant } : {}),
     });
   } catch (err) {

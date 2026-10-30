@@ -116,7 +116,13 @@ export async function verbucheUndEntwerfe(brand: string): Promise<void> {
  */
 export async function monatslauf(
   brand: string, jahr: number, monat: number, opts: { nurPlanen?: boolean } = {},
-): Promise<LaufErgebnis & { monat: string; uebersprungen: number; geplant: { klient: string; posten: number }[] }> {
+): Promise<LaufErgebnis & {
+  monat: string; uebersprungen: number; geplant: { klient: string; posten: number }[];
+  /** K158 (Handtest 30.10.2026, H31): was angelegt wurde – mit Link-Ziel und Betrag. */
+  entwuerfe: { invoiceId: string; klient: string; posten: number; betrag: number }[];
+  /** K158: Klienten „monatlich“, für die dieser Monat schon gelaufen ist. */
+  schonGelaufen: string[];
+}> {
   await initPostenTabelle();
   await verbucheQuellen(brand, (k) => holeLeistung(brand, k));
   const kennung = `${jahr}-${String(monat).padStart(2, '0')}`;
@@ -128,7 +134,10 @@ export async function monatslauf(
   const plaene = planeMonatslauf(offen, art, monatsende(jahr, monat), gelaufen);
 
   const geplant = plaene.map((p) => ({ klient: klienten.get(p.klientId)?.name ?? '', posten: p.postenIds.length }));
-  const ergebnis = { angelegt: 0, fehler: [] as string[], monat: kennung, uebersprungen: 0, geplant };
+  const betragVon = new Map(offen.map((p) => [p.id, postenBetrag(p)]));
+  const schonGelaufen = [...gelaufen].map((id) => klienten.get(id)?.name ?? '').filter(Boolean);
+  const ergebnis = { angelegt: 0, fehler: [] as string[], monat: kennung, uebersprungen: 0, geplant,
+    entwuerfe: [] as { invoiceId: string; klient: string; posten: number; betrag: number }[], schonGelaufen };
   if (opts.nurPlanen) return ergebnis;
   for (const plan of plaene) {
     const klient = klienten.get(plan.klientId);
@@ -142,6 +151,8 @@ export async function monatslauf(
       await pool.query('UPDATE abrechnungslaeufe SET invoice_id = $4 WHERE brand = $1 AND klient_id = $2 AND monat = $3',
         [brand, plan.klientId, kennung, r.invoiceId]);
       ergebnis.angelegt += 1;
+      ergebnis.entwuerfe.push({ invoiceId: r.invoiceId, klient: klient.name, posten: plan.postenIds.length,
+        betrag: Math.round(plan.postenIds.reduce((s, id) => s + (betragVon.get(id) ?? 0), 0) * 100) / 100 });
     } else {
       await pool.query('DELETE FROM abrechnungslaeufe WHERE brand = $1 AND klient_id = $2 AND monat = $3', [brand, plan.klientId, kennung]);
       ergebnis.fehler.push(`${klient.name}: ${r.fehler}`);

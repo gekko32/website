@@ -29,6 +29,10 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (e.angebotId && (e.art === 'annahme' || e.art === 'ablehnung')) {
       return redirect(ziel(`eintragFehler=${encodeURIComponent('Annahme und Ablehnung bitte auf der Angebotsseite über „Vermerk korrigieren“ ändern.')}`), 303);
     }
+    // K162 (Handtest 30.10.2026, H39): Grund ist Pflicht.
+    if (text('grund').trim().length < 2) {
+      return redirect(ziel(`eintragFehler=${encodeURIComponent('Bitte einen Grund für das Zurückziehen eintragen.')}`), 303);
+    }
     const ok = await zieheZurueck(brand, e.id, session.email, text('grund'));
     if (ok) await protokolliere(brand, session.email, { bereich: e.angebotId ? 'angebot' : 'stammdaten', aktion: 'Notiz/Dokument zurückgezogen', klientId: e.klientId,
       objekt: e.dateiName ?? e.notiz?.slice(0, 80) ?? null, beschreibung: text('grund').trim() || null });
@@ -47,7 +51,8 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   if (!r.ok) return redirect(ziel(`eintragFehler=${encodeURIComponent(r.fehler)}`), 303);
   await protokolliere(brand, session.email, {
     bereich: angebot ? 'angebot' : 'stammdaten', aktion: datei ? 'Dokument abgelegt' : 'Notiz angelegt', klientId: klient.id,
-    objekt: angebot?.number ?? datei?.name ?? null,
+    // K162: im Protokoll den Anfang der Notiz zeigen, nicht ein leeres Objekt.
+    objekt: angebot?.number ?? datei?.name ?? (text('notiz').trim().slice(0, 80) || null),
     nachher: { datum: text('datum'), weg: istWeg(text('weg')) ? WEG_TEXT[text('weg') as keyof typeof WEG_TEXT] : null, notiz: text('notiz').trim().slice(0, 200), datei: datei?.name },
   });
   return redirect(ziel('eintragGespeichert=1'), 303);

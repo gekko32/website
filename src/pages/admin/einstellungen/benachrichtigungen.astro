@@ -12,7 +12,7 @@ if (!isAdmin(session)) return Astro.redirect('/admin');
 const BRAND = process.env.BRAND || 'mentolder';
 const saved = Astro.url.searchParams.get('saved') === '1';
 
-const [email, reg, booking, contact, bug, message, followup] = await Promise.all([
+const [email, reg, booking, contact, bug, message, followup, mahnung] = await Promise.all([
   getSiteSetting(BRAND, 'notification_email'),
   getSiteSetting(BRAND, 'notify_registration'),
   getSiteSetting(BRAND, 'notify_booking'),
@@ -20,6 +20,7 @@ const [email, reg, booking, contact, bug, message, followup] = await Promise.all
   getSiteSetting(BRAND, 'notify_bug'),
   getSiteSetting(BRAND, 'notify_message'),
   getSiteSetting(BRAND, 'notify_followup'),
+  getSiteSetting(BRAND, 'notify_mahnung'),
 ]);
 
 const notifEmail = email ?? process.env.CONTACT_EMAIL ?? '';
@@ -31,6 +32,8 @@ const toggles = [
   { key: 'notify_bug',          label: 'Neuer Bug-Report',     checked: (bug      ?? 'false')   === 'true' },
   { key: 'notify_message',      label: 'Neue Nachricht',       checked: (message  ?? 'false')   === 'true' },
   { key: 'notify_followup',     label: 'Follow-up fällig',     checked: (followup ?? 'false')   === 'true' },
+  // K160 (Handtest 30.10.2026): kommt auch, wenn der Systemschalter die übrigen Hinweise zurückhält. Vorgabe an.
+  { key: 'notify_mahnung',      label: 'Neue Mahnungen zu versenden (kommt auch, wenn die übrigen Hinweise systemweit abgeschaltet sind)', checked: (mahnung ?? 'true') === 'true' },
 ];
 ---
 

@@ -53,6 +53,8 @@ const eingabe = 'block mt-1 px-2 py-1.5 rounded bg-dark border border-dark-light
       <label class="text-xs text-muted flex-1 min-w-[10rem]">Suche<input name="suche" value={suche} placeholder="z. B. Preis, RE-2026, Strategietag" class={`${eingabe} w-full`} /></label>
       <button type="submit" class="px-3 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Anzeigen</button>
       {[...q.keys()].length > 0 && <a href="/admin/protokoll" class="px-3 py-1.5 rounded-lg border border-dark-lighter text-sm">Zurücksetzen</a>}
+      {/* K161 (Handtest 30.10.2026, H37): Export mit den gesetzten Filtern. */}
+      <a href={`/api/admin/protokoll/export?${new URLSearchParams([...q].filter(([k]) => k !== 'seite')).toString()}`} class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm" download>Exportieren (CSV für Excel)</a>
     </form>
 
     <ProtokollTabelle zeilen={zeilen} mitKlient />

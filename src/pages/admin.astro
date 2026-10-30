@@ -14,6 +14,7 @@ import AdminCard from '../components/admin/ui/AdminCard.svelte';
 import PipelineSidekickView from '../components/assistant/PipelineSidekickView.svelte';
 import { listInboxItems } from '../lib/messaging-db';
 import { toInboxPreview } from '../lib/admin/inbox-preview';
+import { listPendingDunnings } from '../lib/invoice-dunning';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -27,6 +28,9 @@ let activeProjects    = 0;
 let openInvoices      = 0;
 let openInvoiceAmount = 0;
 let freeSlots         = 0;
+// K160 (Handtest 30.10.2026, H35): Mahnungen und überfällige Rechnungen sichtbar.
+let offeneMahnungen   = 0;
+let ueberfaellig      = 0;
 let shortcuts: AdminShortcut[] = [];
 let inboxRows: import('../lib/admin/inbox-preview').InboxPreviewRow[] = [];
 
@@ -39,6 +43,9 @@ await Promise.allSettled([
     .then(inv => {
       const open = inv.filter(i => i.amountRemaining > 0 && !['void','uncollectible'].includes(i.status));
       openInvoices      = open.length;
+      const heute = new Date().toISOString().slice(0, 10);
+      // Prüfung F2: Entwürfe zählen nicht (sie haben ein vorläufiges Fälligkeitsdatum).
+      ueberfaellig      = open.filter(i => i.status !== 'draft' && i.dueDate && i.dueDate < heute).length;
       openInvoiceAmount = open.reduce((s, i) => s + i.amountRemaining, 0);
     }),
   getAvailableSlots(new Date())
@@ -48,6 +55,8 @@ await Promise.allSettled([
         .filter(d => new Date(d.date) <= horizon)
         .reduce((s, d) => s + d.slots.length, 0);
     }),
+  listPendingDunnings(BRAND)
+    .then(d => { offeneMahnungen = d.length; }),
   listAdminShortcuts()
     .then(s => { shortcuts = s; }),
   listInboxItems({ status: 'pending' })
@@ -93,6 +102,20 @@ const stand = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digi
 const datum = now.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' });
 
 const kpis = [
+  {
+    label: 'Mahnungen zu versenden',
+    value: offeneMahnungen,
+    href: '/admin/rechnungen?status=mahnwesen',
+    color: offeneMahnungen > 0 ? 'danger' as const : 'neutral' as const,
+    suffix: offeneMahnungen > 0 ? 'prüfen und versenden' : 'keine',
+  },
+  {
+    label: 'Überfällige Rechnungen',
+    value: ueberfaellig,
+    href: '/admin/rechnungen',
+    color: ueberfaellig > 0 ? 'danger' as const : 'neutral' as const,
+    suffix: ueberfaellig > 0 ? 'Zahlungsziel vorbei' : 'keine',
+  },
   {
     label: 'Aktive Projekte',
     value: activeProjects,

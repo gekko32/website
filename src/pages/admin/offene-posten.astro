@@ -4,7 +4,7 @@
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import AdminPageHeader from '../../components/admin/ui/AdminPageHeader.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
-import { alleOffenenPosten, summenJeKlient, type Posten } from '../../lib/billing-posten';
+import { alleOffenenPosten, summenJeKlient, postenBetrag, leistungszeitraum, HERKUNFT_TEXT, type Posten } from '../../lib/billing-posten';
 import { verbucheUndEntwerfe, vormonat, wirksameAbrechnungsart } from '../../lib/billing-abrechnungslauf';
 import { ladeRegeln } from '../../lib/billing-regeln';
 import { listKlienten, type Klient } from '../../lib/klientenakte';
@@ -46,8 +46,10 @@ const vormonatWert = `${vm.jahr}-${String(vm.monat).padStart(2, '0')}`;
       <button type="button" id="monatslauf-vorschau" class="px-3 py-1.5 rounded-lg border border-dark-lighter text-sm">Vorschau</button>
       <p class="text-xs text-muted basis-full">Für jeden Klienten mit Abrechnung „monatlich“ entsteht ein Entwurf mit allen offenen Posten bis Monatsende.
         Läuft am Monatsersten auch von selbst; ein zweiter Lauf für denselben Monat legt nichts doppelt an. Verschickt wird erst nach deiner Prüfung unter
-        <a class="underline" href="/admin/rechnungen">Rechnungen → Entwürfe</a>.</p>
+        <a class="underline" href="/admin/rechnungen">Fakturierung → Rechnungsentwürfe</a>.</p>
       <p id="monatslauf-meldung" role="status" class="text-sm basis-full"></p>
+      {/* K158 (Handtest 30.10.2026, H31): angelegte Entwürfe mit Links, statt nach 1,5 s neu zu laden. */}
+      <div id="monatslauf-ergebnis" class="basis-full" hidden></div>
     </form>
 
     {dbFehler && <p role="alert" class="text-sm text-red-400 mb-4">Die Posten konnten gerade nicht geladen werden.</p>}
@@ -65,14 +67,25 @@ const vormonatWert = `${vm.jahr}-${String(vm.monat).padStart(2, '0')}`;
           </tr>
         </thead>
         <tbody>
-          {summen.map((k) => (
+          {summen.map((k) => (<>
             <tr class="border-t border-dark-lighter">
-              <td class="py-2 pr-3"><a class="hover:underline" href={`/admin/klienten/${k.klientId}#abrechnung`}>{k.klientName || 'ohne Namen'}</a></td>
+              <td class="py-2 pr-3">
+                {/* K157 (Handtest 30.10.2026, H30): einzelne Posten je Klient aufklappen. */}
+                <button type="button" class="posten-auf mr-1 px-1.5 rounded border border-light/40 text-xs" data-klient={k.klientId} aria-expanded="false" title="Einzelne Posten zeigen">▸</button>
+                <a class="hover:underline" href={`/admin/klienten/${k.klientId}#abrechnung`}>{k.klientName || 'ohne Namen'}</a></td>
               <td class="py-2 pr-3 text-muted">{artText(k.klientId)}</td>
               <td class="py-2 pr-3 text-right">{k.anzahl}{k.ohnePreis > 0 && <span class="block text-xs text-red-400">davon {k.ohnePreis} ohne Preis</span>}</td>
               <td class="py-2 pr-3 text-right">{euro(k.summe)}</td>
             </tr>
-          ))}
+            {posten.filter((p) => p.klientId === k.klientId).map((p) => (
+              <tr class="einzelposten text-xs text-muted" data-klient={k.klientId} hidden>
+                <td class="py-1 pr-3 pl-8">{leistungszeitraum(p.datum, p.datumBis)} · {p.text}</td>
+                <td class="py-1 pr-3">{HERKUNFT_TEXT[p.herkunft] ?? p.herkunft}</td>
+                <td class="py-1 pr-3 text-right">{p.menge.toLocaleString('de-DE')}{p.einheit ? ` ${p.einheit}` : ''} × {p.einzelpreis === null ? 'Preis fehlt' : euro(p.einzelpreis)}</td>
+                <td class="py-1 pr-3 text-right">{euro(postenBetrag(p))}</td>
+              </tr>
+            ))}
+          </>))}
           <tr class="border-t-2 border-dark-lighter font-semibold">
             <td class="py-2 pr-3" colspan="2">Gesamt</td>
             <td class="py-2 pr-3 text-right">{posten.length}</td>
@@ -98,6 +111,7 @@ const vormonatWert = `${vm.jahr}-${String(vm.monat).padStart(2, '0')}`;
     });
     const data = await res.json().catch(() => ({})) as {
       error?: string; created?: number; skipped?: number; errors?: string[]; preview?: { klient: string; posten: number }[];
+      entwuerfe?: { invoiceId: string; klient: string; posten: number; betrag: number }[]; schonGelaufen?: string[];
     };
     if (!res.ok) {
       meldung.className = 'text-sm basis-full text-red-400';
@@ -112,10 +126,37 @@ const vormonatWert = `${vm.jahr}-${String(vm.monat).padStart(2, '0')}`;
       return;
     }
     meldung.className = `text-sm basis-full ${fehler ? 'text-red-400' : 'text-green-400'}`;
-    meldung.textContent = `${data.created ?? 0} Entwürfe angelegt.${fehler}`;
-    if ((data.created ?? 0) > 0) setTimeout(() => window.location.reload(), 1500);
+    const schon = data.schonGelaufen?.length ? ` Für diesen Monat schon abgerechnet (nichts doppelt angelegt): ${data.schonGelaufen.join(', ')}.` : '';
+    meldung.textContent = `${(data.created ?? 0) === 1 ? '1 Entwurf' : `${data.created ?? 0} Entwürfe`} angelegt.${schon}${fehler}`;
+    // K158: Liste mit Links – die Seite bleibt stehen, damit die Meldung lesbar ist.
+    const box = document.getElementById('monatslauf-ergebnis');
+    if (box) {
+      box.replaceChildren();
+      const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
+      for (const e of data.entwuerfe ?? []) {
+        const zeile = document.createElement('p');
+        zeile.className = 'text-sm mt-1';
+        zeile.append(`${e.klient}: ${e.posten} Posten, ${euro(e.betrag)} – `);
+        const a = document.createElement('a');
+        a.href = `/admin/rechnungen/entwurf/${e.invoiceId}`; a.className = 'underline text-gold'; a.textContent = 'Entwurf prüfen ›';
+        zeile.append(a);
+        box.append(zeile);
+      }
+      const weiter = document.createElement('a');
+      weiter.href = '/admin/rechnungen'; weiter.className = 'inline-block mt-2 px-3 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold';
+      weiter.textContent = 'Zu den Rechnungsentwürfen (Fakturierung)';
+      box.append(weiter);
+      box.hidden = false;
+    }
   }
 
   form.addEventListener('submit', (e) => { e.preventDefault(); void lauf(false); });
+  // K157: einzelne Posten je Klient auf- und zuklappen.
+  document.querySelectorAll<HTMLButtonElement>('button.posten-auf').forEach((b) => b.addEventListener('click', () => {
+    const auf = b.getAttribute('aria-expanded') !== 'true';
+    b.setAttribute('aria-expanded', String(auf));
+    b.textContent = auf ? '▾' : '▸';
+    document.querySelectorAll<HTMLTableRowElement>(`tr.einzelposten[data-klient="${b.dataset.klient}"]`).forEach((z) => { z.hidden = !auf; });
+  }));
   document.getElementById('monatslauf-vorschau')?.addEventListener('click', () => void lauf(true));
 </script>

@@ -251,7 +251,9 @@ export interface AkteSitzung { id: string; title: string; status: string; create
 export interface AkteTermin { id: string; meeting_type: string; scheduled_at: string | null; status: string }
 export interface AkteRechnung { id: string; number: string; issue_date: string; gross_amount: number; status: string; empfaenger: string;
   /** Stufe 4 (K58): Versandweg und -zeitpunkt, leer bei älteren Rechnungen und Entwürfen. */
-  versandweg?: string | null; versendet_am?: string | null }
+  versandweg?: string | null; versendet_am?: string | null;
+  /** K155 (Handtest 30.10.2026): Gutschrift oder Rechnung, mit Storno-Bezug in beide Richtungen. */
+  kind?: string | null; storniert_rechnung?: string | null; gutschrift_nummer?: string | null }
 
 /** Termine, Coaching-Sitzungen und Rechnungen einer Akte. */
 export async function akteVerlauf(klient: Pick<Klient, 'id' | 'email'>, brand: string): Promise<{
@@ -271,7 +273,9 @@ export async function akteVerlauf(klient: Pick<Klient, 'id' | 'email'>, brand: s
     // Verknüpft über customers_id; ältere Rechnungen ohne Verknüpfung über die E-Mail.
     pool.query(
       `SELECT i.id, i.number, i.issue_date, i.gross_amount::float AS gross_amount, i.status, i.versandweg, i.versendet_am,
-              COALESCE(bc.company, bc.name) AS empfaenger
+              COALESCE(bc.company, bc.name) AS empfaenger, COALESCE(i.kind, 'rechnung') AS kind,
+              (SELECT o.number FROM billing_invoices o WHERE o.id = i.cancels_invoice_id) AS storniert_rechnung,
+              (SELECT g.number FROM billing_invoices g WHERE g.cancels_invoice_id = i.id LIMIT 1) AS gutschrift_nummer
          FROM billing_invoices i JOIN billing_customers bc ON bc.id = i.customer_id
         WHERE i.brand = $3 AND i.is_test_data = false
           -- Prüfung L3 (B2): Rechnungen aus Posten tragen ihre Akte; ältere über Verknüpfung oder E-Mail.

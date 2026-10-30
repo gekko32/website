@@ -340,6 +340,28 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       </details>
     </section>
 
+    {/* K155 (Handtest 30.10.2026, H28): Rechnungen direkt unter der Abrechnung, Gutschriften gekennzeichnet. */}
+    <section id="rechnungen" class="mb-8" style="scroll-margin-top:1rem;">
+      <details class="liste" open>
+      <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Rechnungen ({rechnungen.length})</summary>
+      <ZustandLegende teile={['rechnung']} />
+      {rechnungen.length === 0 ? <p class="text-sm text-muted">Keine Rechnungen.</p> :
+        <table class="w-full text-sm"><tbody>{rechnungen.map((r) => (
+          <tr class="border-t border-dark-lighter">
+            <td class="py-1 pr-3 font-mono">{r.status === 'draft'
+              ? <a class="text-gold underline" href={`/admin/rechnungen/entwurf/${r.id}`} title="Entwurf prüfen, ändern, verschicken">{r.number} ›</a>
+              : <a class="hover:underline" href={`/admin/rechnungen/entwurf/${r.id}`} title="Beleg öffnen: PDF, per E-Mail senden, stornieren">{r.number} ›</a>}
+              {r.kind === 'gutschrift' && <span class="block text-xs font-sans text-gold">Gutschrift{r.storniert_rechnung ? ` zu ${r.storniert_rechnung}` : ''}</span>}</td>
+            <td class="py-1 pr-3">{datum(r.issue_date)}</td>
+            <td class="py-1 pr-3 text-right">{euro(r.gross_amount)}</td>
+            <td class="py-1 pr-3 text-muted">{r.kind === 'gutschrift' ? 'Gutschrift (Storno)' : STATUS[r.status] ?? r.status}
+              {r.gutschrift_nummer && <span class="block text-xs">storniert durch {r.gutschrift_nummer}</span>}
+              {r.versendet_am && <span class="block text-xs">verschickt {r.versandweg === 'post' ? 'per Post' : 'per E-Mail'} am {datum(r.versendet_am)}</span>}</td>
+            <td class="py-1 text-muted">{r.empfaenger}</td>
+          </tr>))}</tbody></table>}
+      </details>
+    </section>
+
     <section id="auftraege" class="mb-8">
       <details class="liste" open>
       <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Individuelle Aufträge ({auftraege.length})</summary>
@@ -667,25 +689,6 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Coaching-Sitzungen ({sitzungen.length})</summary>
       {sitzungen.length === 0 ? <p class="text-sm text-muted">Keine Sitzungen.</p> :
         <ul class="text-sm space-y-1">{sitzungen.map((s) => <li><a class="hover:underline" href={`/admin/coaching/sessions/${s.id}`}>{datum(s.created_at)} · {s.title}</a> <span class="text-muted">({s.status})</span></li>)}</ul>}
-      </details>
-    </section>
-
-    <section class="mb-8">
-      <details class="liste" open>
-      <summary class="liste-kopf cursor-pointer text-xs text-muted uppercase tracking-wide mb-2">Rechnungen ({rechnungen.length})</summary>
-      <ZustandLegende teile={['rechnung']} />
-      {rechnungen.length === 0 ? <p class="text-sm text-muted">Keine Rechnungen.</p> :
-        <table class="w-full text-sm"><tbody>{rechnungen.map((r) => (
-          <tr class="border-t border-dark-lighter">
-            <td class="py-1 pr-3 font-mono">{r.status === 'draft'
-              ? <a class="text-gold underline" href={`/admin/rechnungen/entwurf/${r.id}`} title="Entwurf prüfen, ändern, verschicken">{r.number} ›</a>
-              : <a class="hover:underline" href={`/admin/rechnungen/entwurf/${r.id}`} title="Rechnung öffnen: PDF, per E-Mail senden (auch erneut)">{r.number} ›</a>}</td>
-            <td class="py-1 pr-3">{datum(r.issue_date)}</td>
-            <td class="py-1 pr-3 text-right">{euro(r.gross_amount)}</td>
-            <td class="py-1 pr-3 text-muted">{STATUS[r.status] ?? r.status}
-              {r.versendet_am && <span class="block text-xs">verschickt {r.versandweg === 'post' ? 'per Post' : 'per E-Mail'} am {datum(r.versendet_am)}</span>}</td>
-            <td class="py-1 text-muted">{r.empfaenger}</td>
-          </tr>))}</tbody></table>}
       </details>
     </section>
 

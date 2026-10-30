@@ -14,6 +14,7 @@ import { listKlienten } from '../../lib/klientenakte';
 import { anzeigeEmail } from '../../lib/billing-versand';
 import { logger } from '../../lib/logger';
 import { getTaxMode } from '../../lib/tax-monitor';
+import { getSiteSetting } from '../../lib/website-db';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -29,6 +30,10 @@ let pendingDunnings: PendingDunning[] = [];
 let apiError = '';
 const brand = process.env.BRAND || 'mentolder';
 
+// K159: Zahl offener Mahnungen immer laden (Reiter), die Liste nur im Reiter Mahnwesen.
+const mahnAnzahl = (await listPendingDunnings(brand).catch(() => [])).length;
+// Prüfung F4: Abstand zwischen Mahnstufen aus der Einstellung (Vorgabe 14 Tage).
+const mahnAbstand = Number(await getSiteSetting(brand, 'invoice_dunning_interval_days').catch(() => null)) || 14;
 if (statusFilter === 'mahnwesen') {
   try {
     pendingDunnings = await listPendingDunnings(brand);
@@ -91,7 +96,8 @@ const STATUS_TABS = [
   { value: 'partially_paid', label: 'Teilbezahlt' },
   { value: 'uncollectible',  label: 'Überfällig' },
   { value: 'paid',           label: 'Bezahlt' },
-  { value: 'mahnwesen',      label: 'Mahnwesen' },
+  // K159 (Handtest 30.10.2026, H34): Anzahl offener Mahnungen am Reiter.
+  { value: 'mahnwesen',      label: mahnAnzahl > 0 ? `Mahnwesen (${mahnAnzahl})` : 'Mahnwesen' },
   { value: 'draft',          label: 'Entwurf' },
   { value: 'void',           label: 'Storniert' },
 ];
@@ -215,6 +221,16 @@ const STATUS_TABS = [
           </a>
         ))}
       </div>
+
+      {/* K159 (Handtest 30.10.2026, H34): Mahnlauf von Hand, sonst täglich um 7 Uhr. */}
+      {statusFilter === 'mahnwesen' && (
+        <div class="flex flex-wrap items-center gap-3 mb-4 p-3 rounded-xl border border-dark-lighter">
+          <button type="button" id="mahnlauf-jetzt" class="px-3 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Mahnlauf jetzt</button>
+          <span class="text-xs text-muted">Der Mahnlauf kommt sonst täglich gegen 7 Uhr von selbst (in der Sommerzeit gegen 8 Uhr). Er legt Mahnungen nur für überfällige Rechnungen an
+            (Fälligkeit vorbei, dann frühestens alle {mahnAbstand} Tage die nächste Stufe); verschickt wird erst mit „Versenden“.</span>
+          <span id="mahnlauf-meldung" role="status" class="text-sm basis-full"></span>
+        </div>
+      )}
 
       <!-- Table -->
       <div class="bg-dark-light rounded-2xl border border-dark-lighter overflow-hidden">
@@ -350,6 +366,22 @@ const STATUS_TABS = [
 
 <script>
   document.addEventListener('invoice-created', () => window.location.reload());
+  // K159: Mahnlauf von Hand.
+  document.getElementById('mahnlauf-jetzt')?.addEventListener('click', async (e) => {
+    const knopf = e.currentTarget as HTMLButtonElement;
+    const meldung = document.getElementById('mahnlauf-meldung');
+    knopf.disabled = true;
+    if (meldung) { meldung.className = 'text-sm basis-full text-muted'; meldung.textContent = 'Mahnlauf läuft …'; }
+    const res = await fetch('/api/admin/billing/dunning/run', { method: 'POST' });
+    const data = await res.json().catch(() => ({})) as { generated?: number; pending?: number };
+    knopf.disabled = false;
+    if (!res.ok) { if (meldung) { meldung.className = 'text-sm basis-full text-red-400'; meldung.textContent = 'Mahnlauf fehlgeschlagen.'; } return; }
+    if (meldung) {
+      meldung.className = 'text-sm basis-full text-green-400';
+      meldung.textContent = `${data.generated ?? 0} neue Mahnung(en) angelegt, ${data.pending ?? 0} zu versenden.${(data.generated ?? 0) > 0 ? ' Liste wird neu geladen …' : ''}`;
+    }
+    if ((data.generated ?? 0) > 0) setTimeout(() => window.location.reload(), 2000);
+  });
   // Stufe 4 T19: Klientenwahl für „+ Neue Rechnung“ filtern.
   const wahlSuche = document.getElementById('klient-wahl-suche') as HTMLInputElement | null;
   wahlSuche?.addEventListener('input', () => {
