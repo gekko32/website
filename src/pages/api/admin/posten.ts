@@ -218,9 +218,22 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     if (!klient) return new Response('Klient nicht gefunden', { status: 404 });
     const { titel, fehler } = pruefeAuftragTitel(text('titel'));
     if (!titel) return weiter(`/admin/klienten/${klient.id}?auftragFehler=${encodeURIComponent(fehler!)}#auftraege`, 303);
+    // K152 (Handtest 30.10.2026, H25): erste Position gleich mit anlegen, wenn Bezeichnung oder Preis eingetragen ist.
+    const mitPosition = text('text').trim() !== '' || text('preis').trim() !== '';
+    const pos = mitPosition
+      ? pruefePosition({ datum: text('datum'), datumBis: text('datumBis'), text: text('text'), menge: text('menge'), einheit: text('einheit'), preis: text('preis') })
+      : null;
+    if (pos && !pos.werte) {
+      return weiter(`/admin/klienten/${klient.id}?auftragFehler=${encodeURIComponent(`Auftrag nicht angelegt – erste Position: ${pos.fehler.map((f) => f.meldung).join(' ')}`)}#auftraege`, 303);
+    }
     // Stufe 4 T15 (K44): „mit Angebot“ – Positionen erst nach Annahme abrechenbar.
-    await legeAuftragAn(brand, klient.id, titel, form.get('mitAngebot') === 'on' ? 'mit_angebot' : 'ohne_angebot');
-    return weiter(`/admin/klienten/${klient.id}?gespeichert=1#auftraege`, 303);
+    const auftragId = await legeAuftragAn(brand, klient.id, titel, form.get('mitAngebot') === 'on' ? 'mit_angebot' : 'ohne_angebot');
+    if (pos?.werte) {
+      await legePositionAn(brand, klient.id, auftragId, pos.werte);
+      return weiter(`/admin/klienten/${klient.id}?gespeichert=1#auftrag-${auftragId}`, 303);
+    }
+    // Ohne Position: zum neuen Auftrag springen und „+ Neue Position mit Preis“ gleich öffnen.
+    return weiter(`/admin/klienten/${klient.id}?gespeichert=1&neuerAuftrag=${auftragId}#auftrag-${auftragId}`, 303);
   }
 
   // Handtest L2: von Hand erfasste Posten löschen, solange sie auf keiner Rechnung stehen.

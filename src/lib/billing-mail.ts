@@ -10,11 +10,29 @@ import { empfaengerDerRechnung, kaeuferName } from './billing-empfaenger';
 import { hatEchteEmail } from './billing-versand';
 import { logBillingEvent } from './billing-audit';
 import { rechnungsDateiname } from './beleg-dateiname';
+import { getKlient, rechnungsempfaenger } from './klientenakte';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export interface MailVorschlag {
   an: string; von: string; betreff: string; text: string; anhaenge: string[]; nummer: string;
+  /** K151: woher der Vorschlag „An“ stammt – aktuelle Akte oder der beim Festschreiben gespeicherte Empfänger. */
+  anQuelle?: 'akte' | 'beleg' | null;
+}
+
+/**
+ * K151 (Handtest 30.10.2026, H24): Die E-Mail-Adresse steht nicht auf dem Beleg, sie ist nur der Versandweg –
+ * deshalb zuerst die aktuelle Adresse aus der Akte (Rechnungs-E-Mail, sonst E-Mail des Klienten), sonst die
+ * beim Festschreiben gespeicherte. Anschrift und Name auf dem Beleg bleiben unberührt (GoBD).
+ */
+export async function vorschlagEmpfaenger(
+  klientId: string | null | undefined, gespeichert: string | null | undefined,
+): Promise<{ an: string; anQuelle: 'akte' | 'beleg' | null }> {
+  const klient = klientId ? await getKlient(klientId).catch(() => null) : null;
+  const ausAkte = klient ? rechnungsempfaenger(klient).email : null;
+  if (ausAkte && hatEchteEmail(ausAkte)) return { an: ausAkte, anQuelle: 'akte' };
+  if (gespeichert && hatEchteEmail(gespeichert)) return { an: gespeichert, anQuelle: 'beleg' };
+  return { an: '', anQuelle: null };
 }
 
 // Handtest 23.10.2026: Die Vorlage schreibt „{{gross_amount}} €“, der Betrag bringt sein € schon mit → kein „€ €“.
@@ -28,7 +46,7 @@ const datumDe = (d: unknown) => {
 /** Vorschlag aus Einstellungen → Rechnungstexte, mit den Daten der festgeschriebenen Rechnung. */
 export async function rechnungsMailVorschlag(brand: string, invoiceId: string): Promise<MailVorschlag | null> {
   const r = (await pool.query(
-    `SELECT number, status, gross_amount, due_date, payment_reference, leitweg_id FROM billing_invoices WHERE id = $1 AND brand = $2`,
+    `SELECT number, status, gross_amount, due_date, payment_reference, leitweg_id, klient_id::text AS klient_id FROM billing_invoices WHERE id = $1 AND brand = $2`,
     [invoiceId, brand])).rows[0];
   if (!r || r.status === 'draft') return null;
   const [texte, absender, empfaenger, von] = await Promise.all([ladeRechnungstexte(brand), ladeAbsender(brand), empfaengerDerRechnung(invoiceId), absenderAnzeige()]);
@@ -40,8 +58,9 @@ export async function rechnungsMailVorschlag(brand: string, invoiceId: string): 
     customer_name: empfaenger ? (empfaenger.company ? empfaenger.name : kaeuferName(empfaenger)) : '',
     seller_name: absender.name,
   };
+  const empf = await vorschlagEmpfaenger(r.klient_id as string | null, empfaenger?.email);
   return {
-    an: empfaenger && hatEchteEmail(empfaenger.email) ? empfaenger.email : '',
+    an: empf.an, anQuelle: empf.anQuelle,
     von,
     betreff: ersetze(texte.invoice_email_subject || 'Rechnung {{number}}', vars),
     text: ersetze(texte.invoice_email_body, vars),

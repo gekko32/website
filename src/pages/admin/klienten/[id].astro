@@ -359,6 +359,25 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
             <input name="titel" required minlength="2" maxlength="120" placeholder="z. B. Moderation Strategietag"
               class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" />
           </label>
+          {/* K152 (Handtest 30.10.2026, H25): Der Betrag gehört in die Positionen – die erste gleich hier (freiwillig). */}
+          <fieldset class="w-full border border-dark-lighter rounded-lg p-3">
+            <legend class="px-1 text-xs text-gold">Erste Position mit Betrag (freiwillig – weitere später im Auftrag)</legend>
+            <label class="block text-xs text-muted mb-2">Aus Leistungsliste übernehmen
+              <select class="leistung-uebernehmen block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light">
+                <option value="">– freie Position –</option>
+                {aktiveLeistungen.map((l) => <option data-text={l.name} data-einheit={l.einheit} data-preis={l.preis === null ? '' : String(l.preis).replace('.', ',')}>{l.name}{l.preis === null ? '' : ` – ${preisAnzeige({ preis: l.preis, nachVereinbarung: false })}`}</option>)}
+              </select>
+            </label>
+            <div class="grid gap-2 items-end" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr));">
+              <label class="text-xs text-muted" style="grid-column:span 2;">Bezeichnung<input name="text" maxlength="300" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
+              <label class="text-xs text-muted">Leistungsdatum<input type="date" name="datum" value={heute} class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
+              <label class="text-xs text-muted">Menge<input name="menge" value="1" inputmode="decimal" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
+              <label class="text-xs text-muted">Einheit
+                <select name="einheit" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light"><option value="">–</option>{einheiten.map((e) => <option value={e}>{e}</option>)}</select>
+              </label>
+              <label class="text-xs text-muted">Preis je Einheit in €<input name="preis" inputmode="decimal" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
+            </div>
+          </fieldset>
           {/* Nachtrag 24.10.2026 (K89): der Haken gehört zum Knopf und steht direkt daneben. */}
           <label class="text-sm text-light"><input type="checkbox" name="mitAngebot" /> mit Angebot – Positionen werden erst nach Annahme des Angebotsvorschlags abrechenbar</label>
           <button type="submit" class="px-4 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Anlegen</button>
@@ -366,7 +385,7 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
       </details>
       <p class="text-xs text-muted mb-2">Oder einen früheren Angebotsvorschlag als Grundlage nehmen: <a class="underline" href="/admin/angebote?vorlage=1">Angebotsvorschläge → Vorlagen</a>.</p>
       <p class="text-xs text-muted mb-2">Vorträge, Moderationen, Analysen … So geht es: 1. „+ Auftrag anlegen“ öffnen, Titel eintragen,
-        2. im Auftrag „+ Neue Position mit Preis“ öffnen – erst die Positionen werden abgerechnet. Sie erscheinen nicht auf der Website.</p>
+        dort gleich die erste Position mit Betrag (oder später im Auftrag „+ Neue Position mit Preis“) – erst die Positionen werden abgerechnet. Sie erscheinen nicht auf der Website.</p>
       <ZustandLegende teile={['posten', 'angebot']} />
 
       {auftraege.map((a) => {
@@ -431,7 +450,9 @@ const einheitOptionen = (aktuell: string | null) => (aktuell && !einheiten.inclu
             {/* K149 (Handtest 29.10.2026, H22): im abgelehnten Auftrag keine neuen Positionen. */}
             {a.stand === 'abgelehnt' && <p class="text-xs text-muted mb-2">Angebotsvorschlag abgelehnt: Der Auftrag bleibt als Verlauf, neue Positionen gehen hier nicht.
               Für einen neuen Anlauf auf der Angebotsseite „Neues Angebot aus diesem Angebot“ nehmen.</p>}
-            <details class="mb-3" hidden={a.stand === 'angeboten' || a.stand === 'abgelehnt'}>
+            {/* K152: nach dem Anlegen ohne Position gleich hier öffnen und sagen, wohin der Betrag gehört. */}
+            {pos.length === 0 && a.stand !== 'abgelehnt' && <p class="text-xs text-gold mb-2">Noch kein Betrag: Den Betrag trägst du als Position ein – „+ Neue Position mit Preis“.</p>}
+            <details class="mb-3" open={q.get('neuerAuftrag') === a.id} hidden={a.stand === 'angeboten' || a.stand === 'abgelehnt'}>
               <summary class="cursor-pointer inline-block px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">+ Neue Position mit Preis</summary>
             <form method="POST" action="/api/admin/posten" autocomplete="off" class="mt-2 p-3 rounded-lg border border-gold/60 bg-dark merk-ungespeichert">
               <p class="text-xs text-muted mb-2"><a href="/admin/einstellungen/regeln" class="hover:underline">Einheiten-Liste pflegen</a></p>

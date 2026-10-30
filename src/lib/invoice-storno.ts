@@ -62,7 +62,7 @@ export async function createCreditNote(invoiceId: string, reason: string, actor?
         -Number(orig.tax_amount),
         -Number(orig.gross_amount),
         `Storno für ${orig.number}: ${reason}`,
-        `GS-${number}`,
+        number, // Prüfung E4 (30.10.2026): Nummer ist schon „GS-…“, kein doppeltes Präfix
         orig.id,
         orig.parent_invoice_id ?? null,
         orig.currency ?? 'EUR',

@@ -7,7 +7,7 @@ import { holeAngebot } from './billing-angebot';
 import { angebotsMail, erzeugeAngebotsPdf } from './billing-angebot-pdf';
 import { hatEchteEmail } from './billing-versand';
 import { angebotsDateiname } from './beleg-dateiname';
-import type { MailVorschlag, MailErgebnis } from './billing-mail';
+import { vorschlagEmpfaenger, type MailVorschlag, type MailErgebnis } from './billing-mail';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Die Vorlage kann „{{gross_amount}} €“ schreiben, der Betrag bringt sein € schon mit.
@@ -18,8 +18,10 @@ export async function angebotMailVorschlag(brand: string, id: string): Promise<M
   // Prüfung D1: nur die aktuelle, noch unbeantwortete Fassung.
   if (!a || a.status !== 'verschickt' || !a.empfaenger) return null;
   const [m, von] = await Promise.all([angebotsMail(brand, a, a.empfaenger), absenderAnzeige()]);
+  // K151 (Handtest 30.10.2026): aktuelle Adresse aus der Akte vor der beim Nummerieren gespeicherten.
+  const empf = await vorschlagEmpfaenger(a.klientId, a.empfaenger.email);
   return {
-    an: hatEchteEmail(a.empfaenger.email) ? a.empfaenger.email : '',
+    an: empf.an, anQuelle: empf.anQuelle,
     von, betreff: ohneDoppelEuro(m.betreff), text: ohneDoppelEuro(m.text), anhaenge: [await angebotsDateiname(a)], nummer: a.number,
   };
 }

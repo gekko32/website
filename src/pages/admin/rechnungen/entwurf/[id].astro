@@ -23,9 +23,18 @@ await initBillingTables();
 const id = Astro.params.id ?? '';
 const kopf = (await pool.query(
   `SELECT id, number, status, customer_id, klient_id::text AS klient_id, zahlungsziel_tage, net_amount::float AS netto, notes,
-          versandweg, versendet_am::text AS versendet_am, issue_date::text AS datum, due_date::text AS faellig
+          versandweg, versendet_am::text AS versendet_am, issue_date::text AS datum, due_date::text AS faellig,
+          COALESCE(kind, 'rechnung') AS kind, cancels_invoice_id::text AS storniert_rechnung
      FROM billing_invoices WHERE id = $1 AND brand = $2`, [id, brand])).rows[0];
 if (!kopf) return Astro.redirect('/admin/rechnungen');
+// K153 (Handtest 30.10.2026, H26): Storno im Admin – Gegenstück anzeigen (Gutschrift ↔ Rechnung).
+const istGutschrift = kopf.kind === 'gutschrift';
+const belegArt = istGutschrift ? 'Gutschrift' : 'Rechnung';
+const gutschrift = (await pool.query(
+  `SELECT id::text AS id, number FROM billing_invoices WHERE cancels_invoice_id = $1 AND brand = $2 LIMIT 1`, [id, brand])).rows[0] as { id: string; number: string } | undefined;
+const urRechnung = kopf.storniert_rechnung ? (await pool.query(
+  `SELECT id::text AS id, number FROM billing_invoices WHERE id = $1 AND brand = $2`, [kopf.storniert_rechnung, brand])).rows[0] as { id: string; number: string } | undefined : undefined;
+const stornierbar = kopf.status !== 'draft' && kopf.status !== 'cancelled' && !istGutschrift && !gutschrift;
 // Festgeschrieben: dieselbe Seite schreibgeschützt (GoBD) – mit „Per E-Mail senden“ (auch erneut).
 const entwurf = kopf.status === 'draft';
 // Kein Zwischenspeichern: „Zurück“ im Browser zeigt immer den aktuellen Stand (Handtest 23.10.2026).
@@ -59,20 +68,31 @@ const zurueck = `/admin/rechnungen/entwurf/${id}`;
 const feld = 'zfeld';
 ---
 
-<AdminLayout title={entwurf ? `Rechnungsentwurf ${kopf.number}` : `Rechnung ${kopf.number}`}>
+<AdminLayout title={entwurf ? `Rechnungsentwurf ${kopf.number}` : `${belegArt} ${kopf.number}`}>
   <div style="padding:2rem;max-width:1000px;">
     {/* K124 (Handtest 29.10.2026): Rückweg zur Akte als deutlicher Knopf. */}
     <div class="flex flex-wrap gap-3 items-center mb-3">
       {klient && <a class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm font-semibold hover:bg-gold hover:text-dark" href={`/admin/klienten/${klient.id}#abrechnung`}>← Akte {klient.name}</a>}
       <a class="text-xs text-muted hover:underline" href="/admin/rechnungen">Fakturierung (alle Rechnungen und Entwürfe)</a>
     </div>
-    <AdminPageHeader title={entwurf ? `Rechnungsentwurf ${kopf.number}` : `Rechnung ${kopf.number}`}
+    <AdminPageHeader title={entwurf ? `Rechnungsentwurf ${kopf.number}` : `${belegArt} ${kopf.number}`}
       description={entwurf ? 'Noch nichts verschickt. Bis zum Festschreiben lässt sich hier alles ändern.'
+        : istGutschrift ? `Gutschrift (Storno) – unveränderlich (GoBD). Datum ${fd(kopf.datum)}`
         : `Festgeschrieben – unveränderlich (GoBD). Datum ${fd(kopf.datum)} · fällig ${fd(kopf.faellig)} · ${STATUS_TEXT[kopf.status] ?? kopf.status}`} />
     {!entwurf && <p class="text-sm mb-3">{kopf.versendet_am
       ? <span class="text-green-400">Verschickt {kopf.versandweg === 'post' ? 'per Post/persönlich' : 'per E-Mail'} am {fd(kopf.versendet_am)}.</span>
       : <span class="text-gold">Noch nicht verschickt.</span>}</p>}
 
+    {/* K153: Storno-Bezug sichtbar. */}
+    {gutschrift && <p class="text-sm text-gold mb-3">Storniert durch Gutschrift <a class="underline font-mono" href={`/admin/rechnungen/entwurf/${gutschrift.id}`}>{gutschrift.number}</a>.
+      Die Posten dieser Rechnung sind in der Akte wieder offen.</p>}
+    {istGutschrift && urRechnung && (
+      <div class="mb-3 p-3 rounded-lg border border-green-500 bg-green-900/20 text-sm text-green-100">
+        {q.get('storniert') === '1' ? 'Storniert. ' : ''}Gutschrift zur Rechnung <a class="underline font-mono" href={`/admin/rechnungen/entwurf/${urRechnung.id}`}>{urRechnung.number}</a>.
+        Deren Posten sind in der Akte wieder offen und lassen sich neu abrechnen.
+        {klient && <a class="ml-2 underline" href={`/admin/klienten/${klient.id}#abrechnung`}>Zur Akte</a>}
+      </div>
+    )}
     {q.get('neu') === '1' && <p class="text-sm text-green-400 mb-3">Entwurf angelegt. Bitte prüfen – Positionen lassen sich hier noch ändern oder herausnehmen.</p>}
     {q.get('gespeichert') === '1' && <p class="text-sm text-green-400 mb-3">Gespeichert. Der Entwurf ist aktualisiert.</p>}
     {fehler && <p role="alert" class="text-sm text-red-400 mb-3">{fehler}</p>}
@@ -189,6 +209,9 @@ const feld = 'zfeld';
       <p class="text-xs text-muted mt-2">{wege.includes('email')
         ? 'Beim Festschreiben bekommt die Rechnung ihre Nummer. Danach siehst du die E-Mail (Empfänger, Betreff, Text) und kannst sie vor dem Senden anpassen.'
         : 'Keine E-Mail-Adresse: nur Versand per Post/persönlich.'}</p>
+      {/* K154 (Handtest 30.10.2026, H27) */}
+      <p class="text-xs text-muted mt-1">Posten wieder offen machen: einzeln mit „Herausnehmen“ oder alle mit „Entwurf verwerfen“.
+        Nach dem Festschreiben geht das nur noch über „Stornieren“ auf der Rechnungsseite.</p>
     </section>
     ) : (
     <section class="border border-dark-lighter rounded-xl p-4 mb-6">
@@ -196,8 +219,24 @@ const feld = 'zfeld';
       <div class="flex flex-wrap gap-2 justify-end">
         <a href={`/api/billing/invoice/${id}/pdf`} class="px-3 py-2 rounded-lg border border-light/40 text-light text-sm hover:border-gold">PDF herunterladen</a>
         <a href={`/admin/billing/${id}/drucken`} target="_blank" rel="noopener" class="px-3 py-2 rounded-lg border border-light/40 text-light text-sm hover:border-gold">Ansehen ↗</a>
-        {kopf.status !== 'cancelled' && <button type="button" id="mail-oeffnen" class="px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">{kopf.versendet_am ? 'Erneut per E-Mail senden' : 'Per E-Mail senden'}</button>}
+        {/* Prüfung E1: Gutschriften nicht mit der Rechnungs-Mailvorlage (Zahlungsaufforderung) anbieten. */}
+        {kopf.status !== 'cancelled' && !istGutschrift && <button type="button" id="mail-oeffnen" class="px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">{kopf.versendet_am ? 'Erneut per E-Mail senden' : 'Per E-Mail senden'}</button>}
       </div>
+      {/* K153 (Handtest 30.10.2026, H26): Storno mit Pflicht-Begründung. */}
+      {stornierbar && (
+        <details class="mt-4 border-t border-dark-lighter pt-3">
+          <summary class="cursor-pointer inline-block px-3 py-1.5 rounded-lg border border-red-400 text-red-300 text-sm">Stornieren …</summary>
+          <div class="mt-2 p-3 rounded-lg border border-red-400/60 bg-dark">
+            <p class="text-xs text-muted mb-2">Die Rechnung bleibt unverändert erhalten (GoBD). Es entsteht eine Gutschrift mit eigener Nummer über
+              denselben Betrag; die Posten sind danach in der Akte wieder offen und lassen sich neu abrechnen.</p>
+            <label class="block text-xs text-muted mb-2">Begründung (Pflicht, steht auf der Gutschrift)
+              <textarea id="storno-grund" rows="2" maxlength="500" placeholder="z. B. falscher Betrag, Leistung nicht erbracht"
+                class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-light/40 text-sm text-light"></textarea>
+            </label>
+            <button type="button" id="stornieren" class="px-3 py-1.5 rounded-lg border border-red-400 text-red-300 text-sm">Rechnung stornieren …</button>
+          </div>
+        </details>
+      )}
     </section>
     )}
 
@@ -206,7 +245,7 @@ const feld = 'zfeld';
     <section id="mail" hidden class="border border-gold/60 rounded-xl p-4 mb-6">
       <h2 class="text-sm font-semibold text-gold mb-3">E-Mail mit Rechnung {kopf.number}</h2>
       <div class="grid gap-3 text-sm">
-        <label class="text-xs text-muted">An <input id="mail-an" type="email" autocomplete="off" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
+        <label class="text-xs text-muted">An <span id="mail-an-quelle" class="ml-1"></span><input id="mail-an" type="email" autocomplete="off" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
         <p class="text-xs text-muted">Von: <span id="mail-von" class="text-light"></span>
           <span class="ml-1">(Absender des Postausgangs; Absenderdaten auf der Rechnung unter <a class="underline" href="/admin/einstellungen/rechnungen">Einstellungen → Rechnungen</a>)</span></p>
         <label class="text-xs text-muted">Betreff <input id="mail-betreff" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark border border-dark-lighter text-sm text-light" /></label>
@@ -305,6 +344,21 @@ const feld = 'zfeld';
     setTimeout(() => { window.location.href = `/admin/rechnungen/entwurf/${id}${weg === 'email' ? '?mail=1' : ''}`; }, data.pdfUrl ? 1500 : 0);
   }));
 
+  // K153: Stornieren mit Pflicht-Begründung und Rückfrage.
+  document.getElementById('stornieren')?.addEventListener('click', async (e) => {
+    const knopf = e.currentTarget;
+    const grund = document.getElementById('storno-grund').value.trim();
+    if (!grund) { zeige(meldung, 'Bitte eine Begründung für das Storno eintragen.', false); document.getElementById('storno-grund').focus(); return; }
+    if (!(await frage(`Rechnung wirklich stornieren? Es entsteht eine Gutschrift über denselben Betrag. Begründung: ${grund}`, 'Stornieren'))) return;
+    knopf.disabled = true;
+    const res = await fetch(`/api/admin/billing/${id}/storno`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: grund }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.credit?.id) { knopf.disabled = false; zeige(meldung, `Nicht storniert: ${data.error ?? 'Fehler'}`, false); return; }
+    window.location.href = `/admin/rechnungen/entwurf/${data.credit.id}?storniert=1`;
+  });
+
   // E-Mail vorbereiten und senden (festgeschriebene Rechnung).
   const mail = document.getElementById('mail');
   const mailMeldung = document.getElementById('mail-meldung');
@@ -316,6 +370,9 @@ const feld = 'zfeld';
     const v = await res.json().catch(() => ({}));
     if (!res.ok) { zeige(mailMeldung, v.error ?? 'E-Mail-Vorschlag nicht geladen.', false); return; }
     document.getElementById('mail-an').value = v.an ?? '';
+    // K151: woher die Adresse kommt.
+    const quelle = document.getElementById('mail-an-quelle');
+    if (quelle) quelle.textContent = v.anQuelle === 'akte' ? '(aktuelle Adresse aus der Akte)' : v.anQuelle === 'beleg' ? '(beim Festschreiben bzw. Nummerieren gespeicherte Adresse)' : '(keine Adresse in der Akte – bitte eintragen)';
     document.getElementById('mail-von').textContent = v.von ?? '';
     document.getElementById('mail-betreff').value = v.betreff ?? '';
     document.getElementById('mail-text').value = v.text ?? '';
