@@ -11,6 +11,9 @@
     avatarInitials?: string;
     personName?: string;
     personRole?: string;
+    primaryText?: string;
+    secondaryText?: string;
+    secondaryHref?: string;
   }
 
   let {
@@ -23,6 +26,9 @@
     avatarInitials = '',
     personName = '',
     personRole = '',
+    primaryText = 'Kostenloses Erstgespräch',
+    secondaryText = 'Angebote ansehen',
+    secondaryHref = '/#angebote',
   }: Props = $props();
 
   // Split tagline on common separators to show as two kicker segments
@@ -61,12 +67,12 @@
         <!-- CTA row -->
         <div class="hero-cta" role="group" aria-label="Aktionen">
           <a href="/kontakt" class="btn btn-primary">
-            Kostenloses Erstgespräch
+            {primaryText}
             <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M2 7h10M8 3l4 4-4 4"/>
             </svg>
           </a>
-          <a href="/#angebote" class="btn btn-ghost">Angebote ansehen</a>
+          <a href={secondaryHref} class="btn btn-ghost">{secondaryText}</a>
         </div>
       </div>
 

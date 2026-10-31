@@ -1,0 +1,53 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CallToAction from '../../components/CallToAction.svelte';
+import { geschichten } from '../../data/mentolder-auftritt';
+
+const BRAND_ID = process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder';
+if (BRAND_ID !== 'mentolder') {
+  return Astro.redirect('/404');
+}
+---
+
+<Layout title="Geschichten | mentolder.de" rawTitle description="Drei Geschichten aus 40 Jahren Polizei Hamburg: Digitalfunk, Videotechnik, Servicecenter und G20.">
+  <section class="gs-section">
+    <div class="gs-wrap">
+      <p class="gs-eyebrow">Geschichten</p>
+      <h1>Drei Geschichten aus 40 Jahren</h1>
+      <p class="gs-lede">
+        Was ich kann, zeigt sich am besten an dem, was ich getan habe. Drei Beispiele aus meiner Zeit bei der
+        Polizei Hamburg, und was sie mit Ihrer Arbeit zu tun haben.
+      </p>
+      <div class="gs-liste">
+        {geschichten.map((g) => (
+          <article class="gs-eintrag">
+            <p class="gs-zeit">{g.zeit}</p>
+            <h2><a href={`/geschichten/${g.slug}`}>{g.title}</a></h2>
+            <p>{g.teaser}</p>
+            <a class="gs-weiter" href={`/geschichten/${g.slug}`}>Ganze Geschichte lesen →</a>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+  <CallToAction client:visible eyebrow="Kontakt" title="Worum geht es bei Ihnen?" titleEmphasis="" primaryText="Nachricht schreiben" />
+</Layout>
+
+<style>
+  .gs-section { padding: 120px 0 80px; }
+  .gs-wrap { max-width: 860px; margin: 0 auto; padding: 0 40px; }
+  .gs-eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--brass); margin: 0 0 16px; }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(36px, 4.4vw, 56px); line-height: 1.1; margin: 0 0 20px; color: var(--fg); }
+  .gs-lede { font-size: 19px; line-height: 1.6; color: var(--fg-soft); margin: 0 0 56px; max-width: 60ch; }
+  .gs-liste { display: flex; flex-direction: column; gap: 40px; }
+  .gs-eintrag { border-left: 2px solid var(--brass); padding: 4px 0 4px 24px; }
+  .gs-zeit { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; color: var(--mute); margin: 0 0 8px; }
+  h2 { font-family: var(--serif); font-weight: 400; font-size: 30px; line-height: 1.2; margin: 0 0 12px; }
+  h2 a { color: var(--fg); text-decoration: none; }
+  .gs-eintrag p { color: var(--fg-soft); font-size: 17px; line-height: 1.6; margin: 0 0 14px; }
+  .gs-weiter { color: var(--brass); text-decoration: none; }
+  @media (max-width: 720px) {
+    .gs-section { padding: 80px 0 56px; }
+    .gs-wrap { padding: 0 22px; }
+  }
+</style>

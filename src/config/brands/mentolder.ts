@@ -19,7 +19,7 @@ export const mentolderConfig: BrandConfig = {
     chamber: 'Entfallt',
     ustId: process.env.LEGAL_UST_ID ?? '',
     website: process.env.LEGAL_WEBSITE ?? '',
-    tagline: 'Digital Coaching & Führungskräfte-Beratung',
+    tagline: 'IT, KI und Coaching',
   },
   navigation: [
     { label: 'Angebote',   href: '/#angebote' },
@@ -415,9 +415,9 @@ export const mentolderConfig: BrandConfig = {
     hasBilling: true,
   },
   i18n: {
-    tagline: { de: 'Digital Coaching & Führungskräfte-Beratung', en: 'Digital Coaching & Leadership Consulting' },
+    tagline: { de: 'IT, KI und Coaching', en: 'IT, AI and coaching' },
     siteDescription: {
-      de: 'Coaching & digitale Begleitung in Lüneburg und Hamburg – persönlich, erfahren, auf Augenhöhe. Für Führungspersönlichkeiten und Menschen in Veränderung.',
+      de: 'Ich mache sichtbar, wie Ihre Arbeit zusammenhängt, und nehme dabei alle mit. IT, Websites, KI und Coaching in Lüneburg, Hamburg und online.',
       en: 'Coaching & digital accompaniment in Lüneburg and Hamburg – personal, experienced, at eye level. For leadership personalities and people in transition.',
     },
     copyright: { de: 'Alle Rechte vorbehalten', en: 'All rights reserved' },

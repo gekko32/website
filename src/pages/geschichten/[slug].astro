@@ -1,0 +1,48 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CallToAction from '../../components/CallToAction.svelte';
+import { geschichten } from '../../data/mentolder-auftritt';
+
+const BRAND_ID = process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder';
+const { slug } = Astro.params;
+const index = geschichten.findIndex((g) => g.slug === slug);
+if (BRAND_ID !== 'mentolder' || index === -1) {
+  return Astro.redirect('/404');
+}
+const g = geschichten[index];
+const naechste = geschichten[(index + 1) % geschichten.length];
+const { Content } = g;
+---
+
+<Layout title={`${g.title} | mentolder.de`} rawTitle description={g.teaser}>
+  <article class="gs-section">
+    <div class="gs-wrap">
+      <p class="gs-eyebrow"><a href="/geschichten">Geschichten</a> · {g.zeit}</p>
+      <h1>{g.title}</h1>
+      <div class="gs-text">
+        <Content />
+      </div>
+      <nav class="gs-nav" aria-label="Weitere Geschichten">
+        <a href="/geschichten">← Alle Geschichten</a>
+        <a href={`/geschichten/${naechste.slug}`}>Nächste: {naechste.title} →</a>
+      </nav>
+    </div>
+  </article>
+  <CallToAction client:visible eyebrow="Kontakt" title="Kommt Ihnen das bekannt vor?" titleEmphasis="" subtitle="Erzählen Sie mir, worum es bei Ihnen geht. Ein paar Sätze reichen." primaryText="Nachricht schreiben" />
+</Layout>
+
+<style>
+  .gs-section { padding: 120px 0 64px; }
+  .gs-wrap { max-width: 760px; margin: 0 auto; padding: 0 40px; }
+  .gs-eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--brass); margin: 0 0 16px; }
+  .gs-eyebrow a { color: inherit; text-decoration: none; }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(36px, 4.4vw, 54px); line-height: 1.1; margin: 0 0 40px; color: var(--fg); }
+  .gs-text :global(p) { font-size: 18px; line-height: 1.75; color: var(--fg-soft); margin: 0 0 22px; }
+  .gs-text :global(strong) { color: var(--fg); font-weight: 600; }
+  .gs-nav { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); }
+  .gs-nav a { color: var(--brass); text-decoration: none; }
+  @media (max-width: 720px) {
+    .gs-section { padding: 80px 0 48px; }
+    .gs-wrap { padding: 0 22px; }
+  }
+</style>

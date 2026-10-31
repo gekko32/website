@@ -1,5 +1,262 @@
 [
   {
+    "slug": "selbststaendige-vereine",
+    "title": "Selbstständige & Vereine",
+    "description": "Technik und Website, die einfach funktionieren, mit einem festen Ansprechpartner.",
+    "icon": "💻",
+    "iconSpriteId": "prop-compass",
+    "features": [
+      "Website",
+      "Rechner, E-Mail, Datensicherung",
+      "Programme für Mitglieder und Termine"
+    ],
+    "price": "nach Vereinbarung",
+    "pageContent": {
+      "headline": "Ihre Technik soll einfach funktionieren.",
+      "intro": "Sie haben ein Studio, eine Praxis, einen kleinen Betrieb oder einen Verein, aber keine eigene IT. Ich kümmere mich um Website, Rechner, Daten und Programme, erkläre, was ich tue, und bleibe Ihr Ansprechpartner.",
+      "forWhom": [
+        "Selbstständige ohne eigene IT-Abteilung",
+        "Vereine, deren Vorstand die Technik nebenbei betreut",
+        "Alle, deren Website nicht mehr passt",
+        "Alle, die wissen wollen, ob ihre Daten sicher sind"
+      ],
+      "sections": [
+        {
+          "title": "Website",
+          "items": [
+            "Bestandsaufnahme der vorhandenen Seite",
+            "Umbau oder Neuaufbau",
+            "Datenschutz und Impressum prüfen"
+          ]
+        },
+        {
+          "title": "Alltag",
+          "items": [
+            "Rechner, Handy und E-Mail einrichten",
+            "Datensicherung, die wirklich läuft",
+            "Programme für Mitglieder und Termine, z. B. easyVerein"
+          ]
+        },
+        {
+          "title": "Begleitung",
+          "items": [
+            "Erklären statt Fachchinesisch",
+            "Ansprechpartner, wenn etwas hakt",
+            "KI dort, wo sie Arbeit spart"
+          ]
+        }
+      ],
+      "pricing": [
+        {
+          "label": "Erstgespräch",
+          "price": "kostenlos",
+          "unit": "zum Kennenlernen",
+          "highlight": true
+        },
+        {
+          "label": "Danach",
+          "price": "nach Vereinbarung",
+          "unit": "je nach Vorhaben"
+        }
+      ],
+      "faq": [],
+      "seoTitle": "IT und Website für Selbstständige und Vereine | mentolder.de",
+      "seoDescription": "Website, Rechner, Datensicherung und Vereinsprogramme mit einem festen Ansprechpartner. Persönlich, ohne Fachchinesisch."
+    }
+  },
+  {
+    "slug": "kleine-unternehmen",
+    "title": "Kleine Unternehmen",
+    "description": "Abläufe und Daten in eine Ordnung bringen, bevor neue Software gekauft wird.",
+    "icon": "🏢",
+    "iconSpriteId": "prop-compass",
+    "features": [
+      "Abläufe sichtbar machen",
+      "Daten ordnen",
+      "Technik und KI passend auswählen"
+    ],
+    "price": "nach Vereinbarung",
+    "pageContent": {
+      "headline": "Erst das Bild, dann die Software.",
+      "intro": "Mit der Zeit sammeln sich Programme, Listen und Gewohnheiten. Irgendwann weiß keiner mehr genau, was wo liegt und wer was pflegt. Ich höre mir an, wie Ihre Arbeit tatsächlich läuft, bringe sie auf ein Bild und ordne sie mit Ihnen neu. Erst dann entscheiden wir, welche Technik Sie brauchen.",
+      "forWhom": [
+        "Betriebe, in denen Daten doppelt geführt werden",
+        "Teams vor einer Software-Entscheidung",
+        "Inhaber, die Abläufe vereinfachen wollen",
+        "Alle, die KI einsetzen wollen und nicht wissen, wo"
+      ],
+      "sections": [
+        {
+          "title": "Abläufe",
+          "items": [
+            "Zuhören und aufzeichnen, wie gearbeitet wird",
+            "Doppelte Arbeit und doppelte Daten finden",
+            "Zuständigkeiten klären"
+          ]
+        },
+        {
+          "title": "Technik",
+          "items": [
+            "Website, Buchung, Rechnungen",
+            "Datenschutz und Datensicherung",
+            "Auf Wunsch selbst betrieben statt vieler Abos"
+          ]
+        },
+        {
+          "title": "KI",
+          "items": [
+            "Wo KI Arbeit spart",
+            "Ergebnisse prüfen, bevor man sich darauf verlässt",
+            "Die Mitarbeitenden mitnehmen"
+          ]
+        }
+      ],
+      "pricing": [
+        {
+          "label": "Erstgespräch",
+          "price": "kostenlos",
+          "unit": "zum Kennenlernen",
+          "highlight": true
+        },
+        {
+          "label": "Danach",
+          "price": "nach Vereinbarung",
+          "unit": "je nach Vorhaben"
+        }
+      ],
+      "faq": [],
+      "seoTitle": "Abläufe, Daten und KI für kleine Unternehmen | mentolder.de",
+      "seoDescription": "Erst sichtbar machen, wie Ihre Arbeit zusammenhängt, dann die passende Technik wählen. Datenschutz inklusive."
+    }
+  },
+  {
+    "slug": "verwaltung",
+    "title": "Verwaltung",
+    "description": "Neue Technik und KI in Behörden einführen, mit den Menschen statt gegen sie.",
+    "icon": "🏛️",
+    "iconSpriteId": "prop-compass",
+    "features": [
+      "Vorhaben ordnen",
+      "KI mit Prüfschritten",
+      "Beteiligte mitnehmen"
+    ],
+    "price": "nach Vereinbarung",
+    "pageContent": {
+      "headline": "KI einführen, ohne dass es schiefgeht.",
+      "intro": "Ich war 40 Jahre bei der Polizei Hamburg, über 30 davon in Führung. Ich habe den Digitalfunk mit aufgebaut, die Videotechnik geleitet und im G20-Einsatz Gesichtserkennung eingeführt. Ich weiß, wie es ist, neue Technik gegen Widerstände in eine Behörde zu bringen, und was es braucht, damit die Menschen mitgehen.",
+      "forWhom": [
+        "Behörden und Ämter, die KI einführen sollen",
+        "Führungskräfte, die neue Technik verantworten",
+        "Projekte, in denen alle da sind und keiner weiß, wer was tut",
+        "Teams, die Datenschutz und Nutzen zusammenbringen müssen"
+      ],
+      "sections": [
+        {
+          "title": "Vorhaben",
+          "items": [
+            "Abläufe sichtbar machen, bevor beschafft wird",
+            "Rollen und Zuständigkeiten klären",
+            "Wiederholbare Abläufe statt Einzellösungen"
+          ]
+        },
+        {
+          "title": "KI",
+          "items": [
+            "Was KI leisten kann und was nicht",
+            "Prüfschritte nach jedem Ergebnis",
+            "Datenschutz von Anfang an"
+          ]
+        },
+        {
+          "title": "Menschen",
+          "items": [
+            "Beteiligte früh einbeziehen",
+            "Vorbehalte ernst nehmen",
+            "Führung im Wandel begleiten"
+          ]
+        }
+      ],
+      "pricing": [
+        {
+          "label": "Erstgespräch",
+          "price": "kostenlos",
+          "unit": "zum Kennenlernen",
+          "highlight": true
+        },
+        {
+          "label": "Danach",
+          "price": "nach Vereinbarung",
+          "unit": "je nach Vorhaben"
+        }
+      ],
+      "faq": [],
+      "seoTitle": "KI und neue Technik in der Verwaltung einführen | mentolder.de",
+      "seoDescription": "40 Jahre Polizei Hamburg, Digitalfunk, Videotechnik, Gesichtserkennung im G20-Einsatz: Erfahrung mit neuer Technik in Behörden."
+    }
+  },
+  {
+    "slug": "fuehrung-persoenlichkeit",
+    "title": "Coaching",
+    "description": "Für Menschen in Verantwortung. Gute Führung beginnt nicht mit Methoden, sondern mit Haltung.",
+    "icon": "🦭",
+    "iconSpriteId": "prop-chat",
+    "features": [
+      "Standortbestimmung als Führungsperson",
+      "Führen im Wandel",
+      "Berufliche Veränderung"
+    ],
+    "price": "nach Vereinbarung",
+    "stripeServiceKey": "coaching-session",
+    "pageContent": {
+      "headline": "Führen aus der Mitte.",
+      "intro": "Gute Führung beginnt nicht mit Methoden, sondern mit Haltung. Ich war über 30 Jahre selbst Führungskraft und bin ausgebildeter systemischer Coach. Im Coaching klären wir, wo Sie stehen, was Sie trägt und wohin Sie wollen.",
+      "forWhom": [
+        "Frauen und Männer, die seit Jahren Verantwortung tragen",
+        "Frauen und Männer, die gerade neu in der Führungsrolle sind",
+        "Menschen in einer beruflichen Veränderung",
+        "Alle, die vor einer schwierigen Entscheidung stehen"
+      ],
+      "sections": [
+        {
+          "title": "Rolle & Haltung",
+          "items": [
+            "Wer bin ich als Führungsperson, und wer will ich sein?",
+            "Standortbestimmung"
+          ]
+        },
+        {
+          "title": "Führen im Wandel",
+          "items": [
+            "Neue Technik einführen und die Menschen mitnehmen",
+            "Mit Widerstand umgehen"
+          ]
+        },
+        {
+          "title": "Veränderung",
+          "items": [
+            "Berufliche Neuorientierung",
+            "Was nach einer Führungsrolle kommt"
+          ]
+        }
+      ],
+      "pricing": [
+        {
+          "label": "Erstgespräch",
+          "price": "kostenlos",
+          "unit": "zum Kennenlernen",
+          "highlight": true
+        },
+        {
+          "label": "Coaching-Sitzung",
+          "price": "nach Vereinbarung"
+        }
+      ],
+      "faq": [],
+      "seoTitle": "Coaching für Menschen in Verantwortung | mentolder.de",
+      "seoDescription": "Systemisches Coaching von jemandem, der über 30 Jahre selbst geführt hat. Haltung vor Methode."
+    }
+  },
+  {
     "slug": "50plus-digital",
     "title": "65+ digital",
     "description": "Digitale Begleitung für Menschen 65+ in Lüneburg und Hamburg. Smartphone, WhatsApp, Online-Banking – Schritt für Schritt, ohne Fachchinesisch, in Ihrem Tempo.",
@@ -23,16 +280,50 @@
         "Einen geduldigen Begleiter suchen, der Ihre Fragen ernst nimmt"
       ],
       "sections": [
-        { "title": "Grundlagen", "items": ["Smartphone & Tablet Bedienung", "Apps installieren und nutzen", "Fotos und Videos verwalten"] },
-        { "title": "Kommunikation", "items": ["Email-Programme einrichten", "WhatsApp sicher nutzen", "Videocalls (Zoom, Skype)"] },
-        { "title": "Dienste", "items": ["Online-Banking sicher nutzen", "Sicher online einkaufen", "Bezahldienste verstehen"] }
+        {
+          "title": "Grundlagen",
+          "items": [
+            "Smartphone & Tablet Bedienung",
+            "Apps installieren und nutzen",
+            "Fotos und Videos verwalten"
+          ]
+        },
+        {
+          "title": "Kommunikation",
+          "items": [
+            "Email-Programme einrichten",
+            "WhatsApp sicher nutzen",
+            "Videocalls (Zoom, Skype)"
+          ]
+        },
+        {
+          "title": "Dienste",
+          "items": [
+            "Online-Banking sicher nutzen",
+            "Sicher online einkaufen",
+            "Bezahldienste verstehen"
+          ]
+        }
       ],
       "pricing": [
-        { "label": "Einzelbegleitung", "price": "Auf Anfrage", "unit": "pro Stunde", "highlight": true },
-        { "label": "Kleine Gruppe", "price": "Auf Anfrage", "unit": "pro Person / Stunde", "highlight": false }
+        {
+          "label": "Einzelbegleitung",
+          "price": "Auf Anfrage",
+          "unit": "pro Stunde",
+          "highlight": true
+        },
+        {
+          "label": "Kleine Gruppe",
+          "price": "Auf Anfrage",
+          "unit": "pro Person / Stunde",
+          "highlight": false
+        }
       ],
       "faq": [
-        { "question": "Ich habe gar keine Vorkenntnisse – ist das ein Problem?", "answer": "Nein, überhaupt nicht! Wir fangen genau da an, wo Sie stehen." }
+        {
+          "question": "Ich habe gar keine Vorkenntnisse – ist das ein Problem?",
+          "answer": "Nein, überhaupt nicht! Wir fangen genau da an, wo Sie stehen."
+        }
       ],
       "seoTitle": "65+ digital – Digitale Begleitung in Lüneburg & Hamburg | mentolder.de",
       "seoDescription": "Digitale Begleitung für Menschen 65+ in Lüneburg und Hamburg."
@@ -61,41 +352,28 @@
         "Ihr Profil schärfen und Ihre USPs herausarbeiten wollen"
       ],
       "sections": [
-        { "title": "Profil-Schärfung", "items": ["Stärken-Analyse und Positionierung", "USPs herausarbeiten", "CV-Optimierung"] },
-        { "title": "Karriere-Strategie", "items": ["Zielpositionen definieren", "Branchen identifizieren"] }
+        {
+          "title": "Profil-Schärfung",
+          "items": [
+            "Stärken-Analyse und Positionierung",
+            "USPs herausarbeiten",
+            "CV-Optimierung"
+          ]
+        },
+        {
+          "title": "Karriere-Strategie",
+          "items": [
+            "Zielpositionen definieren",
+            "Branchen identifizieren"
+          ]
+        }
       ],
       "pricing": [
-        { "label": "Einzelsession (90 Min.)", "price": "nach Vereinbarung", "highlight": true }
-      ],
-      "faq": []
-    }
-  },
-  {
-    "slug": "fuehrung-persoenlichkeit",
-    "title": "Führung & Persönlichkeit",
-    "description": "Gute Führung beginnt nicht mit Methoden. Sie beginnt mit Haltung.",
-    "icon": "🦭",
-    "iconSpriteId": "prop-chat",
-    "features": [
-      "Standortbestimmung als Führungsperson",
-      "Führungsstil entwickeln & stärken",
-      "Führen in Veränderungsprozessen",
-      "Frauen in Führung gezielt begleiten"
-    ],
-    "price": "nach Vereinbarung",
-    "stripeServiceKey": "coaching-session",
-    "pageContent": {
-      "headline": "Führen aus der Mitte.",
-      "intro": "Gute Führung beginnt nicht mit Methoden. Sie beginnt mit Haltung.",
-      "forWhom": [
-        "Frauen und Männer in Führung – seit Jahren in Verantwortung",
-        "Frauen und Männer in Führung – gerade neu in der Rolle"
-      ],
-      "sections": [
-        { "title": "Rolle & Identität", "items": ["Wer bin ich als Führungsperson – und wer will ich sein?"] }
-      ],
-      "pricing": [
-        { "label": "Kostenloses Erstgespräch buchen", "price": "nach Vereinbarung", "highlight": true }
+        {
+          "label": "Einzelsession (90 Min.)",
+          "price": "nach Vereinbarung",
+          "highlight": true
+        }
       ],
       "faq": []
     }
@@ -122,10 +400,21 @@
         "Kritische Infrastrukturen"
       ],
       "sections": [
-        { "title": "Analyse", "items": ["Wo stehen Sie heute?", "Was sind die konkreten Bedarfe?"] }
+        {
+          "title": "Analyse",
+          "items": [
+            "Wo stehen Sie heute?",
+            "Was sind die konkreten Bedarfe?"
+          ]
+        }
       ],
       "pricing": [
-        { "label": "Tagessatz", "price": "nach Vereinbarung", "unit": "Projektumfang individuell", "highlight": true }
+        {
+          "label": "Tagessatz",
+          "price": "nach Vereinbarung",
+          "unit": "Projektumfang individuell",
+          "highlight": true
+        }
       ],
       "faq": []
     }

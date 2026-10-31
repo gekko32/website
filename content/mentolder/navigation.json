@@ -1,6 +1,22 @@
 [
-  { "label": "Angebote",   "href": "/#angebote", "order": 0 },
-  { "label": "Über mich",  "href": "/ueber-mich", "order": 1 },
-  { "label": "Referenzen", "href": "/referenzen", "order": 2 },
-  { "label": "Kontakt",    "href": "/kontakt", "order": 3 }
+  {
+    "label": "Wobei ich helfe",
+    "href": "/#hilfe",
+    "order": 0
+  },
+  {
+    "label": "Geschichten",
+    "href": "/geschichten",
+    "order": 1
+  },
+  {
+    "label": "Über mich",
+    "href": "/ueber-mich",
+    "order": 2
+  },
+  {
+    "label": "Kontakt",
+    "href": "/kontakt",
+    "order": 3
+  }
 ]

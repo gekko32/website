@@ -1,16 +1,12 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Hero from '../components/Hero.svelte';
-import StatsStrip from '../components/StatsStrip.astro';
-import ServiceRow from '../components/ServiceRow.svelte';
 import CallToAction from '../components/CallToAction.svelte';
 import FAQ from '../components/FAQ.svelte';
-import WhyMe from '../components/WhyMe.svelte';
 import Process from '../components/Process.astro';
 import KoreHomepage from '../components/kore/KoreHomepage.svelte';
-import TimelineIsland from '../components/islands/TimelineIsland.svelte';
-import NextSlotIsland from '../components/islands/NextSlotIsland.svelte';
 import { config } from '../config/index';
+import { hilfeKarten, werIchBin, geschichten } from '../data/mentolder-auftritt';
 import {
   getEffectiveServices,
   getEffectiveHomepage,
@@ -216,55 +212,68 @@ const processSteps = homepage.processSteps ?? [];
         avatarInitials={homepage.avatarInitials}
         personName={stammdaten.name}
         personRole={stammdaten.role}
+        primaryText="Erzählen Sie mir, worum es geht"
+        secondaryText="Wobei ich helfe"
+        secondaryHref="/#hilfe"
       />
 
-      <!-- Stats + Availability strip — slot becomes a client island -->
-      <StatsStrip stats={homepage.stats} nextDay={null} />
-      <NextSlotIsland client:idle />
-
-      <!-- Offers -->
-      <section id="angebote" class="section" aria-labelledby="offers-heading">
+      <!-- Wobei ich helfe -->
+      <section id="hilfe" class="section" aria-labelledby="hilfe-heading">
         <div class="wrap">
           <div class="section-head">
             <div>
-              <p class="eyebrow">Meine Angebote</p>
-              <h2 id="offers-heading">{homepage.servicesHeadline}</h2>
+              <p class="eyebrow">{homepage.servicesHeadline}</p>
+              <h2 id="hilfe-heading">{homepage.servicesSubheadline}</h2>
             </div>
-            <p class="section-intro">{homepage.servicesSubheadline}</p>
           </div>
+          <ul class="karten" role="list">
+            {hilfeKarten.map((k) => (
+              <li class="karte">
+                <h3>{k.titel}</h3>
+                <p class="karte-zitat">{k.zitat}</p>
+                <p class="karte-beleg">{k.beleg}</p>
+                <a href={k.href}>Mehr dazu →</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
 
-          <div class="offers reveal-stagger" role="list" aria-label="Angebote">
-            {services.map((service, i) => (
-              <div role="listitem">
-                <ServiceRow
-                  num={String(i + 1).padStart(2, '0')}
-                  title={service.title}
-                  meta={service.meta}
-                  description={service.description}
-                  features={service.features}
-                  price={service.price}
-                  href={`/${service.slug}`}
-                  icon={service.icon}
-                  iconSpriteId={service.iconSpriteId}
-                  iconSpriteBrand={BRAND_ID}
-                  client:visible
-                />
-              </div>
+      <!-- Geschichten -->
+      <section id="geschichten" class="section section-line" aria-labelledby="geschichten-heading">
+        <div class="wrap">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">{homepage.whyMeHeadline}</p>
+              <h2 id="geschichten-heading">{homepage.whyMeIntro}</h2>
+            </div>
+          </div>
+          <div class="geschichten">
+            {geschichten.map((g) => (
+              <article class="geschichte">
+                <p class="geschichte-zeit">{g.zeit}</p>
+                <h3><a href={`/geschichten/${g.slug}`}>{g.title}</a></h3>
+                <p>{g.teaser}</p>
+                <a class="weiter" href={`/geschichten/${g.slug}`}>Ganze Geschichte lesen →</a>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
-      <!-- Why Me + Quote -->
-      <WhyMe
-        client:visible
-        headline={homepage.whyMeHeadline}
-        intro={homepage.whyMeIntro}
-        points={homepage.whyMePoints}
-        quote={homepage.quote}
-        quoteName={homepage.quoteName}
-        quoteRole={stammdaten.role}
-      />
+      <!-- Wer ich bin -->
+      <section class="section section-line" aria-labelledby="wer-heading">
+        <div class="wrap wer">
+          <div>
+            <p class="eyebrow">Wer ich bin</p>
+            <h2 id="wer-heading">{stammdaten.name}</h2>
+          </div>
+          <div>
+            {werIchBin.map((absatz) => <p class="wer-text">{absatz}</p>)}
+            <a class="weiter" href="/ueber-mich">Mehr über mich →</a>
+          </div>
+        </div>
+      </section>
 
       <!-- Process -->
       <Process
@@ -273,20 +282,16 @@ const processSteps = homepage.processSteps ?? [];
         headline={homepage.processHeadline}
       />
 
-      <!-- FAQ -->
-      <FAQ items={faq.map((item) => ({
-        ...item,
-        answer: item.answer.replace('{city}', stammdaten.city),
-      }))} client:visible />
-
-      <!-- Timeline (client island) — was an SSR await; now fail-soft -->
-      <TimelineIsland client:idle wantsTimeline={wantsTimeline} brand={BRAND_ID} limit={20} />
-
       <!-- CTA -->
       <CallToAction
         client:visible
-        secondaryText={stammdaten?.email}
-        secondaryHref={`mailto:${stammdaten?.email}`}
+        eyebrow="Kontakt"
+        title="Worum geht es bei Ihnen?"
+        titleEmphasis=""
+        subtitle="Ein paar Sätze reichen. Ich melde mich, und wir vereinbaren ein Gespräch."
+        primaryText="Nachricht schreiben"
+        secondaryText={stammdaten?.phone}
+        secondaryHref={`tel:${(stammdaten?.phone ?? '').replace(/\s+/g, '')}`}
       />
 
     </Fragment>
@@ -354,6 +359,34 @@ const processSteps = homepage.processSteps ?? [];
   .offers {
     display: flex;
     flex-direction: column;
+  }
+
+
+  /* mentolder: neuer Auftritt (31.10.2026) */
+  .section-line { border-top: 1px solid var(--line); }
+  .karten { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .karte { background: var(--ink-850); border: 1px solid var(--line); border-radius: var(--radius, 14px); padding: 28px 24px; display: flex; flex-direction: column; }
+  .karte h3 { margin: 0 0 14px; font-size: 19px; color: var(--fg); }
+  .karte-zitat { font-family: var(--serif); font-style: italic; font-size: 21px; line-height: 1.35; color: var(--fg); margin: 0 0 16px; }
+  .karte-beleg { color: var(--fg-soft); font-size: 15px; line-height: 1.55; margin: 0 0 20px; flex: 1; }
+  .karte a, .weiter { color: var(--brass); text-decoration: none; font-size: 15px; }
+  .karte a:hover, .weiter:hover { text-decoration: underline; }
+  .geschichten { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+  .geschichte { border-left: 2px solid var(--brass); padding: 4px 0 4px 22px; }
+  .geschichte-zeit { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; color: var(--mute); margin: 0 0 8px; }
+  .geschichte h3 { font-family: var(--serif); font-weight: 400; font-size: 26px; line-height: 1.2; margin: 0 0 12px; }
+  .geschichte h3 a { color: var(--fg); text-decoration: none; }
+  .geschichte p { color: var(--fg-soft); font-size: 16px; line-height: 1.6; margin: 0 0 14px; }
+  .wer { display: grid; grid-template-columns: 1fr 1.6fr; gap: 48px; align-items: start; }
+  .wer-text { color: var(--fg-soft); font-size: 18px; line-height: 1.65; margin: 0 0 18px; max-width: 60ch; }
+
+  @media (max-width: 1000px) {
+    .karten { grid-template-columns: repeat(2, 1fr); }
+    .geschichten { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 720px) {
+    .karten, .wer { grid-template-columns: 1fr; }
+    .wer { gap: 16px; }
   }
 
   @media (max-width: 720px) {
