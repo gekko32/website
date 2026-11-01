@@ -7,7 +7,9 @@ describe('content-schema', () => {
     expect(domains).toContain('homepage');
     expect(domains).toContain('homepage-blocks');
     expect(domains).toContain('kore-flags');
-    expect(domains).toHaveLength(13);
+    expect(domains).toContain('auftritt');
+    expect(domains).toContain('geschichten');
+    expect(domains).toHaveLength(15);
   });
 
   it('rejects a homepage-blocks doc with the wrong schemaVersion', () => {
