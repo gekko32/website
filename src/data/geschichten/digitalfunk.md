@@ -39,8 +39,10 @@ Projekt gefährdeten. Statt Schuldzuweisungen entstand ein Miteinander: Jeder ta
 erreichen. Diese Zusammenarbeit hat mir großen Spaß gemacht.
 
 **Ergebnis.** Nach zwei Jahren standen die Funkstandorte, eine mittlere zweistellige Zahl an Basisstationen.
-Hamburg brachte als erstes Land einen voll ausgebauten Funkstandort ans Bundesnetz. Unsere Standards zur
-Dokumentation von Funkstandorten wurden zur Vorgabe für andere Bundesländer. Mit der eigenen Vermittlungsstelle
+Hamburg brachte als erstes Land einen voll ausgebauten Funkstandort ans Bundesnetz. Für die Dokumentation
+der Funkstandorte gab es zu Beginn nur die Vorgehensweisen der Privatwirtschaft und allgemeingültige Regeln.
+Daraus entwickelten wir ein erstes Projekthandbuch, das die Bundesanstalt für den Digitalfunk (BDBOS) ausbaute
+und als Vorgabe an andere Bundesländer weitergab. Mit der eigenen Vermittlungsstelle
 war das Hamburger Netz Ende 2009 weitgehend fertig, als einer der ersten Netzabschnitte in Deutschland.
 
 **Funk in Gebäuden.** Danach folgte die Versorgung von Gebäuden, zuerst der U-Bahn-Tunnel der Hamburger
