@@ -47,8 +47,8 @@ war das Hamburger Netz Ende 2009 weitgehend fertig, als einer der ersten Netzabs
 Hochbahn. Die Hochbahn plante selbst, arbeitete aber mit unserem Funkplaner, sodass wir steuern konnten. 2006
 waren die Tunnel versorgt. Für die Versorgung von Gebäuden mit Digitalfunk gab es bis dahin kein Konzept. Ich habe
 alle Schritte für Errichtung und Abnahme einer solchen Anlage dokumentieren lassen. An diesem Musterablauf wurde
-sichtbar, was technisch und genehmigungsrechtlich zu beachten ist. Daraus entstand ein Regelwerk, mit dem die
-Feuerwehr bei größeren Neubauten prüfen kann, ob der Funk im Gebäude sichergestellt ist.
+sichtbar, was technisch und genehmigungsrechtlich zu beachten ist. Dieser Ablauf wurde zur Grundlage eines späteren Regelwerks, mit dem die Feuerwehr bei größeren Neubauten
+prüfen kann, ob der Funk im Gebäude sichergestellt ist.
 
 **Was das mit Ihnen zu tun hat.** Viele Vorhaben scheitern nicht an der Technik, sondern an unklaren
 Zuständigkeiten. Dann braucht es jemanden, der die richtigen Fragen stellt, die Antworten festhält, daraus einen
