@@ -19,9 +19,12 @@ Hausmeister. Dabei zeigte sich, dass die Funkplanung nur beschreibt, welcher Sta
 daraus ein betriebsbereiter Funkstandort wird, war nicht geregelt, und die Zuständigkeiten der Gewerke waren
 unklar.
 
-Ich habe vorgeschlagen, dass der Funkplaner einen Fragenkatalog aufstellt und jedes Gewerk einzeln befragt wird,
-bis alle Punkte beantwortet und dokumentiert sind. Die Gesprächsführung habe ich übernommen und den Funkplaner
-damit entlastet.
+Gemeinsam mit dem Funkplaner habe ich noch vor Ort einen differenzierten Fragenkatalog entwickelt und ein
+Vorgehen, mit dem wir die Beteiligten unmittelbar einbeziehen konnten: Jedes Gewerk wurde zu seiner Teilaufgabe
+befragt, die Aussagen wurden direkt erfasst, und je Teilaufgabe entstanden erste Lösungsvorschläge. Das erforderte
+ein diszipliniertes Vorgehen. Daraus ergaben sich klare Verantwortlichkeiten für jedes Gewerk. Besonders habe ich
+darauf geachtet, dass die Arbeit an den Schnittstellen nicht ins Stocken geriet, sondern die Übergaben zwischen
+den Gewerken abgestimmt und klar kommuniziert wurden.
 
 **Was daraus wurde.** Aus dem Fragenkatalog entstand ein Standardformular, daraus Aufträge und ein
 Planungsdokument mit technischer Zeichnung nach dem Muster großer Mobilfunkbetreiber. Dazu kamen feste
