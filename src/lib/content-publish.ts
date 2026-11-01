@@ -74,6 +74,24 @@ export interface PublishInput {
   client?: GitHubClient;
 }
 
+/** GitHub-Contents-API: Pfadsegmente einzeln kodieren, Schrägstriche bleiben erhalten. */
+function encodePath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
+
+/**
+ * Liest den aktuellen Stand einer Inhaltsdatei aus main (Wert + Blob-SHA).
+ * Admin-Formulare starten damit vom neuesten Stand statt vom ausgelieferten Build
+ * und schicken den SHA als baseSha mit (SPEZ-NEUER-AUFTRITT K207).
+ */
+export async function readMainContent(
+  brand: string,
+  domain: Domain,
+  client: GitHubClient = realGitHubClient,
+): Promise<{ sha: string; value: unknown }> {
+  return client.getFile({ repo: DEFAULT_REPO, path: FILE_PATH(brand, domain), ref: DEFAULT_BASE });
+}
+
 export async function publishContent(input: PublishInput): Promise<PublishResult> {
   const { brand, domain, payload, baseSha, editor } = input;
   const client = input.client ?? realGitHubClient;
@@ -135,7 +153,7 @@ export async function publishContent(input: PublishInput): Promise<PublishResult
 export const realGitHubClient: GitHubClient = {
   async getFile({ repo, path, ref }) {
     const token = requireToken();
-    const r = await fetch(`https://api.github.com/repos/${repo}/contents/${encodeURIComponent(path)}${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`, {
+    const r = await fetch(`https://api.github.com/repos/${repo}/contents/${encodePath(path)}${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`, {
       headers: ghHeaders(token),
     });
     if (!r.ok) throw new Error(`github getFile ${path} ${r.status}`);
@@ -158,7 +176,7 @@ export const realGitHubClient: GitHubClient = {
   },
   async putFile({ repo, branch, path, content, sha }) {
     const token = requireToken();
-    const r = await fetch(`https://api.github.com/repos/${repo}/contents/${encodeURIComponent(path)}`, {
+    const r = await fetch(`https://api.github.com/repos/${repo}/contents/${encodePath(path)}`, {
       method: 'PUT',
       headers: ghHeaders(token),
       body: JSON.stringify({

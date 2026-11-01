@@ -19,6 +19,9 @@
   import FooterSection from './inhalte/FooterSection.svelte';
   import StammdatenSection from './inhalte/StammdatenSection.svelte';
   import KoreFlagsSection from './inhalte/KoreFlagsSection.svelte';
+  import AuftrittSection from './inhalte/AuftrittSection.svelte';
+  import GeschichtenSection from './inhalte/GeschichtenSection.svelte';
+  import type { AuftrittContent, Geschichte } from '../../content-schema';
   import type { HomepageContent, UebermichContent, FaqItem, KontaktContent, ReferenzenConfig, CustomSection as CustomSectionType, ServiceOverride, LeistungCategoryOverride, NavItem, FooterConfig, Stammdaten, KoreFlags } from '../../lib/website-db';
   type InitialData = {
     startseite: HomepageContent; uebermich: UebermichContent;
@@ -33,6 +36,10 @@
     customSections: CustomSectionType[];
     navigation: NavItem[]; footer: FooterConfig;
     stammdaten: Stammdaten; koreFlags: KoreFlags;
+    // mentolder-Auftritt (SPEZ-NEUER-AUFTRITT K199–K202): Stand aus main mit Blob-SHA für den Konfliktabgleich.
+    auftritt?: { value: AuftrittContent; baseSha: string | null } | null;
+    geschichten?: { value: Geschichte[]; baseSha: string | null } | null;
+    bereiche?: Record<string, ServicePageData>;
   };
   type RechnungsvorlagenData = { invoice_intro_text: string; invoice_kleinunternehmer_notice: string; invoice_outro_text: string; invoice_email_subject: string; invoice_email_body: string; };
   type PrimaryTab = 'website' | 'newsletter' | 'fragebogen' | 'vertraege' | 'rechnungen';
@@ -105,7 +112,17 @@
   }
   $effect(() => { if (newTitle && !newSlug) newSlug = slugify(newTitle); });
 
-  const SECTION_LABELS: Record<string, string> = {
+  // mentolder: nur Bereiche, die auf der Website etwas bewirken (K202/K203).
+  const MENTOLDER_LABELS: Record<string, string> = {
+    seo: 'SEO', startseite: 'Startseite',
+    'auftritt-karten': 'Karten & Wer ich bin', 'auftritt-beispiele': 'Beispiele', geschichten: 'Geschichten',
+    'bereich:selbststaendige-vereine': 'Selbstständige & Vereine', 'bereich:kleine-unternehmen': 'Kleine Unternehmen',
+    'bereich:verwaltung': 'Verwaltung', 'bereich:fuehrung-persoenlichkeit': 'Coaching',
+    uebermich: 'Über mich', faq: 'FAQ', kontakt: 'Kontakt', referenzen: 'Referenzen', rechtliches: 'Rechtliches',
+    stammdaten: 'Stammdaten', navigation: 'Navigation', footer: 'Footer',
+  };
+
+  const SECTION_LABELS: Record<string, string> = brand === 'mentolder' ? MENTOLDER_LABELS : {
     seo: 'SEO', startseite: 'Startseite', uebermich: 'Über mich',
     coaching: 'Coaching', 'fuehrung-persoenlichkeit': 'Führung & Pers.',
     '50plus-digital': '50+ digital', 'ki-transition': 'KI-Transition', beratung: 'Beratung',
@@ -115,6 +132,7 @@
     // Kore-Flags only apply to the korczewski brand homepage.
     ...(brand === 'korczewski' ? { 'kore-flags': 'Kore-Flags' } : {}),
   };
+
 
   const filteredSections = $derived.by(() => {
     const q = sectionSearch.trim().toLowerCase();
@@ -194,7 +212,14 @@
       <!-- Right: content -->
       <div class="flex-1 overflow-y-auto px-8 pt-6 pb-20">
         {#if activeSection === 'seo'}<SeoEditor />
-        {:else if activeSection === 'startseite'}<StartseiteSection initialData={initialData.startseite} />
+        {:else if activeSection === 'startseite'}<StartseiteSection initialData={initialData.startseite} auftritt={brand === 'mentolder'} />
+        {:else if activeSection === 'auftritt-karten' && initialData.auftritt}<AuftrittSection initialData={initialData.auftritt} teil="karten" />
+        {:else if activeSection === 'auftritt-beispiele' && initialData.auftritt}<AuftrittSection initialData={initialData.auftritt} teil="beispiele" />
+        {:else if activeSection === 'geschichten' && initialData.geschichten}<GeschichtenSection initialData={initialData.geschichten} />
+        {:else if activeSection.startsWith('bereich:') && initialData.bereiche?.[activeSection]}
+          {#key activeSection}
+            <ServicePageSection initialData={initialData.bereiche[activeSection]} slug={activeSection.slice(8)} pageLabel={SECTION_LABELS[activeSection]} />
+          {/key}
         {:else if activeSection === 'uebermich'}<UebermichSection initialData={initialData.uebermich} />
         {:else if activeSection === 'coaching'}<SchemaEditor schema={schemaFor('service:coaching')!} initialValue={initialData.coaching?.value ?? {}} initialVersion={initialData.coaching?.version ?? 0} />
         {:else if activeSection === 'fuehrung-persoenlichkeit'}<SchemaEditor schema={schemaFor('service:fuehrung-persoenlichkeit')!} initialValue={initialData.fuehrung?.value ?? {}} initialVersion={initialData.fuehrung?.version ?? 0} />

@@ -29,7 +29,7 @@
       const res=await fetch('/api/admin/referenzen/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
       const json=await res.json();
       if(res.ok){
-        msg = json.prUrl ? `PR #${json.prNumber} erstellt — live in ~10 min.` : 'Gespeichert.';
+        msg = json.prUrl ? `Gespeichert (PR #${json.prNumber}). Die Änderung ist in etwa 30 bis 40 Minuten auf der Website.` : 'Gespeichert.';
         msgOk=true;
         prUrl = json.prUrl ?? '';
         if (typeof window !== 'undefined') localStorage.removeItem(DRAFT_KEY);

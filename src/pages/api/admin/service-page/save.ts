@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
 import { bundleServices } from '../../../../lib/content-bundle';
+import { publishContent, readMainContent } from '../../../../lib/content-publish';
+import { publishResultToResponse } from '../../../../lib/content-publish-handler';
 import type { ServiceOverride } from '../../../../lib/website-db';
 import { config } from '../../../../config/index';
 
@@ -40,7 +42,9 @@ export const POST: APIRoute = async ({ request, url , locals }) => {
   }); }
 
   try {
-    const existing = (bundleServices(BRAND) ?? []) as ServiceOverride[];
+    // Vom neuesten Stand in main ausgehen; ohne GitHub-Zugang (lokal) vom ausgelieferten Bundle.
+    const fromMain = await readMainContent(BRAND, 'services').then((r) => r.value).catch(() => null);
+    const existing = (Array.isArray(fromMain) ? fromMain : (bundleServices(BRAND) ?? [])) as ServiceOverride[];
     const staticSvc = config.services.find(s => s.slug === slug);
     const idx = existing.findIndex((s) => s.slug === slug);
 
@@ -84,13 +88,11 @@ export const POST: APIRoute = async ({ request, url , locals }) => {
     if (idx >= 0) existing[idx] = override;
     else existing.push(override);
 
-    // T001490: write goes through the bot-PR publish pipeline (Task 6+7)
-    // which mutates components/website/content/<brand>/services.json. The save
-    // endpoint stays on the same shape so the editor UX is unchanged
-    // once Task 7 wires `publishContent` here.
-    return new Response(JSON.stringify({ ok: true, queued: true }), {
-      status: 202, headers: { 'Content-Type': 'application/json' },
-    });
+    // SPEZ-NEUER-AUFTRITT K202: bisher wurde hier nichts gespeichert (Antwort 202 ohne Veröffentlichung).
+    // Jetzt geht die geänderte services.json über die Publish-Pipeline (Zod 422, PR, Auto-Merge).
+    const editor = session.email ?? session.name ?? 'unknown';
+    const result = await publishContent({ brand: BRAND, domain: 'services', payload: existing, baseSha: null, editor });
+    return publishResultToResponse(result);
   } catch (err) {
     locals.requestLogger.error({ err }, '[service-page/save] DB error:');
     return new Response(JSON.stringify({ error: 'DB error' }), {

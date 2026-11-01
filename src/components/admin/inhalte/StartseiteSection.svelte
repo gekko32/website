@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { HomepageContent } from '../../../lib/website-db';
 
-  let { initialData }: { initialData: HomepageContent } = $props();
+  // auftritt: mentolder-Startseite (SPEZ-NEUER-AUFTRITT K203) – Statistiken, „Warum ich?“-Punkte und Zitat
+  // haben dort keine Wirkung und sind ausgeblendet; die übrigen Felder tragen ihre neue Bedeutung im Namen.
+  let { initialData, auftritt = false }: { initialData: HomepageContent; auftritt?: boolean } = $props();
   let data = $state(JSON.parse(JSON.stringify(initialData)));
   let saving = $state(false);
   let msg = $state(''); let msgOk = $state(true);
@@ -38,7 +40,7 @@
       const res=await fetch('/api/admin/startseite/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
       const json=await res.json();
       if(res.ok){
-        msg = json.prUrl ? `PR #${json.prNumber} erstellt — live in ~10 min.` : 'Gespeichert.';
+        msg = json.prUrl ? `Gespeichert (PR #${json.prNumber}). Die Änderung ist in etwa 30 bis 40 Minuten auf der Website.` : 'Gespeichert.';
         msgOk=true;
         prUrl = json.prUrl ?? '';
         if (typeof window !== 'undefined') localStorage.removeItem(DRAFT_KEY);
@@ -83,6 +85,7 @@
     <div><label class={labelCls}>Untertitel</label><textarea bind:value={data.hero.subtitle} rows={3} class="{inputCls} resize-none"></textarea></div>
   </div>
 
+  {#if !auftritt}
   <div class={sectionCls}>
     <div class="flex justify-between items-center">
       <h3 class="text-xl font-bold text-light font-serif">Statistiken</h3>
@@ -96,21 +99,27 @@
       </div>
     {/each}
   </div>
+  {/if}
 
   <div class={sectionCls}>
-    <h3 class="text-xl font-bold text-light font-serif">Leistungsangebot (Website) auf der Startseite</h3>
+    <h3 class="text-xl font-bold text-light font-serif">{auftritt ? 'Abschnitt „Für wen“' : 'Leistungsangebot (Website) auf der Startseite'}</h3>
     <div><label class={labelCls}>Überschrift</label><input type="text" bind:value={data.servicesHeadline} class={inputCls} /></div>
     <div><label class={labelCls}>Unterüberschrift</label><textarea bind:value={data.servicesSubheadline} rows={2} class="{inputCls} resize-none"></textarea></div>
+    {#if auftritt}
+    <p class="text-xs text-muted">Die Karten selbst → <a href="/admin/inhalte?tab=website&section=auftritt-karten" class="text-gold hover:underline">Karten &amp; Wer ich bin</a></p>
+    {:else}
     <p class="text-xs text-muted">Karten-Reihenfolge &amp; Inhalte → <a href="/admin/inhalte?tab=website&section=angebote" class="text-gold hover:underline">Leistungsangebot (Website)</a></p>
+    {/if}
   </div>
 
   <div class={sectionCls}>
     <div class="flex justify-between items-center">
-      <h3 class="text-xl font-bold text-light font-serif">„Warum ich?“-Abschnitt</h3>
-      <button type="button" onclick={addWhyMePoint} class="px-3 py-1.5 bg-gold text-dark rounded-lg text-xs font-semibold hover:bg-gold/80">+ Passage</button>
+      <h3 class="text-xl font-bold text-light font-serif">{auftritt ? 'Abschnitt Geschichten' : '„Warum ich?“-Abschnitt'}</h3>
+      {#if !auftritt}<button type="button" onclick={addWhyMePoint} class="px-3 py-1.5 bg-gold text-dark rounded-lg text-xs font-semibold hover:bg-gold/80">+ Passage</button>{/if}
     </div>
-    <div><label class={labelCls}>Überschrift</label><input type="text" bind:value={data.whyMeHeadline} class={inputCls} /></div>
-    <div><label class={labelCls}>Einleitungstext</label><textarea bind:value={data.whyMeIntro} rows={3} class="{inputCls} resize-none"></textarea></div>
+    <div><label class={labelCls}>{auftritt ? 'Kicker (z. B. „Wie das aussieht“)' : 'Überschrift'}</label><input type="text" bind:value={data.whyMeHeadline} class={inputCls} /></div>
+    <div><label class={labelCls}>{auftritt ? 'Überschrift' : 'Einleitungstext'}</label><textarea bind:value={data.whyMeIntro} rows={3} class="{inputCls} resize-none"></textarea></div>
+    {#if !auftritt}
     {#each data.whyMePoints as pt, i}
       <div class="p-4 bg-dark rounded-lg border border-dark-lighter space-y-2">
         <div class="flex items-center justify-between">
@@ -125,17 +134,20 @@
         <div><label class={labelCls}>Text</label><textarea bind:value={pt.text} rows={2} class="{inputCls} resize-none"></textarea></div>
       </div>
     {/each}
+    {/if}
   </div>
 
+  {#if !auftritt}
   <div class={sectionCls}>
     <h3 class="text-xl font-bold text-light font-serif">Zitat</h3>
     <div><label class={labelCls}>Zitat-Text</label><textarea bind:value={data.quote} rows={2} class="{inputCls} resize-none"></textarea></div>
     <div><label class={labelCls}>Name unter dem Zitat</label><input type="text" bind:value={data.quoteName} class={inputCls} /></div>
   </div>
+  {/if}
 
   <div class={sectionCls}>
     <div class="flex justify-between items-center">
-      <div><h3 class="text-xl font-bold text-light font-serif">Prozess-Schritte</h3></div>
+      <div><h3 class="text-xl font-bold text-light font-serif">{auftritt ? 'Vorgehen (Schritte unter dem Kopf)' : 'Prozess-Schritte'}</h3></div>
       <button type="button" onclick={addProcessStep} class="px-3 py-1.5 bg-gold text-dark rounded-lg text-xs font-semibold hover:bg-gold/80">+ Schritt</button>
     </div>
     <div class="grid grid-cols-2 gap-4">

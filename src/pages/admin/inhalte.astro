@@ -9,6 +9,9 @@ import { getDefaultDatenschutz, getDefaultAgb, getDefaultBarrierefreiheit, getDe
 import { config } from '../../config/index';
 import type { HomepageService, ServicePageContent, LeistungCategory, LeistungService } from '../../config/types';
 import { RECHNUNGSTEXT_STANDARD } from '../../lib/billing-rechnungstexte';
+import { readMainContent } from '../../lib/content-publish';
+import { bundleAuftritt, bundleGeschichten } from '../../lib/content-bundle';
+import type { Domain } from '../../content-schema';
 
 type EditorService = HomepageService & { hidden?: boolean; meta?: string; leistungCategoryId?: string };
 
@@ -82,6 +85,24 @@ const rechtlichesHasCustom = {
   'barrierefreiheit': dbBarrierefreiheit !== null,
 };
 
+// mentolder-Auftritt (SPEZ-NEUER-AUFTRITT K199–K207): Formulare starten vom neuesten Stand in main und schicken
+// dessen Blob-SHA beim Speichern mit. Ohne GitHub-Zugang (lokal) gilt das ausgelieferte Bundle, ohne Abgleich.
+async function vomHauptstand<T>(domain: Domain, fallback: T): Promise<{ value: T; baseSha: string | null }> {
+  try {
+    const r = await readMainContent(BRAND, domain);
+    return { value: r.value as T, baseSha: r.sha };
+  } catch {
+    return { value: fallback, baseSha: null };
+  }
+}
+const isMentolder = BRAND === 'mentolder';
+const auftrittData = isMentolder ? await vomHauptstand('auftritt', bundleAuftritt(BRAND)) : null;
+const geschichtenData = isMentolder ? await vomHauptstand('geschichten', bundleGeschichten(BRAND)) : null;
+const BEREICH_SLUGS = ['selbststaendige-vereine', 'kleine-unternehmen', 'verwaltung', 'fuehrung-persoenlichkeit'];
+const bereiche = isMentolder
+  ? Object.fromEntries(BEREICH_SLUGS.map((slug) => [`bereich:${slug}`, serviceToEditorData(allServices.find((s) => s.slug === slug))]))
+  : {};
+
 const svc50plus     = allServices.find(s => s.slug === '50plus-digital');
 const svcKiTransition = allServices.find(s => s.slug === 'ki-transition');
 const svcBeratung   = allServices.find(s => s.slug === 'beratung');
@@ -105,6 +126,7 @@ const initialData = JSON.parse(JSON.stringify({
   rechtlichesHasCustom,
   customSections,
   navigation, footer, stammdaten, koreFlags,
+  auftritt: auftrittData, geschichten: geschichtenData, bereiche,
 }));
 ---
 

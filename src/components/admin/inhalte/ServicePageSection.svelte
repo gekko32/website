@@ -64,7 +64,8 @@
         body: JSON.stringify(data),
       });
       const json = await res.json();
-      if (res.ok) { msg = 'Gespeichert.'; msgOk = true; }
+      if (res.ok) { msg = 'Gespeichert. Die Änderung ist in etwa 30 bis 40 Minuten auf der Website.'; msgOk = true; }
+      else if (res.status === 422) { msg = `Nicht gespeichert: ${(json.errors ?? []).join('; ')}`; msgOk = false; }
       else { msg = json.error ?? 'Fehler beim Speichern.'; msgOk = false; }
     } catch { msg = 'Verbindungsfehler.'; msgOk = false; }
     finally { saving = false; }
