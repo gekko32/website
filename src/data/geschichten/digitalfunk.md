@@ -33,9 +33,10 @@ private Gebäude mit unserem Juristen Mietverträge vorbereitet, Baugenehmigunge
 und Vodafone die gemeinsame Nutzung von Masten abgestimmt. Jeder Standort war ein eigenes kleines Bauprojekt. Die
 Notstromversorgung an den Standorten habe ich von Anfang an mit vorgesehen.
 
-Mit der Zeit wurde aus den Beteiligten ein eingespieltes Team. Die Zusammenarbeit beruhte auf Vertrauen: Probleme
-wurden offen angesprochen, Hinweise kamen rechtzeitig, und wir konnten reagieren, bevor aus Schwierigkeiten
-Verzögerungen wurden.
+Mit der Zeit wurde aus den Beteiligten ein eingespieltes Team. Spannungen habe ich früh wahrgenommen und offen
+angesprochen. Das führte zu ehrlichen Rückmeldungen, und wir konnten Problemen entgegenwirken, bevor sie das
+Projekt gefährdeten. Statt Schuldzuweisungen entstand ein Miteinander: Jeder tat, was nötig war, um die Ziele zu
+erreichen. Diese Zusammenarbeit hat mir großen Spaß gemacht.
 
 **Ergebnis.** Nach zwei Jahren standen die Funkstandorte, eine mittlere zweistellige Zahl an Basisstationen.
 Hamburg brachte als erstes Land einen voll ausgebauten Funkstandort ans Bundesnetz. Unsere Standards zur
