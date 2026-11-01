@@ -49,6 +49,11 @@
     brand?: string; staticServiceSlugs?: string[];
   } = $props();
 
+  // Gemeinsamer Stand für „Karten“ und „Beispiele“ (beide speichern auftritt.json) und für Geschichten,
+  // damit ein Bereichswechsel nicht vom alten Ladezustand aus überschreibt (K207).
+  let auftrittStand = $state(initialData.auftritt ?? null);
+  let geschichtenStand = $state(initialData.geschichten ?? null);
+
   function readParam<T extends string>(key: string, fallback: T): T {
     if (typeof window === 'undefined') return fallback;
     return (new URLSearchParams(window.location.search).get(key) as T) ?? fallback;
@@ -213,9 +218,9 @@
       <div class="flex-1 overflow-y-auto px-8 pt-6 pb-20">
         {#if activeSection === 'seo'}<SeoEditor />
         {:else if activeSection === 'startseite'}<StartseiteSection initialData={initialData.startseite} auftritt={brand === 'mentolder'} />
-        {:else if activeSection === 'auftritt-karten' && initialData.auftritt}<AuftrittSection initialData={initialData.auftritt} teil="karten" />
-        {:else if activeSection === 'auftritt-beispiele' && initialData.auftritt}<AuftrittSection initialData={initialData.auftritt} teil="beispiele" />
-        {:else if activeSection === 'geschichten' && initialData.geschichten}<GeschichtenSection initialData={initialData.geschichten} />
+        {:else if activeSection === 'auftritt-karten' && auftrittStand}<AuftrittSection initialData={auftrittStand} teil="karten" onGespeichert={(s) => (auftrittStand = s)} />
+        {:else if activeSection === 'auftritt-beispiele' && auftrittStand}<AuftrittSection initialData={auftrittStand} teil="beispiele" onGespeichert={(s) => (auftrittStand = s)} />
+        {:else if activeSection === 'geschichten' && geschichtenStand}<GeschichtenSection initialData={geschichtenStand} onGespeichert={(s) => (geschichtenStand = s)} />
         {:else if activeSection.startsWith('bereich:') && initialData.bereiche?.[activeSection]}
           {#key activeSection}
             <ServicePageSection initialData={initialData.bereiche[activeSection]} slug={activeSection.slice(8)} pageLabel={SECTION_LABELS[activeSection]} />

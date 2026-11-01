@@ -3,7 +3,10 @@
   import type { Geschichte } from '../../../content-schema';
   import { speichern } from './auftritt-speichern';
 
-  let { initialData }: { initialData: { value: Geschichte[]; baseSha: string | null } } = $props();
+  let { initialData, onGespeichert }: {
+    initialData: { value: Geschichte[]; baseSha: string | null };
+    onGespeichert?: (stand: { value: Geschichte[]; baseSha: string | null }) => void;
+  } = $props();
 
   let liste = $state<Geschichte[]>(
     JSON.parse(JSON.stringify(initialData.value)).sort((a: Geschichte, b: Geschichte) => a.order - b.order),
@@ -45,7 +48,12 @@
     const r = await speichern('/api/admin/geschichten/save', payload, baseSha, NAMEN);
     ok = r.ok; meldung = r.meldung;
     fehler = r.fehler;
-    if (r.ok) { baseSha = null; liste = payload; payload.forEach((g) => vorhandeneAdressen.add(g.slug)); }
+    if (r.ok) {
+      baseSha = r.blobSha ?? null;
+      liste = payload;
+      payload.forEach((g) => vorhandeneAdressen.add(g.slug));
+      onGespeichert?.({ value: JSON.parse(JSON.stringify(payload)), baseSha });
+    }
     saving = false;
   }
 
@@ -87,11 +95,11 @@
         </div>
         {#if offen === i}
           <div class="grid grid-cols-2 gap-3">
-            <div><label class={labelCls}>Titel</label><input class={inputCls} bind:value={g.title} /></div>
-            <div><label class={labelCls}>Zeitraum</label><input class={inputCls} bind:value={g.zeit} placeholder="Digitalfunk, 2001–2007" /></div>
+            <label class="block"><span class={labelCls}>Titel</span><input class={inputCls} bind:value={g.title} /></label>
+            <label class="block"><span class={labelCls}>Zeitraum</span><input class={inputCls} bind:value={g.zeit} placeholder="Digitalfunk, 2001–2007" /></label>
           </div>
-          <div><label class={labelCls}>Kurztext (Startseite, zwei Sätze)</label><textarea class={inputCls} rows="2" bind:value={g.teaser}></textarea></div>
-          <div><label class={labelCls}>Volltext</label><textarea class={`${inputCls} font-mono`} rows="18" bind:value={g.text}></textarea></div>
+          <label class="block"><span class={labelCls}>Kurztext (Startseite, zwei Sätze)</span><textarea class={inputCls} rows="2" bind:value={g.teaser}></textarea></label>
+          <label class="block"><span class={labelCls}>Volltext</span><textarea class={`${inputCls} font-mono`} rows="18" bind:value={g.text}></textarea></label>
           <div class="flex justify-end">
             <button type="button" class="px-2 py-1 text-xs rounded-md border border-red-500/40 text-red-400 hover:bg-red-500/10"
               onclick={() => { liste = liste.filter((_, j) => j !== i); offen = null; }}>Geschichte entfernen</button>

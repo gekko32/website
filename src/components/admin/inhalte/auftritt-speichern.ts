@@ -5,6 +5,8 @@ export interface SpeicherErgebnis {
   meldung: string;
   fehler: string[];
   prUrl?: string;
+  /** Neuer Stand in main (Blob-SHA) für die nächste Speicherung. */
+  blobSha?: string | null;
 }
 
 export const LIVE_HINWEIS =
@@ -38,8 +40,8 @@ export async function speichern(
   } catch {
     return { ok: false, meldung: 'Keine Verbindung zum Server. Nichts gespeichert.', fehler: [] };
   }
-  const json = await res.json().catch(() => ({})) as { errors?: string[]; prUrl?: string; error?: string };
-  if (res.ok) return { ok: true, meldung: LIVE_HINWEIS, fehler: [], prUrl: json.prUrl };
+  const json = await res.json().catch(() => ({})) as { errors?: string[]; prUrl?: string; error?: string; blobSha?: string | null };
+  if (res.ok) return { ok: true, meldung: LIVE_HINWEIS, fehler: [], prUrl: json.prUrl, blobSha: json.blobSha ?? null };
   if (res.status === 422) {
     return {
       ok: false,

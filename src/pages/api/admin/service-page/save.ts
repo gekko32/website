@@ -60,7 +60,9 @@ export const POST: APIRoute = async ({ request, url , locals }) => {
     const prev = (idx >= 0 ? existing[idx] : null) as (ServiceOverride & { hidden?: boolean }) | null;
     const isCatalogLinked = !!(prev?.leistungCategoryId);
 
+    // Vorhandene Felder (z. B. iconSpriteId, stripeServiceKey) behalten, nur die Formularfelder überschreiben.
     const override: ServiceOverride & { hidden?: boolean } = {
+      ...(prev ?? {}),
       slug,
       title: body.cardTitle ?? staticSvc?.title ?? slug,
       description: body.cardDescription ?? staticSvc?.description ?? '',

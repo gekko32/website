@@ -35,7 +35,7 @@ const FILE_PATH = (brand: string, domain: Domain) => `${CONTENT_PATH_PREFIX}/${b
 
 /** Per-request result of `publishContent`. */
 export type PublishResult =
-  | { ok: true; sha: string; prNumber: number; prUrl: string }
+  | { ok: true; sha: string; prNumber: number; prUrl: string; blobSha?: string }
   | { ok: false; status: 409; currentSha: string; currentValue: unknown }
   | { ok: false; status: 422; errors: string[] };
 
@@ -43,7 +43,7 @@ export type PublishResult =
 export interface GitHubClient {
   getFile(opts: { repo: string; path: string; ref?: string }): Promise<{ sha: string; value: unknown }>;
   createBranch(opts: { repo: string; name: string; fromRef: string }): Promise<void>;
-  putFile(opts: { repo: string; branch: string; path: string; content: string; sha: string }): Promise<{ sha: string }>;
+  putFile(opts: { repo: string; branch: string; path: string; content: string; sha: string }): Promise<{ sha: string; blobSha?: string }>;
   openPr(opts: {
     repo: string;
     branch: string;
@@ -142,7 +142,9 @@ export async function publishContent(input: PublishInput): Promise<PublishResult
     autoMerge: true,
   });
 
-  return { ok: true, sha: put.sha, prNumber: pr.prNumber, prUrl: pr.prUrl };
+  // blobSha: SHA der neuen Datei. Nach dem Zusammenführen ist das der neue Stand in main; Formulare nutzen ihn als
+  // nächsten baseSha (SPEZ-NEUER-AUFTRITT K207).
+  return { ok: true, sha: put.sha, prNumber: pr.prNumber, prUrl: pr.prUrl, blobSha: put.blobSha };
 }
 
 /**
@@ -187,8 +189,8 @@ export const realGitHubClient: GitHubClient = {
       }),
     });
     if (!r.ok) throw new Error(`github putFile ${path} ${r.status}`);
-    const body = await r.json() as { commit: { sha: string } };
-    return { sha: body.commit.sha };
+    const body = await r.json() as { commit: { sha: string }; content?: { sha?: string } };
+    return { sha: body.commit.sha, blobSha: body.content?.sha };
   },
   async openPr({ repo, branch, base, title, body, labels, squash, autoMerge }) {
     const token = requireToken();

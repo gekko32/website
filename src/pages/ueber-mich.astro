@@ -139,7 +139,7 @@ const seoOgImage = isMassage ? null : getSeoOgImage(BRAND_ID, 'ueber-mich');
   </section>
 
   {stammdaten && (
-    <CallToAction client:visible secondaryText={stammdaten.email || config.contact.email} secondaryHref={`mailto:${stammdaten.email || config.contact.email}`} />
+    <CallToAction client:visible title={BRAND_ID === 'mentolder' ? 'In 45 Minuten wissen wir,' : undefined} secondaryText={stammdaten.email || config.contact.email} secondaryHref={`mailto:${stammdaten.email || config.contact.email}`} />
   )}
   </Fragment>
   )}

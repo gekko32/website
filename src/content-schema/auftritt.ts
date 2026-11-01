@@ -7,7 +7,9 @@ export interface FuerWenKarte { titel: string; zitat: string; beleg: string; hre
 export interface Beispiel {
   bereich: string; titel: string; vorher: string; loesung: string; stand: string; sichtbar: boolean;
 }
+export interface AuftrittUeberschriften { beispieleKicker: string; beispieleTitel: string; werIchBinKicker: string }
 export interface AuftrittContent {
+  ueberschriften?: AuftrittUeberschriften;
   fuerWen: FuerWenKarte[];
   beispiele: Beispiel[];
   werIchBin: string[];
@@ -16,6 +18,11 @@ export interface AuftrittContent {
 const pflicht = (feld: string) => z.string().trim().min(1, `${feld} fehlt`);
 
 export const AuftrittSchema = z.object({
+  ueberschriften: z.object({
+    beispieleKicker: pflicht('Kicker Beispiele'),
+    beispieleTitel: pflicht('Überschrift Beispiele'),
+    werIchBinKicker: pflicht('Kicker „Wer ich bin“'),
+  }).optional(),
   fuerWen: z.array(z.object({
     titel: pflicht('Titel'),
     zitat: pflicht('Satz'),

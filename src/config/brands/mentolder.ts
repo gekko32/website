@@ -4,7 +4,7 @@ export const mentolderConfig: BrandConfig = {
   brand: 'mentolder',
   meta: {
     siteTitle: 'mentolder',
-    siteDescription: 'Coaching & digitale Begleitung in Lüneburg und Hamburg – persönlich, erfahren, auf Augenhöhe. Für Führungspersönlichkeiten und Menschen in Veränderung.',
+    siteDescription: 'Digitale Prozessberatung und KI-gestützte Lösungen für Selbstständige, kleine Unternehmen und Verwaltung: von der Analyse bis zur wartungsarmen Lösung. Lüneburg, Hamburg und online.',
   },
   contact: {
     name: process.env.CONTACT_NAME ?? '',

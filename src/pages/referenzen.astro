@@ -12,7 +12,7 @@ const heading = config.heading?.trim() || 'Referenzen';
 const subheading = config.subheading?.trim() || 'Unternehmen und Personen, die mir ihr Vertrauen geschenkt haben.';
 const seoOgImage = getSeoOgImage(BRAND_ID, 'referenzen');
 const seoDesc = await getSiteSetting(BRAND_ID, 'seo_meta_desc_referenzen').catch(() => null)
-  ?? 'Referenzen & Kooperationen – Brückenschlag, Digital Café Hamburg, Polizei Hamburg. Gerald Korczewski, Coach und Mentor in Lüneburg.';
+  ?? 'Referenzen & Kooperationen – Brückenschlag, Digital Café Hamburg, Polizei Hamburg. Gerald Korczewski, digitaler Prozessberater in Lüneburg und Hamburg.';
 
 // Group items by type, in the order defined by config.types.
 // Items with no type (or with a type that no longer exists) are appended in a final "Weitere" group.

@@ -254,7 +254,7 @@
           </header>
 
           {#if activeMode === 'termin'}
-            <BookingForm initialType="erstgespraech" serviceKey={initialServiceKey}
+            <BookingForm initialType="erstgespraech" serviceKey={initialServiceKey} {erstgespraechMin}
               {initialDate} {initialStart} {initialEnd} />
           {:else if activeMode === 'message'}
             <ContactForm {locale} {anliegen} />

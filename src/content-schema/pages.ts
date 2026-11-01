@@ -79,6 +79,8 @@ export interface HomepageService {
   features: string[];
   price: string;
   stripeServiceKey?: string;
+  /** Ausgeblendet: nicht in Fußzeile, Sitemap und Blättern (Seite selbst kann per Weiterleitung weiterleben). */
+  hidden?: boolean;
   pageContent: ServicePageContent;
 }
 export const ServiceSchema = z.object({
@@ -90,6 +92,7 @@ export const ServiceSchema = z.object({
   features: z.array(z.string()),
   price: z.string(),
   stripeServiceKey: z.string().optional(),
+  hidden: z.boolean().optional(),
   pageContent: z.object({
     headline: z.string(),
     intro: z.string(),

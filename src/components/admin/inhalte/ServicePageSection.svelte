@@ -55,6 +55,17 @@
   let msg = $state('');
   let msgOk = $state(true);
 
+  // Zod-Pfade wie „4.pageContent.headline: …“ in Feldnamen des Formulars übersetzen.
+  const FELDER: Record<string, string> = {
+    title: 'Kartentitel', description: 'Kartentext', headline: 'Überschrift', intro: 'Einleitung',
+    forWhom: 'Für wen', sections: 'Schwerpunkte', pricing: 'Investition', faq: 'Fragen',
+  };
+  function feldname(zeile: string): string {
+    const [pfad, ...rest] = zeile.split(': ');
+    const teil = pfad.replace(/^\d+\./, '').replace(/^pageContent\./, '').split('.')[0];
+    return `${FELDER[teil] ?? teil}: ${rest.join(': ')}`;
+  }
+
   async function save() {
     saving = true; msg = '';
     try {
@@ -65,7 +76,7 @@
       });
       const json = await res.json();
       if (res.ok) { msg = 'Gespeichert. Die Änderung ist in etwa 30 bis 40 Minuten auf der Website.'; msgOk = true; }
-      else if (res.status === 422) { msg = `Nicht gespeichert: ${(json.errors ?? []).join('; ')}`; msgOk = false; }
+      else if (res.status === 422) { msg = `Nicht gespeichert. Bitte prüfen: ${(json.errors ?? []).map(feldname).join('; ')}`; msgOk = false; }
       else { msg = json.error ?? 'Fehler beim Speichern.'; msgOk = false; }
     } catch { msg = 'Verbindungsfehler.'; msgOk = false; }
     finally { saving = false; }

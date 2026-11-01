@@ -14,7 +14,7 @@ function escapeHtml(s: string): string {
 function inline(absatz: string): string {
   let html = escapeHtml(absatz.replace(/\s*\n\s*/g, ' ').trim());
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\[([^\]]+)\]\(((?:\/|https:\/\/)[^)\s]*)\)/g, (_m, text: string, ziel: string) => {
+  html = html.replace(/\[([^\]]+)\]\(((?:\/(?![\/\\])|https:\/\/)[^)\s]*)\)/g, (_m, text: string, ziel: string) => {
     const extern = ziel.startsWith('https://');
     return `<a href="${ziel}"${extern ? ' rel="noopener" target="_blank"' : ''}>${text}</a>`;
   });

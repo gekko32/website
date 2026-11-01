@@ -5,7 +5,7 @@ import { checkRateLimit, getClientIp } from '../../lib/rate-limit';
 import { isE2ETestRequest } from '../../lib/e2e-marker';
 const BRAND_NAME = process.env.BRAND_NAME || 'Workspace';
 
-const TYPE_LABELS: Record<string, string> = {
+export const TYPE_LABELS: Record<string, string> = {
   allgemein: 'Allgemeine Anfrage',
   erstgespraech: 'Kostenloses Erstgespräch',
   '50plus-digital': '50+ digital',

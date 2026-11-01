@@ -51,7 +51,7 @@ const mail = stammdaten?.email ?? '';
   <CallToAction
     client:visible
     eyebrow={isMassage ? 'Massagepraxis Vögelsen' : undefined}
-    title={isMassage ? 'Noch Fragen offen?' : undefined}
+    title={isMassage ? 'Noch Fragen offen?' : BRAND_ID === 'mentolder' ? 'In 45 Minuten wissen wir,' : undefined}
     subtitle={isMassage ? 'Schreiben Sie mir — ich antworte persönlich.' : undefined}
     primaryText={isMassage ? 'Termin anfragen' : undefined}
     primaryHref="/kontakt"

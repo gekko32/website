@@ -71,7 +71,7 @@ const wantsTimeline = effectiveKoreFlags.timeline;
 const processSteps = homepage.processSteps ?? [];
 
 // mentolder-Auftritt (SPEZ-NEUER-AUFTRITT): Inhalte aus content/<brand>/auftritt.json und geschichten.json.
-const { fuerWen: hilfeKarten, beispiele, werIchBin } = getAuftritt(BRAND_ID);
+const { fuerWen: hilfeKarten, beispiele, werIchBin, ueberschriften } = getAuftritt(BRAND_ID);
 const geschichten = getGeschichten(BRAND_ID);
 ---
 
@@ -234,8 +234,8 @@ const geschichten = getGeschichten(BRAND_ID);
         <div class="wrap">
           <div class="section-head">
             <div>
-              <p class="eyebrow">Was ich heute umsetze</p>
-              <h2 id="beispiele-heading">Beispiele aus der Praxis</h2>
+              <p class="eyebrow">{ueberschriften?.beispieleKicker ?? 'Was ich heute umsetze'}</p>
+              <h2 id="beispiele-heading">{ueberschriften?.beispieleTitel ?? 'Beispiele aus der Praxis'}</h2>
             </div>
           </div>
           <ul class="karten" role="list">
@@ -300,7 +300,7 @@ const geschichten = getGeschichten(BRAND_ID);
       <section class="section section-line" aria-labelledby="wer-heading">
         <div class="wrap wer">
           <div>
-            <p class="eyebrow">Wer ich bin</p>
+            <p class="eyebrow">{ueberschriften?.werIchBinKicker ?? 'Wer ich bin'}</p>
             <h2 id="wer-heading">{stammdaten.name}</h2>
           </div>
           <div>
@@ -322,7 +322,7 @@ const geschichten = getGeschichten(BRAND_ID);
         secondaryHref={`tel:${(stammdaten?.phone ?? '').replace(/\s+/g, '')}`}
       />
       <p class="naechster-termin">
-        <NextSlotIsland client:idle label="Nächster freier Termin für ein Erstgespräch:" buchenHref="/kontakt?mode=termin" />
+        <NextSlotIsland client:idle label="Nächster freier Termin für ein Erstgespräch:" buchenHref="/kontakt?mode=termin" durationMin={45} />
       </p>
 
     </Fragment>

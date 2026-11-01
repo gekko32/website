@@ -7,12 +7,14 @@
 
   type DaySlot = {
     date: string;
-    slots: Array<{ start: string; end: string; available: boolean }>;
+    // /api/calendar/slots liefert nur freie Slots (ohne Feld available); ein mitgeliefertes available=false gilt als belegt.
+    slots: Array<{ start: string; end: string; available?: boolean }>;
   };
 
   // label/buchenHref: optional für den Kontaktabschnitt der mentolder-Startseite (SPEZ K181).
   export let label = 'Nächster Termin:';
   export let buchenHref = '';
+  export let durationMin: number | null = null;
 
   let next: DaySlot | null = null;
   let loaded = false;
@@ -21,10 +23,10 @@
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 4_000);
     try {
-      const res = await fetch('/api/calendar/slots', { signal: ctl.signal });
+      const res = await fetch(durationMin ? `/api/calendar/slots?durationMin=${durationMin}` : '/api/calendar/slots', { signal: ctl.signal });
       if (res.ok) {
         const body = await res.json() as DaySlot[];
-        next = body.find((d) => d.slots?.some((s) => s.available)) ?? null;
+        next = body.find((d) => d.slots?.some((s) => s.available !== false)) ?? null;
       }
     } catch {
       next = null;
@@ -49,7 +51,7 @@
 </script>
 
 {#if next}
-  {@const first = next.slots.find((s) => s.available)}
+  {@const first = next.slots.find((s) => s.available !== false)}
   <span class="next-slot-island">
     {label} <strong>{formatDate(next.date)}</strong>
     {#if first}um <strong>{formatTime(first.start)}</strong>{/if}

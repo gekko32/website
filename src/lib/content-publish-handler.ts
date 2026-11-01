@@ -71,6 +71,7 @@ export function publishResultToResponse(result: PublishResult): Response {
     return jsonResponse(200, {
       ok: true,
       sha: result.sha,
+      blobSha: result.blobSha ?? null,
       prNumber: result.prNumber,
       prUrl: result.prUrl,
     });

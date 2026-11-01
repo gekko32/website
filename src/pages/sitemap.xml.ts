@@ -1,8 +1,13 @@
 import type { APIRoute } from 'astro';
 import { getEffectiveReferenzen, getEffectiveServices } from '../lib/content';
 import { siteOrigin } from '../lib/site-origin';
+import { getGeschichten } from '../lib/auftritt';
 
-const STATIC_PATHS = ['/', '/kontakt', '/ueber-mich', '/leistungen'];
+const BRAND_ID = process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder';
+// mentolder: /leistungen leitet seit dem neuen Auftritt weiter, dafür kommen die Geschichten dazu (K187).
+const STATIC_PATHS = BRAND_ID === 'mentolder'
+  ? ['/', '/kontakt', '/ueber-mich']
+  : ['/', '/kontakt', '/ueber-mich', '/leistungen'];
 
 export const GET: APIRoute = async () => {
   const services = await getEffectiveServices().catch(() => []);
@@ -13,7 +18,10 @@ export const GET: APIRoute = async () => {
     .filter((s) => !s.hidden)
     .map((s) => `/${s.slug}`);
 
-  const allPaths = [...STATIC_PATHS, ...(hasReferenzen ? ['/referenzen'] : []), ...servicePaths];
+  const geschichten = getGeschichten(BRAND_ID);
+  const geschichtenPaths = geschichten.length > 0 ? ['/geschichten', ...geschichten.map((g) => `/geschichten/${g.slug}`)] : [];
+
+  const allPaths = [...STATIC_PATHS, ...(hasReferenzen ? ['/referenzen'] : []), ...servicePaths, ...geschichtenPaths];
   const baseUrl = siteOrigin() || 'https://web.localhost';
 
   const urls = allPaths.map((path) => {

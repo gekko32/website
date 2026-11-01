@@ -77,3 +77,46 @@ describe('lesbarerFehler', () => {
     expect(lesbarerFehler('0.title: Titel fehlt', { '#': 'Geschichte' })).toBe('Geschichte 1: Titel fehlt');
   });
 });
+
+describe('Markengebundene Regeln (K187, K189, K193, K197)', async () => {
+  const { weiterleitungFuer, kontaktAnliegen, erstgespraechMinuten } = await import('./auftritt-wege');
+
+  it('leitet die alten mentolder-Adressen weiter', () => {
+    expect(weiterleitungFuer('mentolder', '/leistungen')).toBe('/#hilfe');
+    expect(weiterleitungFuer('mentolder', '/coaching')).toBe('/fuehrung-persoenlichkeit');
+    expect(weiterleitungFuer('mentolder', '/beratung')).toBe('/kleine-unternehmen');
+    expect(weiterleitungFuer('mentolder', '/50plus-digital')).toBe('/');
+    expect(weiterleitungFuer('mentolder', '/verwaltung')).toBeNull();
+  });
+
+  it('lässt andere Marken unverändert', () => {
+    for (const marke of ['korczewski', 'massage']) {
+      expect(weiterleitungFuer(marke, '/leistungen')).toBeNull();
+      expect(weiterleitungFuer(marke, '/coaching')).toBeNull();
+      expect(kontaktAnliegen(marke)).toBeUndefined();
+      expect(erstgespraechMinuten(marke)).toBe(30);
+    }
+  });
+
+  it('bietet die neuen Anliegen an, ohne 50+ und Beratung', () => {
+    const werte = kontaktAnliegen('mentolder')!.map((a) => a.value);
+    expect(werte).toEqual(['allgemein', 'erstgespraech', 'selbststaendige-vereine', 'kleine-unternehmen', 'verwaltung', 'coaching', 'feedback']);
+    expect(erstgespraechMinuten('mentolder')).toBe(45);
+  });
+
+  it('jedes Anliegen hat eine Bezeichnung in der Kontakt-API', async () => {
+    const { readFileSync } = await import('node:fs');
+    const api = readFileSync(new URL('../pages/api/contact.ts', import.meta.url), 'utf8');
+    for (const a of kontaktAnliegen('mentolder')!) {
+      const eintrag = /^[a-z]+$/.test(a.value) ? `  ${a.value}:` : `  '${a.value}':`;
+      expect(api).toContain(eintrag);
+    }
+  });
+
+  it('alte Bereiche sind in services.json ausgeblendet, die vier neuen sichtbar', async () => {
+    const { bundleServices } = await import('./content-bundle');
+    const sv = bundleServices('mentolder');
+    const sichtbar = sv.filter((s) => !s.hidden).map((s) => s.slug).sort();
+    expect(sichtbar).toEqual(['fuehrung-persoenlichkeit', 'kleine-unternehmen', 'selbststaendige-vereine', 'verwaltung']);
+  });
+});

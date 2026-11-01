@@ -327,7 +327,8 @@
       ],
       "seoTitle": "65+ digital – Digitale Begleitung in Lüneburg & Hamburg | mentolder.de",
       "seoDescription": "Digitale Begleitung für Menschen 65+ in Lüneburg und Hamburg."
-    }
+    },
+    "hidden": true
   },
   {
     "slug": "coaching",
@@ -376,7 +377,8 @@
         }
       ],
       "faq": []
-    }
+    },
+    "hidden": true
   },
   {
     "slug": "beratung",
@@ -417,6 +419,7 @@
         }
       ],
       "faq": []
-    }
+    },
+    "hidden": true
   }
 ]

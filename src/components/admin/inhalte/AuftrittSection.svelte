@@ -4,12 +4,17 @@
   import type { AuftrittContent } from '../../../content-schema';
   import { speichern } from './auftritt-speichern';
 
-  let { initialData, teil }: {
+  let { initialData, teil, onGespeichert }: {
     initialData: { value: AuftrittContent; baseSha: string | null };
     teil: 'karten' | 'beispiele';
+    /** Meldet den gespeicherten Stand an den Editor, damit der andere Teil davon weiterarbeitet. */
+    onGespeichert?: (stand: { value: AuftrittContent; baseSha: string | null }) => void;
   } = $props();
 
   let daten = $state<AuftrittContent>(JSON.parse(JSON.stringify(initialData.value)));
+  if (!daten.ueberschriften) {
+    daten.ueberschriften = { beispieleKicker: 'Was ich heute umsetze', beispieleTitel: 'Beispiele aus der Praxis', werIchBinKicker: 'Wer ich bin' };
+  }
   let baseSha = $state<string | null>(initialData.baseSha);
   let saving = $state(false);
   let meldung = $state(''); let ok = $state(true); let fehler = $state<string[]>([]);
@@ -28,9 +33,11 @@
     saving = true; meldung = ''; fehler = [];
     const r = await speichern('/api/admin/auftritt/save', daten, baseSha, NAMEN);
     ok = r.ok; meldung = r.meldung; fehler = r.fehler;
-    // Nach einem erfolgreichen Speichern ohne Abgleich weiter, bis die Seite neu geladen ist (der neue Stand
-    // ist erst nach dem Zusammenführen in main sichtbar).
-    if (r.ok) baseSha = null;
+    // Nach dem Speichern gilt der neue Stand als Grundlage (Blob-SHA der neuen Datei).
+    if (r.ok) {
+      baseSha = r.blobSha ?? null;
+      onGespeichert?.({ value: JSON.parse(JSON.stringify(daten)), baseSha });
+    }
     saving = false;
   }
 
@@ -61,6 +68,20 @@
     </div>
   {/if}
 
+  {#if daten.ueberschriften}
+    <div class={sectionCls}>
+      <h3 class="text-xl font-bold text-light font-serif">Überschriften</h3>
+      {#if teil === 'karten'}
+        <label class="block"><span class={labelCls}>Kicker über „Wer ich bin“</span><input class={inputCls} bind:value={daten.ueberschriften.werIchBinKicker} /></label>
+      {:else}
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block"><span class={labelCls}>Kicker</span><input class={inputCls} bind:value={daten.ueberschriften.beispieleKicker} /></label>
+          <label class="block"><span class={labelCls}>Überschrift</span><input class={inputCls} bind:value={daten.ueberschriften.beispieleTitel} /></label>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
   {#if teil === 'karten'}
     <div class={sectionCls}>
       <h3 class="text-xl font-bold text-light font-serif">Karten „Für wen“</h3>
@@ -72,11 +93,11 @@
             <span class="text-xs text-muted">Karte {i + 1}</span>
           </div>
           <div class="grid grid-cols-2 gap-3">
-            <div><label class={labelCls}>Titel</label><input class={inputCls} bind:value={k.titel} /></div>
-            <div><label class={labelCls}>Ziel (Seite)</label><input class={inputCls} bind:value={k.href} placeholder="/kleine-unternehmen" /></div>
+            <label class="block"><span class={labelCls}>Titel</span><input class={inputCls} bind:value={k.titel} /></label>
+            <label class="block"><span class={labelCls}>Ziel (Seite)</span><input class={inputCls} bind:value={k.href} placeholder="/kleine-unternehmen" /></label>
           </div>
-          <div><label class={labelCls}>Satz in der Sprache des Besuchers</label><input class={inputCls} bind:value={k.zitat} /></div>
-          <div><label class={labelCls}>Beleg</label><textarea class={inputCls} rows="2" bind:value={k.beleg}></textarea></div>
+          <label class="block"><span class={labelCls}>Satz in der Sprache des Besuchers</span><input class={inputCls} bind:value={k.zitat} /></label>
+          <label class="block"><span class={labelCls}>Beleg</span><textarea class={inputCls} rows="2" bind:value={k.beleg}></textarea></label>
         </div>
       {/each}
     </div>
@@ -110,12 +131,12 @@
             <button type="button" class="ml-auto px-2 py-1 text-xs rounded-md border border-red-500/40 text-red-400 hover:bg-red-500/10" onclick={() => (daten.beispiele = daten.beispiele.filter((_, j) => j !== i))}>Entfernen</button>
           </div>
           <div class="grid grid-cols-3 gap-3">
-            <div><label class={labelCls}>Bereich</label><input class={inputCls} bind:value={b.bereich} placeholder="Verein" /></div>
-            <div class="col-span-2"><label class={labelCls}>Titel</label><input class={inputCls} bind:value={b.titel} /></div>
+            <label class="block"><span class={labelCls}>Bereich</span><input class={inputCls} bind:value={b.bereich} placeholder="Verein" /></label>
+            <label class="block col-span-2"><span class={labelCls}>Titel</span><input class={inputCls} bind:value={b.titel} /></label>
           </div>
-          <div><label class={labelCls}>Vorher</label><textarea class={inputCls} rows="2" bind:value={b.vorher}></textarea></div>
-          <div><label class={labelCls}>Lösung</label><textarea class={inputCls} rows="2" bind:value={b.loesung}></textarea></div>
-          <div><label class={labelCls}>Stand</label><input class={inputCls} bind:value={b.stand} placeholder="Im Einsatz" /></div>
+          <label class="block"><span class={labelCls}>Vorher</span><textarea class={inputCls} rows="2" bind:value={b.vorher}></textarea></label>
+          <label class="block"><span class={labelCls}>Lösung</span><textarea class={inputCls} rows="2" bind:value={b.loesung}></textarea></label>
+          <label class="block"><span class={labelCls}>Stand</span><input class={inputCls} bind:value={b.stand} placeholder="Im Einsatz" /></label>
         </div>
       {/each}
     </div>

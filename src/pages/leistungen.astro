@@ -5,12 +5,14 @@ import { config } from '../config/index';
 import { getEffectiveLeistungen, getPriceListUrl, getEffectiveStammdaten, getEffectiveKontakt, bundleSeo } from '../lib/content';
 import { massageRowPriceLabel } from '../lib/massage-pricing';
 import { websiteLeistungen } from '../lib/billing-leistungen';
+import { weiterleitungFuer } from '../lib/auftritt-wege';
 
 const BRAND_ID = process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder';
 const isMassage = BRAND_ID === 'massage';
 // K187: mentolder zeigt keine Leistungsübersicht mehr, sondern die Bereiche auf der Startseite.
-if (BRAND_ID === 'mentolder') {
-  return Astro.redirect('/#hilfe', 301);
+const altesZiel = weiterleitungFuer(BRAND_ID, '/leistungen');
+if (altesZiel) {
+  return Astro.redirect(altesZiel, 301);
 }
 const layoutBrand = BRAND_ID === 'korczewski' ? 'korczewski-kore' : undefined;
 

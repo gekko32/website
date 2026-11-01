@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import CallToAction from '../components/CallToAction.svelte';
 import FAQ from '../components/FAQ.svelte';
 import { getEffectiveServices } from '../lib/content';
-import { getAuftritt } from '../lib/auftritt';
+import { weiterleitungFuer } from '../lib/auftritt-wege';
 import { config } from '../config/index';
 import { getSiteSetting, getSeoTitle, getSeoOgImage } from '../lib/website-db';
 import { t, getLocaleFromUrl, type Locale } from '../i18n/index';
@@ -17,16 +17,12 @@ const { contact } = config;
 const allServices = await getEffectiveServices();
 // mentolder: Blättern nur zwischen den vier Bereichen der Startseite; alte Seiten bleiben per Adresse erreichbar.
 const isMentolder = BRAND_ID === 'mentolder';
-const bereichsSlugs = new Set(getAuftritt(BRAND_ID).fuerWen.map((k) => k.href.replace(/^\//, '')));
-const visibleServices = allServices.filter((s) => !s.hidden && (!isMentolder || bereichsSlugs.has(s.slug)));
+// mentolder: die alten Bereiche sind in services.json ausgeblendet; Blättern nur zwischen den sichtbaren.
+const visibleServices = allServices.filter((s) => !s.hidden);
 // K187: alte Bereichsseiten leiten dauerhaft weiter (nur mentolder).
-const ALTE_SEITEN: Record<string, string> = {
-  coaching: '/fuehrung-persoenlichkeit',
-  beratung: '/kleine-unternehmen',
-  '50plus-digital': '/',
-};
-if (isMentolder && service && ALTE_SEITEN[service]) {
-  return Astro.redirect(ALTE_SEITEN[service], 301);
+const altesZiel = service ? weiterleitungFuer(BRAND_ID, `/${service}`) : null;
+if (altesZiel) {
+  return Astro.redirect(altesZiel, 301);
 }
 const svcIndex = visibleServices.findIndex((s) => s.slug === service);
 const svc = svcIndex !== -1 ? visibleServices[svcIndex] : null;

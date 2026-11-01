@@ -19,8 +19,10 @@
     initialEnd?: string;
     initialType?: 'erstgespraech' | 'callback' | 'meeting' | 'termin';
     serviceKey?: string;
+    /** Dauer des kostenlosen Erstgesprächs in Minuten (mentolder 45, sonst 30). */
+    erstgespraechMin?: number;
   }
-  let { initialDate = '', initialStart = '', initialEnd = '', initialType, serviceKey }: Props = $props();
+  let { initialDate = '', initialStart = '', initialEnd = '', initialType, serviceKey, erstgespraechMin = 30 }: Props = $props();
 
   let name = $state('');
   let email = $state('');
@@ -68,7 +70,7 @@
 
   // Duration mapping per booking type (minutes)
   const TYPE_DURATIONS: Record<string, number> = {
-    erstgespraech: 30,
+    erstgespraech: erstgespraechMin,
     meeting: 60,
     termin: 60,
   };
@@ -81,7 +83,7 @@
   let currentDaySlots = $derived(days.find((d) => d.date === selectedDate));
 
   const bookingTypes: { value: NonNullable<Props['initialType']>; label: string }[] = [
-    { value: 'erstgespraech', label: 'Kostenloses Erstgespräch (30 Min.)' },
+    { value: 'erstgespraech', label: `Kostenloses Erstgespräch (${erstgespraechMin} Min.)` },
     { value: 'callback', label: 'Rückruf' },
     { value: 'meeting', label: 'Online-Meeting' },
     { value: 'termin', label: 'Termin vor Ort' },
