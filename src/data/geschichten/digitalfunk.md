@@ -9,7 +9,7 @@ order: 1
 Feuerwehr und weitere Sicherheitsbehörden (BOS-Digitalfunk). Die Mittel waren bewilligt, Vorgaben gab es jedoch
 kaum: Der Bund hatte Systemhersteller und Funkstandard festgelegt, die Umsetzung vor Ort war offen. Ich übernahm
 zunächst eine unterstützende Aufgabe in einem Teilprojekt unter der Leitung eines Oberrats der Feuerwehr.
-Gemeinsam haben wir die Funkplanung ausgeschrieben, für mich die erste Ausschreibung. Damit schien die Aufgabe
+Zusammen mit ihm habe ich die Funkplanung ausgeschrieben, für mich die erste Ausschreibung. Damit schien die Aufgabe
 gelöst: Der Funkplaner würde die Standorte planen.
 
 **Der erste Standort.** Beim ersten Standort, einem Polizeigebäude, kamen alle Beteiligten zusammen:

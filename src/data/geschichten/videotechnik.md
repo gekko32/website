@@ -41,8 +41,8 @@ Abläufe der Archivierung entsprachen nicht mehr dem Stand der Technik.
 **Der Weg zur Ablage.** Daraus ergab sich mein Ziel: eine geschützte Speicherlösung, in der Videos aus dem
 täglichen Betrieb verschlüsselt und auffindbar abgelegt werden. Jedes gesicherte Video sollte eindeutig
 verifizierbar sein, und jeder Zugriff sollte dokumentiert werden: wer wann wo was mit dem Video gemacht hat. Alles
-sollte an das Ticketsystem gebunden sein, das wir ab 2012
-aufgebaut hatten und das für solche Aufgaben ausgelegt war.
+sollte an das Ticketsystem gebunden sein, das wir ab 2012 aufgebaut hatten und das für solche Aufgaben
+ausgelegt war (mehr dazu in der Geschichte [Erst die Ordnung, dann die Technik](/geschichten/servicecenter)).
 
 **G20.** Nach dem Gipfel 2017 lagen rund 20 Terabyte Videomaterial aus den unterschiedlichsten Systemen und
 Formaten vor. Mit der vorbereiteten Gesichtserkennung und dem vorhandenen Ticketsystem konnten wir das Material

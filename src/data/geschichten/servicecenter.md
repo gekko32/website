@@ -43,7 +43,7 @@ seine Masterarbeit über Gesichtserkennung als Hilfe bei Platzverweisen. Im Rahm
 der Erstellung seines Konzepts unterstützt. Aus seinem einsatztaktischen Vorgehen habe ich eine Prozessanalyse und
 einen Entwurf der Systemkonfiguration erstellt: vom Erfassen am Einsatzort über Übertragung, Geräte und
 Berechtigungen bis zu den Datenbanken. Am Ende steht ein Mensch: Jeder Treffer wird von geschulten
-Sachbearbeitern geprüft, bevor entschieden wird. Die Darstellung machte sichtbar, welcher Aufwand nötig ist,
+Sachbearbeitern geprüft, bevor entschieden wird. Diese Ausarbeitung machte sichtbar, welcher Aufwand nötig ist,
 damit ein solches Einsatzmittel wirksam ist, und verhalf der Arbeit insgesamt zu einer sehr guten Beurteilung
 (14 Punkte).
 
