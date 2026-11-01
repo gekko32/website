@@ -1,7 +1,7 @@
 ---
 title: "Erst die Ordnung, dann die Technik"
 zeit: "Servicecenter und G20, 2012–2018"
-teaser: "Ein Ticketsystem ohne Verbindung zu den Daten, ein Großeinsatz mit KI und die Idee einer Masterarbeit, die erst durch eine Zeichnung durchschaubar wurde."
+teaser: "Ein Ticketsystem ohne Verbindung zu den Daten, ein Großeinsatz mit KI und eine Masterarbeit, für die ich die Prozessanalyse und den Systementwurf erstellt habe."
 order: 3
 ---
 
@@ -38,13 +38,14 @@ Die wichtigste Erkenntnis daraus gilt bis heute: Die KI liefert einen Treffer. E
 danach folgen. Damals waren das Excel-Listen und eine behelfsmäßige Verwaltung im Ticketsystem. Eine durchgängige
 Ablage dafür hätte ich gern gehabt.
 
-**2018: eine Idee wird durchschaubar.** Ein Polizist, der an der Deutschen Hochschule der Polizei in Münster
-studierte, schrieb seine Masterarbeit über Gesichtserkennung als Hilfe bei Platzverweisen und wurde an mich
-verwiesen. Ich habe mir sein einsatztaktisches Vorgehen schildern lassen und alles in einer Darstellung
-zusammengeführt: vom Erfassen am Einsatzort über Übertragung, Geräte und Berechtigungen bis zu den Datenbanken.
-Am Ende steht ein Mensch: Jeder Treffer wird von geschulten Sachbearbeitern geprüft, bevor entschieden wird. Die
-Darstellung machte sichtbar, welcher Aufwand nötig ist, damit ein solches Einsatzmittel wirksam ist. Die
-Masterarbeit wurde mit 14 Punkten bewertet.
+**2018: eine Masterarbeit.** Ein Student der Deutschen Hochschule der Polizei in Münster-Hiltrup schrieb
+seine Masterarbeit über Gesichtserkennung als Hilfe bei Platzverweisen. Im Rahmen dieser Arbeit habe ich ihn bei
+der Erstellung seines Konzepts unterstützt. Aus seinem einsatztaktischen Vorgehen habe ich eine Prozessanalyse und
+einen Entwurf der Systemkonfiguration erstellt: vom Erfassen am Einsatzort über Übertragung, Geräte und
+Berechtigungen bis zu den Datenbanken. Am Ende steht ein Mensch: Jeder Treffer wird von geschulten
+Sachbearbeitern geprüft, bevor entschieden wird. Die Darstellung machte sichtbar, welcher Aufwand nötig ist,
+damit ein solches Einsatzmittel wirksam ist, und verhalf der Arbeit insgesamt zu einer sehr guten Beurteilung
+(14 Punkte).
 
 **Was das mit Ihnen zu tun hat.** Ob Behörde, Betrieb oder Verein: Oft wird Software beschafft, bevor klar ist,
 wie die Arbeit zusammenhängt. Dann werden Daten doppelt geführt, und Zuständigkeiten bleiben unklar. Bei KI gilt

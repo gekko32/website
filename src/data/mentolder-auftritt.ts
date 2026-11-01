@@ -50,7 +50,7 @@ export const beispiele: Beispiel[] = [
     titel: 'Touren, Einsätze und Anfragen in einem System',
     vorher: 'Termine, Einsatzplanung und Anfragen liefen über E-Mail, Telefon und Listen.',
     loesung: 'Ein Kalender aller Touren, die Einsatzplanung der Guides und Anfragen für Leihfahrräder an einer Stelle.',
-    stand: 'Prototyp in Erprobung',
+    stand: 'In Entwicklung',
   },
   {
     bereich: 'Eigene Plattform',
@@ -61,10 +61,10 @@ export const beispiele: Beispiel[] = [
   },
   {
     bereich: 'Verein',
-    titel: 'Mitglieder an einer Stelle statt in Listen',
+    titel: 'Von der Liste zur Vereinsverwaltung',
     vorher: 'Mitglieder, Beiträge und Termine wurden in verschiedenen Listen gepflegt.',
-    loesung: 'Bestandsaufnahme der Vereinsabläufe und Einführung einer Vereinsverwaltung.',
-    stand: 'Begleitet',
+    loesung: 'Anforderungsanalyse, Aufbereitung und Übernahme der Daten, Einführung einer Vereinssoftware und ein Ausblick, was sich darüber hinaus noch nutzen lässt.',
+    stand: 'Beratung und Einführung',
   },
   {
     bereich: 'Coaching',
