@@ -39,7 +39,7 @@ Projekt gefährdeten. Statt Schuldzuweisungen entstand ein Miteinander: Jeder ta
 erreichen. Diese Zusammenarbeit hat mir großen Spaß gemacht.
 
 **Ergebnis.** Nach zwei Jahren standen die Funkstandorte, eine mittlere zweistellige Zahl an Basisstationen.
-Hamburg brachte als erstes Land einen voll ausgebauten Funkstandort ans Bundesnetz. Für die Dokumentation
+Hamburg brachte als eines der ersten Länder einen voll ausgebauten Funkstandort ans Bundesnetz. Für die Dokumentation
 der Funkstandorte gab es zu Beginn nur die Vorgehensweisen der Privatwirtschaft und allgemeingültige Regeln.
 Daraus entwickelten wir ein erstes Projekthandbuch, das die Bundesanstalt für den Digitalfunk (BDBOS) ausbaute
 und als Vorgabe an andere Bundesländer weitergab. Mit der eigenen Vermittlungsstelle
