@@ -1,13 +1,12 @@
-import { pool, getSiteSetting, initBillingTables } from './website-db';
+import { pool, initBillingTables } from './website-db';
 import { getInvoice, getCustomerById, type Invoice, type Customer } from './native-billing';
 import { alsKunde, leseEmpfaenger } from './billing-empfaenger';
-import { hatEchteEmail } from './billing-versand';
 import { generateDunningPdf, type InvoicePdfCustomer, type InvoicePdfSeller } from './invoice-pdf';
 import { archiveBillingPdf } from './billing-archive';
 import { ladeAbsender } from './billing-absender';
-import { sendEmail } from './email';
 import { logBillingEvent } from './billing-audit';
 import { mahnungsDateiname } from './beleg-dateiname';
+import { ladeMahnEinstellungen, gebuehrFuer } from './mahn-einstellungen';
 
 export interface PendingDunning {
   id: string;
@@ -26,17 +25,7 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function fmt(n: number): string {
-  return n.toFixed(2).replace('.', ',') + ' €';
-}
-
-async function numberSetting(brand: string, key: string, fallback: number): Promise<number> {
-  const raw = await getSiteSetting(brand, key);
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-async function buildDunningPdf(params: {
+export async function buildDunningPdf(params: {
   brand: string;
   invoice: Invoice;
   customer: Customer;
@@ -46,6 +35,8 @@ async function buildDunningPdf(params: {
   interestAmount: number;
   /** Beleg-Design (K109): Kundennummer aus der Klientenakte. */
   kundennummer?: string | null;
+  /** K165: Stufentext (Platzhalter ersetzt), feste Frist und Datum des Schreibens. */
+  haupttext?: string; frist?: string; datum?: Date;
 }): Promise<Buffer> {
   // Prüfung Runde 1 (K36, K36a): Absender aus derselben Quelle wie alle Rechnungen.
   const absender = await ladeAbsender(params.brand);
@@ -70,7 +61,7 @@ async function buildDunningPdf(params: {
       invoiceId: params.invoice.id,
       brand: params.brand,
       level: params.level,
-      generatedAt: new Date().toISOString(),
+      generatedAt: (params.datum ?? new Date()).toISOString(),
       feeAmount: params.feeAmount,
       interestAmount: params.interestAmount,
       outstandingAtGeneration: params.outstanding,
@@ -78,13 +69,17 @@ async function buildDunningPdf(params: {
     invoice: params.invoice,
     customer,
     seller,
+    haupttext: params.haupttext,
+    frist: params.frist,
   });
 }
 
 export async function runDunningDetection(brand: string): Promise<{ generated: number; skipped: number }> {
   await initBillingTables();
-  const intervalDays = await numberSetting(brand, 'invoice_dunning_interval_days', 14);
-  const interestPa = await numberSetting(brand, 'invoice_dunning_interest_pa', 5);
+  // K165 (01.11.2026): Gebühren, Zinsen und Abstand aus Einstellungen → Regeln (Abschnitt Mahnwesen).
+  const mahn = await ladeMahnEinstellungen(brand);
+  const intervalDays = mahn.abstandTage;
+  const interestPa = mahn.zinsenProzent;
   const rows = await pool.query<{
     id: string;
     number: string;
@@ -98,6 +93,9 @@ export async function runDunningDetection(brand: string): Promise<{ generated: n
     empfaenger: unknown;
     kundennummer: string | null;
     issue_date: string;
+    vorige_sent_at: Date | null;
+    vorige_frist: string | null;
+    pause_bis: string | null;
   }>(
     // T000375 (View-Migration): paid_amount/dunning_level/last_dunning_at sind
     // keine Spalten von billing_invoices mehr, sondern werden von
@@ -106,7 +104,12 @@ export async function runDunningDetection(brand: string): Promise<{ generated: n
     `SELECT id, number, status, dunning_level, due_date, last_dunning_at, gross_amount, paid_amount, customer_id,
             issue_date::text AS issue_date,
             (SELECT b.empfaenger FROM billing_invoices b WHERE b.id = v.id) AS empfaenger,
-            (SELECT c.customer_number FROM billing_invoices b JOIN customers c ON c.id = b.klient_id WHERE b.id = v.id) AS kundennummer
+            (SELECT c.customer_number FROM billing_invoices b JOIN customers c ON c.id = b.klient_id WHERE b.id = v.id) AS kundennummer,
+            -- Prüfung G1 (01.11.2026): Versand und Frist der letzten Stufe.
+            (SELECT d.sent_at FROM billing_invoice_dunnings d WHERE d.invoice_id = v.id ORDER BY d.level DESC LIMIT 1) AS vorige_sent_at,
+            (SELECT d.frist::text FROM billing_invoice_dunnings d WHERE d.invoice_id = v.id ORDER BY d.level DESC LIMIT 1) AS vorige_frist,
+            -- N32 (01.11.2026): nach „Mahnung verwerfen“ bis zu diesem Tag nicht mahnen.
+            (SELECT p.bis::text FROM billing_mahnpausen p WHERE p.invoice_id = v.id) AS pause_bis
        FROM v_billing_invoices_with_state v
       WHERE brand=$1
         AND status IN ('open','partially_paid','overdue','dunning_1','dunning_2')
@@ -124,9 +127,17 @@ export async function runDunningDetection(brand: string): Promise<{ generated: n
     if (daysOverdue <= 0) { skipped++; continue; }
 
     const nextLevel = Math.min(3, Number(row.dunning_level ?? 0) + 1);
-    const eligibleByInterval = !row.last_dunning_at
-      || (Date.now() - new Date(row.last_dunning_at).getTime()) / 86_400_000 >= intervalDays;
-    if (!eligibleByInterval || nextLevel < 1 || nextLevel > 3) { skipped++; continue; }
+    // Prüfung G1 (01.11.2026): Die nächste Stufe erst, wenn die vorige VERSCHICKT ist, ihre Frist abgelaufen ist
+    // und der Abstand seit dem Versand erreicht ist – sonst hieße es „trotz meiner Zahlungserinnerung“, obwohl
+    // keine rausging. Ohne vorige Stufe zählt nur die Fälligkeit.
+    const hatVorige = Number(row.dunning_level ?? 0) > 0;
+    const vorigeVerschickt = !hatVorige || !!row.vorige_sent_at;
+    const heuteBerlin = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+    if (row.pause_bis && row.pause_bis >= heuteBerlin) { skipped++; continue; }
+    const fristVorbei = !row.vorige_frist || heuteBerlin > row.vorige_frist;
+    const abstandErreicht = !hatVorige || !row.vorige_sent_at
+      || (Date.now() - new Date(row.vorige_sent_at).getTime()) / 86_400_000 >= intervalDays;
+    if (!vorigeVerschickt || !fristVorbei || !abstandErreicht || Number(row.dunning_level ?? 0) >= 3) { skipped++; continue; }
 
     const invoice = await getInvoice(row.id);
     if (!invoice) { skipped++; continue; }
@@ -136,7 +147,7 @@ export async function runDunningDetection(brand: string): Promise<{ generated: n
     const kopie = leseEmpfaenger(row.empfaenger);
     const customer = kopie ? alsKunde(rechnungskunde, kopie) : rechnungskunde;
 
-    const feeAmount = await numberSetting(brand, `invoice_dunning_fee_${nextLevel}`, nextLevel === 1 ? 0 : nextLevel === 2 ? 5 : 10);
+    const feeAmount = gebuehrFuer(mahn, nextLevel);
     const interestAmount = round2(outstanding * daysOverdue * interestPa / 100 / 365);
     const pdf = await buildDunningPdf({
       brand,
@@ -205,7 +216,7 @@ export async function listPendingDunnings(brand: string): Promise<PendingDunning
        FROM billing_invoice_dunnings d
        JOIN billing_invoices i ON i.id = d.invoice_id
        JOIN billing_customers c ON c.id = i.customer_id
-      WHERE d.brand=$1 AND d.sent_at IS NULL AND i.status <> 'cancelled'
+      WHERE d.brand=$1 AND d.sent_at IS NULL AND i.status NOT IN ('cancelled','paid')
       ORDER BY d.generated_at ASC`,
     [brand]
   );
@@ -223,86 +234,5 @@ export async function listPendingDunnings(brand: string): Promise<PendingDunning
   }));
 }
 
-/**
- * Mahnung versenden. Stufe 4 T14 (K60): Hat der Empfänger keine E-Mail-Adresse, wird nichts
- * gemailt, sondern „per Post“ vermerkt; das PDF liegt in der Ablage (pdf_path).
- * Ergebnis: false (nicht gefunden/schon verschickt/Mail gescheitert), 'email' oder 'post'.
- */
-export async function sendDunning(id: string, actorEmail: string): Promise<false | { weg: 'email' | 'post'; pdfPath: string | null }> {
-  const r = await pool.query(
-    `SELECT d.id, d.level, d.invoice_id, d.fee_amount, d.interest_amount, d.outstanding_at_generation,
-            i.number, i.payment_reference, d.pdf_path,
-            COALESCE(i.empfaenger->>'email', c.email) AS email, COALESCE(i.empfaenger->>'name', c.name) AS name
-       FROM billing_invoice_dunnings d
-       JOIN billing_invoices i ON i.id = d.invoice_id
-       JOIN billing_customers c ON c.id = i.customer_id
-      WHERE d.id=$1 AND d.sent_at IS NULL`,
-    [id]
-  );
-  const row = r.rows[0];
-  if (!row) return false;
-  const total = Number(row.outstanding_at_generation) + Number(row.fee_amount) + Number(row.interest_amount);
-  if (!hatEchteEmail(row.email)) {
-    await pool.query(`UPDATE billing_invoice_dunnings SET sent_at=now(), sent_by=$2 WHERE id=$1`, [id, `${actorEmail} (Post)`]);
-    await logBillingEvent({
-      invoiceId: row.invoice_id as string, action: 'dunning_sent', reason: `Mahnung ${row.level} per Post`,
-      metadata: { dunningId: id, sentBy: actorEmail, weg: 'post' },
-    });
-    return { weg: 'post', pdfPath: (row.pdf_path as string | null) ?? null };
-  }
-  const ok = await sendEmail({
-    to: row.email,
-    subject: `Mahnung ${row.level} zu Rechnung ${row.number}`,
-    text:
-      `Hallo ${row.name},\n\n` +
-      `zur Rechnung ${row.number} ist weiterhin ein Betrag offen.\n` +
-      `Offener Betrag: ${fmt(Number(row.outstanding_at_generation))}\n` +
-      `Mahngebühr: ${fmt(Number(row.fee_amount))}\n` +
-      `Verzugszins: ${fmt(Number(row.interest_amount))}\n` +
-      `Gesamt: ${fmt(total)}\n\n` +
-      `Verwendungszweck: ${row.payment_reference ?? row.number}\n`,
-  });
-  if (!ok) return false;
-  await pool.query(`UPDATE billing_invoice_dunnings SET sent_at=now(), sent_by=$2 WHERE id=$1`, [id, actorEmail]);
-  await logBillingEvent({
-    invoiceId: row.invoice_id as string,
-    action: 'dunning_sent',
-    reason: `Mahnung ${row.level}`,
-    metadata: { dunningId: id, sentBy: actorEmail },
-  });
-  return { weg: 'email', pdfPath: (row.pdf_path as string | null) ?? null };
-}
-
-
-/**
- * Prüfung Stufe 4 (B3, K60): PDF einer Mahnung zum Drucken (z. B. Versand per Post). Erzeugt aus
- * den gespeicherten Werten der Mahnung und dem festgeschriebenen Empfänger der Rechnung.
- */
-export async function mahnungsPdf(brand: string, dunningId: string): Promise<{ pdf: Buffer; dateiname: string } | null> {
-  await initBillingTables();
-  const r = await pool.query(
-    `SELECT d.level, d.fee_amount, d.interest_amount, d.outstanding_at_generation, d.invoice_id, i.customer_id, i.number, i.empfaenger,
-            d.generated_at, i.issue_date::text AS issue_date,
-            (SELECT c.customer_number FROM customers c WHERE c.id = i.klient_id) AS kundennummer
-       FROM billing_invoice_dunnings d JOIN billing_invoices i ON i.id = d.invoice_id
-      WHERE d.id = $1 AND d.brand = $2`, [dunningId, brand]);
-  const row = r.rows[0];
-  if (!row) return null;
-  const invoice = await getInvoice(row.invoice_id as string);
-  const rechnungskunde = await getCustomerById(brand, row.customer_id as string);
-  if (!invoice || !rechnungskunde) return null;
-  const kopie = leseEmpfaenger(row.empfaenger);
-  const customer = kopie ? alsKunde(rechnungskunde, kopie) : rechnungskunde;
-  const pdf = await buildDunningPdf({
-    brand, invoice, customer, kundennummer: row.kundennummer,
-    level: Number(row.level), outstanding: Number(row.outstanding_at_generation),
-    feeAmount: Number(row.fee_amount), interestAmount: Number(row.interest_amount),
-  });
-  return {
-    pdf,
-    dateiname: mahnungsDateiname({
-      stufe: Number(row.level), datum: row.generated_at ?? new Date(), rechnungsnummer: row.number as string,
-      rechnungsdatum: row.issue_date ?? invoice.issueDate, kundennummer: row.kundennummer, empfaenger: customer,
-    }),
-  };
-}
+// K164/K165 (Handtest 01.11.2026): Versand nur noch über die Prüfseite – siehe mahnung-versand.ts
+// (sendeMahnungPerMail, vermerkeMahnungPerPost, mahnschreibenPdf). Die alte Mail mit reiner Text-Tabelle entfällt.

@@ -69,6 +69,8 @@ export function buildNavSections({ inboxPending, brettUrl }: NavOptions): NavSec
         },
         // Rechnungswesen Stufe 3 (T3): Leistungen und Preise selbst pflegen.
         { href: '/admin/offene-posten', label: 'Offene Posten', icon: 'clock' },
+        // K163 (Handtest 01.11.2026): Mahnungen prüfen und versenden.
+        { href: '/admin/mahnungen', label: 'Mahnungen', icon: 'receipt' },
         // Nachtrag Stufe 4 (K85, 24.10.2026): zentrale Liste aller Angebote und Vorlagen.
         // Handtest 29.10.2026 (K137): „Angebotsvorschläge“ grenzt vom Leistungsangebot der Website ab.
         { href: '/admin/angebote', label: 'Angebotsvorschläge', icon: 'clipboard' },

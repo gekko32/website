@@ -1,0 +1,118 @@
+---
+// K163 (Handtest 01.11.2026, H41): eigene Seite für Mahnungen – zu versenden und verschickt, Mahnlauf von Hand.
+// Der Link in der Mahnungs-Mail an Gerald führt hierher. Verschickt wird über die Prüfseite je Mahnung.
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
+import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
+import { listeMahnungen, listeMahnpausen, type Mahnung, type Mahnpause } from '../../../lib/mahnung-versand';
+import { ladeMahnEinstellungen } from '../../../lib/mahn-einstellungen';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+Astro.response.headers.set('Cache-Control', 'no-store');
+
+const brand = process.env.BRAND || 'mentolder';
+let fehler = false;
+const { offen, verschickt } = await listeMahnungen(brand).catch(() => { fehler = true; return { offen: [] as Mahnung[], verschickt: [] as Mahnung[] }; });
+const pausen = await listeMahnpausen(brand).catch(() => [] as Mahnpause[]);
+const einst = await ladeMahnEinstellungen(brand);
+const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
+const fd = (iso: string | null) => (iso ? iso.slice(0, 10).split('-').reverse().join('.') : '–');
+const q = Astro.url.searchParams;
+---
+
+<AdminLayout title="Mahnungen">
+  <div style="padding:1.5rem;max-width:900px;">
+    <AdminPageHeader title="Mahnungen" description="Zu versenden zuerst. Jede Mahnung vor dem Versand prüfen: Schreiben ansehen, E-Mail anpassen, dann senden – oder ohne E-Mail drucken und per Post schicken." />
+
+    {q.get('verschickt') && <p class="meldung-gut mb-4">{q.get('verschickt')}</p>}
+    {fehler && <p role="alert" class="text-sm text-red-400 mb-4">Die Mahnungen konnten gerade nicht geladen werden.</p>}
+
+    <section class="kasten mb-6">
+      <h2 class="kasten-titel">Zu versenden ({offen.length})</h2>
+      {offen.length === 0 ? <p class="text-sm text-muted">Keine Mahnungen zu versenden.</p> : (
+        <ul class="space-y-2">
+          {offen.map((m) => (
+            <li class="zeile">
+              <div>
+                <p class="text-light font-semibold">{m.klientName || m.empfaengerName}</p>
+                <p class="text-sm text-muted">{m.stufenName} · Rechnung <span class="font-mono">{m.rechnungsnummer}</span> · fällig seit {fd(m.faellig)}</p>
+                <p class="text-sm">Gesamt <strong>{euro(m.gesamt)}</strong>{m.gebuehr + m.fruehereGebuehren > 0 && <span class="text-muted"> (darin Gebühren {euro(m.gebuehr + m.fruehereGebuehren)})</span>}{m.offenJetzt < m.offen - 0.005 && <span class="text-amber-300"> · Teilzahlung eingegangen – prüfen</span>}</p>
+              </div>
+              <a href={`/admin/mahnungen/${m.id}`} class="px-4 py-2 rounded-lg bg-gold text-dark text-sm font-semibold whitespace-nowrap">Prüfen ›</a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+
+    {pausen.length > 0 && (
+      <section class="kasten mb-6">
+        <h2 class="kasten-titel">Mahnpause ({pausen.length})</h2>
+        <p class="text-xs text-muted mb-2">Verworfene Mahnungen: Diese Rechnungen werden bis zum genannten Tag nicht gemahnt.</p>
+        <ul class="space-y-1 text-sm">
+          {pausen.map((p) => (
+            <li>{p.klientName} · Rechnung <span class="font-mono">{p.rechnungsnummer}</span> · bis {fd(p.bis)} · <span class="text-muted">{p.grund}</span></li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    <section class="kasten mb-6">
+      <div class="flex flex-wrap items-center gap-3">
+        <button type="button" id="mahnlauf-jetzt" class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm">Mahnlauf jetzt</button>
+        <a href="/admin/einstellungen/regeln#mahnwesen" class="text-xs underline text-muted">Gebühren, Frist und Abstand ändern</a>
+        <a href="/admin/einstellungen/rechnungstexte" class="text-xs underline text-muted">Texte der Mahnschreiben ändern</a>
+      </div>
+      <p class="text-xs text-muted mt-2">Der Mahnlauf kommt täglich gegen 7 Uhr von selbst (Sommerzeit gegen 8 Uhr). Er legt Mahnungen nur für
+        überfällige Rechnungen an, die nächste Stufe frühestens nach {einst.abstandTage} Tagen. Frist im Schreiben: {einst.fristTage} Tage nach Versand.
+        Gebühren: Erinnerung {euro(einst.gebuehr1)}, 1. Mahnung {euro(einst.gebuehr2)}, letzte Mahnung {euro(einst.gebuehr3)}.</p>
+      <p id="mahnlauf-meldung" role="status" class="text-sm mt-2"></p>
+    </section>
+
+    <section class="kasten">
+      <h2 class="kasten-titel">Verschickt ({verschickt.length})</h2>
+      {verschickt.length === 0 ? <p class="text-sm text-muted">Noch keine verschickt.</p> : (
+        <ul class="space-y-2">
+          {verschickt.map((m) => (
+            <li class="zeile">
+              <div>
+                <p class="text-light">{m.klientName || m.empfaengerName} · {m.stufenName}</p>
+                <p class="text-sm text-muted">Rechnung <span class="font-mono">{m.rechnungsnummer}</span> · {euro(m.gesamt)} · verschickt {m.versandweg === 'post' ? 'per Post' : 'per E-Mail'} am {fd(m.versendetAm)}{m.frist ? ` · zahlbar bis ${fd(m.frist)}` : ''}</p>
+              </div>
+              <a href={`/admin/mahnungen/${m.id}`} class="px-3 py-1.5 rounded-lg border border-light/40 text-sm whitespace-nowrap">Ansehen ›</a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  </div>
+</AdminLayout>
+
+<style>
+  .kasten { border: 1px solid var(--color-dark-lighter, #333); border-radius: 1rem; padding: 1rem; background: rgba(255, 255, 255, 0.02); }
+  .kasten-titel { font-size: 1.05rem; font-weight: 600; color: var(--color-light, #eee); margin-bottom: 0.75rem; }
+  .zeile { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;
+    padding: 0.75rem; border: 1px solid var(--color-dark-lighter, #333); border-radius: 0.75rem; }
+  .meldung-gut { padding: 0.75rem 1rem; border: 1px solid #22c55e; background: rgba(34, 197, 94, 0.12); border-radius: 0.75rem; color: #dcfce7; font-size: 0.875rem; }
+</style>
+
+<script>
+  // K159/K163: Mahnlauf von Hand.
+  document.getElementById('mahnlauf-jetzt')?.addEventListener('click', async (e) => {
+    const knopf = e.currentTarget as HTMLButtonElement;
+    const meldung = document.getElementById('mahnlauf-meldung');
+    knopf.disabled = true;
+    if (meldung) { meldung.className = 'text-sm mt-2 text-muted'; meldung.textContent = 'Mahnlauf läuft …'; }
+    const res = await fetch('/api/admin/billing/dunning/run', { method: 'POST' });
+    const data = await res.json().catch(() => ({})) as { generated?: number; pending?: number };
+    knopf.disabled = false;
+    if (!res.ok) { if (meldung) { meldung.className = 'text-sm mt-2 text-red-400'; meldung.textContent = 'Mahnlauf fehlgeschlagen.'; } return; }
+    if (meldung) {
+      meldung.className = 'text-sm mt-2 text-green-400';
+      meldung.textContent = `${data.generated ?? 0} neue Mahnung(en) angelegt, ${data.pending ?? 0} zu versenden.`;
+    }
+    if ((data.generated ?? 0) > 0) setTimeout(() => window.location.reload(), 1500);
+  });
+</script>

@@ -24,7 +24,7 @@ export async function meldeNeueMahnungen(brand: string, neu: number, offen: Pend
   if (schalter === 'false') return;
   const ziel = an || process.env.CONTACT_EMAIL;
   if (!ziel) return;
-  const link = `${(process.env.SITE_URL ?? '').replace(/\/$/, '')}/admin/rechnungen?status=mahnwesen`;
+  const link = `${(process.env.SITE_URL ?? '').replace(/\/$/, '')}/admin/mahnungen`;
   const ok = await sendEmail({
     to: ziel,
     subject: neu === 1 ? 'Neue Mahnung zu versenden' : `${neu} neue Mahnungen zu versenden`,

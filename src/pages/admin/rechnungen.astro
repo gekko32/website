@@ -6,7 +6,7 @@ import { getSession, getLoginUrl, isAdmin } from '../../lib/auth';
 import { getAllBillingInvoices, getDraftInvoices } from '../../lib/stripe-billing';
 import { verbucheUndEntwerfe } from '../../lib/billing-abrechnungslauf';
 import { offeneAngebote, standText } from '../../lib/billing-angebot';
-import { listPendingDunnings, type PendingDunning } from '../../lib/invoice-dunning';
+import { listPendingDunnings } from '../../lib/invoice-dunning';
 import type { AdminBillingInvoice } from '../../lib/stripe-billing';
 import TaxMonitorWidget from '../../components/admin/TaxMonitorWidget.svelte';
 import DatevExportWidget from '../../components/admin/DatevExportWidget.svelte';
@@ -14,7 +14,6 @@ import { listKlienten } from '../../lib/klientenakte';
 import { anzeigeEmail } from '../../lib/billing-versand';
 import { logger } from '../../lib/logger';
 import { getTaxMode } from '../../lib/tax-monitor';
-import { getSiteSetting } from '../../lib/website-db';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -24,30 +23,20 @@ const klientenWahl = await listKlienten().catch(() => []);
 if (!isAdmin(session)) return Astro.redirect('/admin');
 
 const statusFilter = Astro.url.searchParams.get('status') ?? '';
+// K163 (Handtest 01.11.2026, H41): Mahnungen haben eine eigene Seite.
+if (statusFilter === 'mahnwesen') return Astro.redirect('/admin/mahnungen');
 
 let invoices: AdminBillingInvoice[] = [];
-let pendingDunnings: PendingDunning[] = [];
 let apiError = '';
 const brand = process.env.BRAND || 'mentolder';
 
-// K159: Zahl offener Mahnungen immer laden (Reiter), die Liste nur im Reiter Mahnwesen.
+// K159/K163: Zahl offener Mahnungen für den Reiter „Mahnungen“.
 const mahnAnzahl = (await listPendingDunnings(brand).catch(() => [])).length;
-// Prüfung F4: Abstand zwischen Mahnstufen aus der Einstellung (Vorgabe 14 Tage).
-const mahnAbstand = Number(await getSiteSetting(brand, 'invoice_dunning_interval_days').catch(() => null)) || 14;
-if (statusFilter === 'mahnwesen') {
-  try {
-    pendingDunnings = await listPendingDunnings(brand);
-  } catch (err) {
-    logger.error({ err }, '[admin/rechnungen] listPendingDunnings');
-    apiError = 'Mahnwesen konnte nicht geladen werden.';
-  }
-} else {
-  try {
-    invoices = await getAllBillingInvoices({ status: statusFilter || undefined, perPage: 200 });
-  } catch (err) {
-    logger.error({ err }, '[admin/rechnungen]');
-    apiError = 'Datenbank nicht erreichbar.';
-  }
+try {
+  invoices = await getAllBillingInvoices({ status: statusFilter || undefined, perPage: 200 });
+} catch (err) {
+  logger.error({ err }, '[admin/rechnungen]');
+  apiError = 'Datenbank nicht erreichbar.';
 }
 
 let draftInvoices: Awaited<ReturnType<typeof getDraftInvoices>> = [];
@@ -97,7 +86,8 @@ const STATUS_TABS = [
   { value: 'uncollectible',  label: 'Überfällig' },
   { value: 'paid',           label: 'Bezahlt' },
   // K159 (Handtest 30.10.2026, H34): Anzahl offener Mahnungen am Reiter.
-  { value: 'mahnwesen',      label: mahnAnzahl > 0 ? `Mahnwesen (${mahnAnzahl})` : 'Mahnwesen' },
+  // K163: führt auf die eigene Seite „Mahnungen“.
+  { value: 'mahnwesen',      label: mahnAnzahl > 0 ? `Mahnungen (${mahnAnzahl}) ›` : 'Mahnungen ›' },
   { value: 'draft',          label: 'Entwurf' },
   { value: 'void',           label: 'Storniert' },
 ];
@@ -215,22 +205,12 @@ const STATUS_TABS = [
       <!-- Status filter tabs -->
       <div class="flex gap-1 p-1 bg-dark-light rounded-lg border border-dark-lighter mb-6 w-fit flex-wrap">
         {STATUS_TABS.map(t => (
-          <a href={`/admin/rechnungen${t.value ? '?status=' + t.value : ''}`}
+          <a href={t.value === 'mahnwesen' ? '/admin/mahnungen' : `/admin/rechnungen${t.value ? '?status=' + t.value : ''}`}
             class={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${statusFilter === t.value ? 'bg-gold text-dark' : 'text-muted hover:text-light'}`}>
             {t.label}
           </a>
         ))}
       </div>
-
-      {/* K159 (Handtest 30.10.2026, H34): Mahnlauf von Hand, sonst täglich um 7 Uhr. */}
-      {statusFilter === 'mahnwesen' && (
-        <div class="flex flex-wrap items-center gap-3 mb-4 p-3 rounded-xl border border-dark-lighter">
-          <button type="button" id="mahnlauf-jetzt" class="px-3 py-1.5 rounded-lg bg-gold text-dark text-sm font-semibold">Mahnlauf jetzt</button>
-          <span class="text-xs text-muted">Der Mahnlauf kommt sonst täglich gegen 7 Uhr von selbst (in der Sommerzeit gegen 8 Uhr). Er legt Mahnungen nur für überfällige Rechnungen an
-            (Fälligkeit vorbei, dann frühestens alle {mahnAbstand} Tage die nächste Stufe); verschickt wird erst mit „Versenden“.</span>
-          <span id="mahnlauf-meldung" role="status" class="text-sm basis-full"></span>
-        </div>
-      )}
 
       <!-- Table -->
       <div class="bg-dark-light rounded-2xl border border-dark-lighter overflow-hidden">
@@ -249,41 +229,7 @@ const STATUS_TABS = [
             </tr>
           </thead>
           <tbody>
-            {statusFilter === 'mahnwesen' ? (
-              pendingDunnings.length === 0 ? (
-                <tr>
-                  <td colspan="9" class="px-4 py-10 text-center text-muted text-sm">Keine ausstehenden Mahnungen.</td>
-                </tr>
-              ) : pendingDunnings.map(d => (
-                <tr class="border-b border-dark-lighter/50 hover:bg-dark/30 transition-colors">
-                  <td class="px-4 py-3 text-sm text-light font-mono" data-label="Nr.">#{d.invoiceNumber}</td>
-                  <td class="px-4 py-3 text-sm" data-label="Client">
-                    <div class="text-light">{d.customerName}</div>
-                    <div class="text-xs text-muted">{d.customerEmail}</div>
-                  </td>
-                  <td class="px-4 py-3" data-label="Status">
-                    <span class="text-xs px-2 py-0.5 rounded-full border border-red-800 bg-red-900/40 text-red-300">
-                      Mahnung {d.level}
-                    </span>
-                  </td>
-                  <td class="px-4 py-3 text-sm text-muted" data-label="Datum">Ausstehend</td>
-                  <td class="px-4 py-3 text-sm text-red-400 font-medium" data-label="Fällig">SOFORT</td>
-                  <td class="px-4 py-3 text-sm text-light text-right font-medium" data-label="Betrag">
-                    {fmtCurrency(d.outstanding + d.feeAmount + d.interestAmount)}
-                  </td>
-                  <td class="px-4 py-3 text-sm text-right text-yellow-400 font-medium" data-label="Offen">{fmtCurrency(d.outstanding)}</td>
-                  <td class="px-4 py-3 text-sm text-right" data-label="E-Rechnung">—</td>
-                  <td class="px-4 py-3 text-sm text-right" data-label="Drucken">
-                    <button
-                      class="text-xs text-yellow-400 hover:underline"
-                      data-send-dunning
-                      data-id={d.id}
-                      data-level={d.level}
-                    >Versenden ↑</button>
-                  </td>
-                </tr>
-              ))
-            ) : (
+            {(
               invoices.length === 0 ? (
                 <tr>
                   <td colspan="9" class="px-4 py-10 text-center text-muted text-sm">Keine Rechnungen gefunden.</td>
@@ -366,22 +312,6 @@ const STATUS_TABS = [
 
 <script>
   document.addEventListener('invoice-created', () => window.location.reload());
-  // K159: Mahnlauf von Hand.
-  document.getElementById('mahnlauf-jetzt')?.addEventListener('click', async (e) => {
-    const knopf = e.currentTarget as HTMLButtonElement;
-    const meldung = document.getElementById('mahnlauf-meldung');
-    knopf.disabled = true;
-    if (meldung) { meldung.className = 'text-sm basis-full text-muted'; meldung.textContent = 'Mahnlauf läuft …'; }
-    const res = await fetch('/api/admin/billing/dunning/run', { method: 'POST' });
-    const data = await res.json().catch(() => ({})) as { generated?: number; pending?: number };
-    knopf.disabled = false;
-    if (!res.ok) { if (meldung) { meldung.className = 'text-sm basis-full text-red-400'; meldung.textContent = 'Mahnlauf fehlgeschlagen.'; } return; }
-    if (meldung) {
-      meldung.className = 'text-sm basis-full text-green-400';
-      meldung.textContent = `${data.generated ?? 0} neue Mahnung(en) angelegt, ${data.pending ?? 0} zu versenden.${(data.generated ?? 0) > 0 ? ' Liste wird neu geladen …' : ''}`;
-    }
-    if ((data.generated ?? 0) > 0) setTimeout(() => window.location.reload(), 2000);
-  });
   // Stufe 4 T19: Klientenwahl für „+ Neue Rechnung“ filtern.
   const wahlSuche = document.getElementById('klient-wahl-suche') as HTMLInputElement | null;
   wahlSuche?.addEventListener('input', () => {
@@ -391,7 +321,6 @@ const STATUS_TABS = [
 </script>
 
 <script>
-  import { browserLogger } from '$lib/browser-logger';
   import { mount, unmount, type Component } from 'svelte';
   import RecordPaymentModal from '../../components/admin/RecordPaymentModal.svelte';
   type RecordPaymentModalProps = { invoiceId: string; invoiceNumber: string; outstanding: number; onClose: () => void; onSaved: () => void };
@@ -412,42 +341,6 @@ const STATUS_TABS = [
     });
   });
 
-  document.querySelectorAll<HTMLButtonElement>('[data-send-dunning]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.dataset.id;
-      const level = btn.dataset.level;
-      if (!confirm(`Mahnung ${level} jetzt an den Kunden versenden?`)) return;
-
-      btn.disabled = true;
-      btn.textContent = 'Sendet…';
-
-      try {
-        const res = await fetch(`/api/admin/billing/dunning/${id}/send`, { method: 'POST' });
-        if (res.ok) {
-          // Stufe 4 T14 (K60): ohne E-Mail-Adresse als Post vermerkt – PDF aus der Ablage drucken.
-          const data = await res.json().catch(() => ({})) as { versand?: string; pdfPath?: string | null };
-          if (data.versand === 'post') {
-            // Prüfung Stufe 4 (B3): PDF direkt zum Drucken herunterladen.
-            alert('Keine E-Mail-Adresse: Mahnung als „per Post“ vermerkt. Das PDF wird jetzt heruntergeladen – bitte drucken und verschicken.');
-            const link = document.createElement('a');
-            link.href = `/api/admin/billing/dunning/${id}/pdf`; link.download = '';
-            document.body.appendChild(link); link.click(); link.remove();
-            await new Promise((r) => setTimeout(r, 1200));
-          }
-          window.location.reload();
-        } else {
-          alert('Fehler beim Versenden der Mahnung.');
-          btn.disabled = false;
-          btn.textContent = 'Versenden ↑';
-        }
-      } catch (err) {
-        browserLogger.error({ err }, '[admin/rechnungen] dunning send failed');
-        alert('Netzwerkfehler.');
-        btn.disabled = false;
-        btn.textContent = 'Versenden ↑';
-      }
-    });
-  });
 </script>
 
 <script>

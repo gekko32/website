@@ -263,3 +263,16 @@ html.sidebar-collapsed .sidebar-label {
 #admin-main {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* K166 (Handtest 01.11.2026, H44): Auf dem Handy öffnet ☰ immer die volle Leiste mit Beschriftung –
+   auch wenn sie am Rechner einmal „eingeklappt“ wurde (der Zustand liegt im Browser und galt sonst auch hier). */
+@media (max-width: 767px) {
+  html.sidebar-collapsed .sidebar-label {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  #sidebar-toggle {
+    display: none !important;
+  }
+}

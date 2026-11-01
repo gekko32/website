@@ -60,9 +60,14 @@ function betreff(doc: Doc, text: string, aEnde: number, iEnde: number): number {
 export async function generateDunningPdf(p: {
   dunning: Dunning; invoice: Invoice;
   customer: InvoicePdfCustomer; seller: InvoicePdfSeller;
+  /** K165 (Handtest 01.11.2026): Haupttext der Stufe aus Einstellungen → Rechnungstexte, Platzhalter schon ersetzt. */
+  haupttext?: string;
+  /** K165: Zahlungsfrist als ISO-Datum (steht im Infoblock). */
+  frist?: string;
 }): Promise<Buffer> {
   const { dunning: d, invoice: inv, customer, seller } = p;
   const titel = d.level === 1 ? 'ZAHLUNGSERINNERUNG' : 'MAHNUNG';
+  const stufenTitel = d.level === 1 ? 'ZAHLUNGSERINNERUNG' : d.level === 2 ? '1. MAHNUNG' : 'LETZTE MAHNUNG';
   const { doc, fertig } = neuerBeleg({ Title: `Mahnung ${d.level} - ${inv.number}`, Author: seller.name });
 
   zeichneKopf(doc, titel);
@@ -72,18 +77,25 @@ export async function generateDunningPdf(p: {
     ['Rechnungsdatum', datumDe(inv.issueDate)],
     ['Fällig seit', datumDe(inv.dueDate)],
     ['Datum', datumDe(d.generatedAt)],
+    ...(p.frist ? [['Zahlbar bis', datumDe(p.frist)] as [string, string]] : []),
     ...(customer.customerNumber ? [['Kundennr.', customer.customerNumber] as [string, string]] : []),
     ...infoEmailUndAnsprechpartner(customer, seller),
   ]);
 
-  let y = betreff(doc, `${d.level === 1 ? 'ZAHLUNGSERINNERUNG' : `${d.level - 1}. MAHNUNG`} ZU RECHNUNG NR. ${inv.number}`, aEnde, iEnde);
+  let y = betreff(doc, `${stufenTitel} ZU RECHNUNG NR. ${inv.number}`, aEnde, iEnde);
   // Prüfung B11: alle Texte laufen über den Fließtext und brechen bei Bedarf auf die nächste Seite um.
   const absatz = (t: string, abstand = 8) => { y = fliesstext(doc, t, S.L, y, W, titel) + abstand; };
   absatz(anrede(customer));
-  absatz(d.level === 1
-    ? `sicher haben Sie nur übersehen, dass die Rechnung Nr. ${inv.number} vom ${datumDe(inv.issueDate)} am ${datumDe(inv.dueDate)} zur Zahlung fällig war.`
-    : `leider konnten wir bis heute keinen Zahlungseingang für die Rechnung Nr. ${inv.number} vom ${datumDe(inv.issueDate)} feststellen.`);
-  absatz('Wir bitten Sie höflich, den offenen Betrag bis spätestens 7 Tage nach Erhalt dieses Schreibens zu begleichen.', 14);
+  // K165: Stufentext aus den Einstellungen (Ich-Form, feste Frist); ohne ihn der Text von früher.
+  if (p.haupttext) {
+    for (const teil of p.haupttext.split(/\n{2,}/)) absatz(teil.trim(), 8);
+    y += 6;
+  } else {
+    absatz(d.level === 1
+      ? `sicher haben Sie nur übersehen, dass die Rechnung Nr. ${inv.number} vom ${datumDe(inv.issueDate)} am ${datumDe(inv.dueDate)} zur Zahlung fällig war.`
+      : `leider konnte ich bis heute keinen Zahlungseingang für die Rechnung Nr. ${inv.number} vom ${datumDe(inv.issueDate)} feststellen.`);
+    absatz(p.frist ? `Bitte begleichen Sie den offenen Betrag bis zum ${datumDe(p.frist)}.` : 'Bitte begleichen Sie den offenen Betrag innerhalb von 10 Tagen.', 14);
+  }
 
   // Posten wie die Rechnungstabelle, nur Beschreibung und Betrag.
   y = platz(doc, y, 110, titel);
@@ -108,8 +120,9 @@ export async function generateDunningPdf(p: {
   einzeilig(doc, euro(total), S.R - 106, y + 7, 100, { schrift: 'Helvetica-Bold', groesse: 10, min: 7, ausrichtung: 'right' });
   y += 34;
 
-  absatz(`Bitte überweisen Sie den Gesamtbetrag auf das unten angegebene Konto unter Angabe des Verwendungszwecks „${inv.paymentReference ?? inv.number}“.`);
-  absatz('Sollten Sie die Zahlung in der Zwischenzeit bereits veranlasst haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.', 16);
+  absatz(`Bitte überweisen Sie den Gesamtbetrag auf das unten angegebene Konto unter Angabe des Verwendungszwecks „${inv.paymentReference ?? inv.number}“.`, 16);
+  // Der Satz „bereits gezahlt → gegenstandslos“ steht jetzt im Stufentext (K165) und lässt sich dort ändern.
+  if (!p.haupttext) absatz('Sollten Sie die Zahlung in der Zwischenzeit bereits veranlasst haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.', 16);
   grussformel(doc, y, seller, titel);
 
   abschliessen(doc, seller);

@@ -1,0 +1,206 @@
+---
+// K164 (Handtest 01.11.2026, H42): Prüfseite je Mahnung – Schreiben ansehen, E-Mail anpassen und senden,
+// oder ohne E-Mail drucken und als „per Post“ vermerken. Nichts geht ohne diese Seite raus.
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
+import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
+import { holeMahnung } from '../../../lib/mahnung-versand';
+import { ladeMahnEinstellungen, fristDatum } from '../../../lib/mahn-einstellungen';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+Astro.response.headers.set('Cache-Control', 'no-store');
+
+const brand = process.env.BRAND || 'mentolder';
+const m = await holeMahnung(brand, Astro.params.id ?? '');
+if (!m) return Astro.redirect('/admin/mahnungen');
+const einst = await ladeMahnEinstellungen(brand);
+const frist = m.frist ?? fristDatum(einst, new Date());
+const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
+const fd = (iso: string | null) => (iso ? iso.slice(0, 10).split('-').reverse().join('.') : '–');
+const offen = !m.versendetAm && !m.rechnungStorniert && !m.rechnungBezahlt;
+// G8 (Gerald 01.11.2026): Teilzahlung nach dem Anlegen – warnen, der Betrag im Schreiben wäre zu hoch.
+const teilzahlung = offen && m.offenJetzt < m.offen - 0.005;
+// N32: Vorschlag für die Mahnpause aus Einstellungen → Regeln.
+const tag = (d: Date) => d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+const heute = tag(new Date());
+const pauseVorschlag = tag(new Date(Date.now() + einst.pauseTage * 86_400_000));
+---
+
+<AdminLayout title={`${m.stufenName} ${m.rechnungsnummer}`}>
+  <div style="padding:1.5rem;max-width:900px;">
+    <div class="flex flex-wrap gap-3 items-center mb-3">
+      <a href="/admin/mahnungen" class="px-3 py-1.5 rounded-lg border border-gold text-gold text-sm font-semibold">← Mahnungen</a>
+      {m.klientId && <a href={`/admin/klienten/${m.klientId}#rechnungen`} class="text-xs text-muted hover:underline">Akte {m.klientName}</a>}
+    </div>
+    <AdminPageHeader title={`${m.stufenName} zu Rechnung ${m.rechnungsnummer}`}
+      description={m.versendetAm ? `Verschickt ${m.versandweg === 'post' ? 'per Post' : 'per E-Mail'} am ${fd(m.versendetAm)} · zahlbar bis ${fd(m.frist)}` : 'Noch nicht verschickt. Bitte prüfen.'} />
+
+    {m.rechnungStorniert && <p role="alert" class="text-sm text-red-400 mb-3">Die Rechnung ist storniert – diese Mahnung nicht mehr verschicken.</p>}
+    {m.rechnungBezahlt && !m.versendetAm && <p class="text-sm text-green-400 mb-3">Die Rechnung ist inzwischen bezahlt – diese Mahnung wird nicht mehr verschickt.</p>}
+    {teilzahlung && (
+      <p role="alert" class="text-sm text-amber-300 border border-amber-400/50 rounded-lg p-3 mb-3">
+        Achtung: Seit dem Anlegen dieser Mahnung ist Geld eingegangen. Offen sind jetzt nur noch {euro(m.offenJetzt)},
+        die Mahnung fordert aber {euro(m.offen)}. Bitte vor dem Verschicken den Betrag aktualisieren.
+        <button type="button" id="betrag" class="block mt-2 px-3 py-1.5 rounded-lg border border-amber-400 text-amber-200 text-sm">Betrag auf {euro(m.offenJetzt)} aktualisieren</button>
+      </p>
+    )}
+
+    <section class="kasten mb-5">
+      <p class="text-sm"><strong>{m.empfaengerName}</strong>
+        <span class="block text-muted">{m.empfaengerAnschrift || 'Anschrift fehlt'}{m.empfaengerEmail && !m.empfaengerEmail.endsWith('.invalid') ? ` · ${m.empfaengerEmail}` : ' · keine E-Mail'}</span></p>
+      <table class="text-sm mt-2">
+        <tbody>
+          <tr><td class="pr-4 text-muted">Rechnung</td><td class="font-mono">{m.rechnungsnummer} vom {fd(m.rechnungsdatum)}, fällig {fd(m.faellig)}</td></tr>
+          <tr><td class="pr-4 text-muted">Offener Betrag</td><td>{euro(m.offen)}</td></tr>
+          {m.gebuehr > 0 && <tr><td class="pr-4 text-muted">Mahngebühr {m.stufenName}</td><td>{euro(m.gebuehr)}</td></tr>}
+          {m.fruehereGebuehren > 0 && <tr><td class="pr-4 text-muted">Gebühren früherer Mahnungen</td><td>{euro(m.fruehereGebuehren)}</td></tr>}
+          {m.zinsen > 0 && <tr><td class="pr-4 text-muted">Verzugszinsen</td><td>{euro(m.zinsen)}</td></tr>}
+          <tr><td class="pr-4 text-muted">Gesamt</td><td><strong>{euro(m.gesamt)}</strong></td></tr>
+          <tr><td class="pr-4 text-muted">Zahlbar bis</td><td>{fd(frist)}{!m.versendetAm && <span class="text-muted"> (beim Versand {einst.fristTage} Tage ab heute)</span>}</td></tr>
+        </tbody>
+      </table>
+      <div class="flex flex-wrap gap-2 mt-4">
+        <a href={`/api/admin/billing/dunning/${m.id}/pdf?ansehen=1`} target="_blank" rel="noopener" class="px-3 py-2 rounded-lg border border-light/40 text-sm">Mahnschreiben ansehen ↗</a>
+        <a href="/admin/einstellungen/rechnungstexte" class="px-3 py-2 text-xs underline text-muted">Text der Stufe ändern</a>
+      </div>
+    </section>
+
+    {offen && (
+      <section class="kasten mb-5" id="versand">
+        <h2 class="kasten-titel">Verschicken</h2>
+        <p id="meldung" role="alert" class="text-sm mb-2"></p>
+        <div id="mail-bereich" class="grid gap-3 text-sm">
+          <label class="text-xs text-muted">An <span id="mail-an-quelle" class="ml-1"></span>
+            <input id="mail-an" type="email" autocomplete="off" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark text-sm text-light" /></label>
+          <p class="text-xs text-muted">Von: <span id="mail-von" class="text-light"></span></p>
+          <label class="text-xs text-muted">Betreff <input id="mail-betreff" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark text-sm text-light" /></label>
+          <label class="text-xs text-muted">Text <textarea id="mail-text" rows="8" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark text-sm text-light"></textarea></label>
+          <p class="text-xs text-muted">Anhang: <span id="mail-anhaenge" class="text-light"></span></p>
+          <div class="flex flex-wrap gap-2 justify-end">
+            <button type="button" id="post" class="px-3 py-2 rounded-lg border border-gold text-gold text-sm">Ohne E-Mail: drucken und per Post</button>
+            <button type="button" id="mail-senden" class="px-4 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">E-Mail senden …</button>
+          </div>
+        </div>
+      </section>
+    )}
+
+    {offen && (
+      <section class="kasten mb-5" id="verwerfen-bereich">
+        <h2 class="kasten-titel">Nicht verschicken</h2>
+        <p class="text-xs text-muted mb-3">Zum Beispiel nach einer Absprache mit dem Klienten. Die Mahnung wird verworfen, und die
+          Rechnung wird bis zum gewählten Tag nicht gemahnt. Danach legt der Mahnlauf diese Stufe mit dem dann offenen Betrag neu an.</p>
+        <div class="grid gap-3 text-sm">
+          <label class="text-xs text-muted">Mahnpause bis
+            <input id="pause-bis" type="date" value={pauseVorschlag} min={heute} class="block mt-1 px-2 py-1.5 rounded bg-dark text-sm text-light" /></label>
+          <label class="text-xs text-muted">Grund (steht im Protokoll)
+            <input id="pause-grund" maxlength="300" placeholder="z. B. Zahlung bis Monatsende zugesagt" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark text-sm text-light" /></label>
+          <div class="flex justify-end">
+            <button type="button" id="verwerfen" class="px-3 py-2 rounded-lg border border-red-400/70 text-red-300 text-sm">Mahnung verwerfen …</button>
+          </div>
+        </div>
+      </section>
+    )}
+
+    <div id="rueckfrage" hidden class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div class="bg-surface border border-gold/60 rounded-xl p-5 max-w-md w-full shadow-xl">
+        <p id="rueckfrage-text" class="text-sm text-light mb-4 whitespace-pre-line"></p>
+        <div class="flex gap-2 justify-end">
+          <button type="button" id="rueckfrage-nein" class="px-3 py-2 rounded-lg border border-dark-lighter text-sm">Abbrechen</button>
+          <button type="button" id="rueckfrage-ja" class="px-3 py-2 rounded-lg bg-gold text-dark text-sm font-semibold">Ja</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  .kasten { border: 1px solid var(--color-dark-lighter, #333); border-radius: 1rem; padding: 1rem; background: rgba(255, 255, 255, 0.02); }
+  .kasten-titel { font-size: 1.05rem; font-weight: 600; color: var(--color-light, #eee); margin-bottom: 0.75rem; }
+</style>
+
+<script define:vars={{ id: m.id, offen, teilzahlung }}>
+  const box = document.getElementById('rueckfrage');
+  function frage(text, ja) {
+    return new Promise((fertig) => {
+      document.getElementById('rueckfrage-text').textContent = text;
+      const jaK = document.getElementById('rueckfrage-ja'); const neinK = document.getElementById('rueckfrage-nein');
+      jaK.textContent = ja; box.hidden = false;
+      const zu = (w) => { box.hidden = true; jaK.onclick = null; neinK.onclick = null; fertig(w); };
+      jaK.onclick = () => zu(true); neinK.onclick = () => zu(false);
+    });
+  }
+  const meldung = document.getElementById('meldung');
+  const zeige = (t, gut) => { if (meldung) { meldung.className = `text-sm mb-2 ${gut ? 'text-green-400' : 'text-red-400'}`; meldung.textContent = t; } };
+
+  async function laden() {
+    const res = await fetch(`/api/admin/billing/dunning/${id}/mail`);
+    const v = await res.json().catch(() => ({}));
+    if (!res.ok) { zeige(v.error ?? 'Vorschlag nicht geladen.', false); return; }
+    document.getElementById('mail-an').value = v.an ?? '';
+    document.getElementById('mail-an-quelle').textContent = v.anQuelle === 'akte' ? '(aktuelle Adresse aus der Akte)'
+      : v.anQuelle === 'beleg' ? '(Adresse der Rechnung)' : '(keine E-Mail-Adresse – Versand per Post)';
+    document.getElementById('mail-von').textContent = v.von ?? '';
+    document.getElementById('mail-betreff').value = v.betreff ?? '';
+    document.getElementById('mail-text').value = v.text ?? '';
+    document.getElementById('mail-anhaenge').textContent = (v.anhaenge ?? []).join(', ');
+    if (!v.an) document.getElementById('mail-senden')?.setAttribute('title', 'Keine E-Mail-Adresse – bitte eintragen oder per Post verschicken.');
+  }
+  if (offen) void laden();
+
+  document.getElementById('mail-senden')?.addEventListener('click', async (e) => {
+    const knopf = e.currentTarget;
+    const an = document.getElementById('mail-an').value.trim();
+    if (!an) { zeige('Bitte eine E-Mail-Adresse eintragen – oder „Ohne E-Mail: drucken und per Post“ wählen.', false); return; }
+    const warnung = teilzahlung ? '\n\nACHTUNG: Es ist inzwischen Geld eingegangen – der Betrag im Schreiben ist zu hoch.' : '';
+    if (!(await frage(`Mahnung jetzt an ${an} senden?\nIm Anhang: Mahnschreiben und Rechnung.${warnung}`, 'Senden'))) return;
+    knopf.disabled = true; zeige('Wird gesendet …', true);
+    const res = await fetch(`/api/admin/billing/dunning/${id}/mail`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ an, betreff: document.getElementById('mail-betreff').value, text: document.getElementById('mail-text').value }),
+    });
+    const data = await res.json().catch(() => ({}));
+    knopf.disabled = false;
+    if (!res.ok) { zeige(data.error ?? 'Nicht gesendet.', false); return; }
+    window.location.href = `/admin/mahnungen?verschickt=${encodeURIComponent('Mahnung per E-Mail verschickt.')}`;
+  });
+
+  document.getElementById('betrag')?.addEventListener('click', async (e) => {
+    e.currentTarget.disabled = true;
+    const res = await fetch(`/api/admin/billing/dunning/${id}/betrag`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { e.currentTarget.disabled = false; zeige(data.error ?? 'Betrag nicht aktualisiert.', false); return; }
+    window.location.reload();
+  });
+
+  document.getElementById('verwerfen')?.addEventListener('click', async (e) => {
+    const knopf = e.currentTarget;
+    const bis = document.getElementById('pause-bis').value;
+    const grund = document.getElementById('pause-grund').value.trim();
+    if (!bis) { zeige('Bitte ein Datum für die Mahnpause wählen.', false); return; }
+    if (!grund) { zeige('Bitte kurz den Grund eintragen – er steht im Protokoll.', false); return; }
+    const datum = bis.split('-').reverse().join('.');
+    if (!(await frage(`Mahnung verwerfen?\nDie Rechnung wird bis ${datum} nicht gemahnt.\nGrund: ${grund}`, 'Verwerfen'))) return;
+    knopf.disabled = true;
+    const res = await fetch(`/api/admin/billing/dunning/${id}/verwerfen`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bis, grund }),
+    });
+    const data = await res.json().catch(() => ({}));
+    knopf.disabled = false;
+    if (!res.ok) { zeige(data.error ?? 'Nicht verworfen.', false); return; }
+    window.location.href = `/admin/mahnungen?verschickt=${encodeURIComponent(`Mahnung verworfen – Mahnpause bis ${datum}.`)}`;
+  });
+
+  document.getElementById('post')?.addEventListener('click', async () => {
+    const warnung = teilzahlung ? '\n\nACHTUNG: Es ist inzwischen Geld eingegangen – der Betrag im Schreiben ist zu hoch.' : '';
+    if (!(await frage(`Mahnschreiben jetzt als PDF herunterladen und als „per Post verschickt“ vermerken?${warnung}`, 'Drucken und vermerken'))) return;
+    const link = document.createElement('a');
+    link.href = `/api/admin/billing/dunning/${id}/pdf`; link.download = '';
+    document.body.appendChild(link); link.click(); link.remove();
+    const res = await fetch(`/api/admin/billing/dunning/${id}/post`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { zeige(data.error ?? 'Nicht vermerkt.', false); return; }
+    setTimeout(() => { window.location.href = `/admin/mahnungen?verschickt=${encodeURIComponent('Mahnung als „per Post verschickt“ vermerkt – bitte das heruntergeladene PDF drucken und abschicken.')}`; }, 1500);
+  });
+</script>

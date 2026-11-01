@@ -5,7 +5,8 @@ import { getSiteSetting, setSiteSetting } from './website-db';
 export type RechnungstextKey =
   | 'invoice_intro_text' | 'invoice_kleinunternehmer_notice' | 'invoice_outro_text'
   | 'invoice_email_subject' | 'invoice_email_body'
-  | 'angebot_intro_text' | 'angebot_outro_text' | 'angebot_email_subject' | 'angebot_email_body';
+  | 'angebot_intro_text' | 'angebot_outro_text' | 'angebot_email_subject' | 'angebot_email_body'
+  | 'mahnung_text_1' | 'mahnung_text_2' | 'mahnung_text_3' | 'mahnung_email_subject' | 'mahnung_email_body';
 
 export const RECHNUNGSTEXT_STANDARD: Record<RechnungstextKey, string> = {
   invoice_intro_text: 'für folgende Leistungen stelle ich Ihnen in Rechnung:',
@@ -17,6 +18,12 @@ export const RECHNUNGSTEXT_STANDARD: Record<RechnungstextKey, string> = {
   angebot_outro_text: 'Ich freue mich auf Ihre Rückmeldung.',
   angebot_email_subject: 'Angebot {{number}}',
   angebot_email_body: 'Sehr geehrte/r {{customer_name}},\n\nanbei erhalten Sie mein Angebot {{number}} über {{gross_amount}}, gültig bis {{valid_until}}.\n\nIch freue mich auf Ihre Rückmeldung.\n\nMit freundlichen Grüßen\n{{seller_name}}',
+  // K165 (Handtest 01.11.2026, Freigabe Gerald): Mahnschreiben je Stufe in Ich-Form, Mail mit Anhängen.
+  mahnung_text_1: 'sicher ist es im Alltag untergegangen: Die Rechnung Nr. {{number}} vom {{issue_date}} über {{gross_amount}} war am {{due_date}} fällig. Bitte überweisen Sie den Betrag bis zum {{frist}}. Falls Sie inzwischen gezahlt haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.',
+  mahnung_text_2: 'trotz meiner Zahlungserinnerung vom {{vorige_mahnung}} habe ich für die Rechnung Nr. {{number}} noch keinen Zahlungseingang feststellen können. Bitte überweisen Sie den offenen Betrag zuzüglich Mahngebühr, zusammen {{gesamt}}, bis spätestens {{frist}}. Falls Sie inzwischen gezahlt haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.',
+  mahnung_text_3: 'die Rechnung Nr. {{number}} ist trotz Zahlungserinnerung und Mahnung weiterhin offen. Dies ist meine letzte Mahnung. Geht der Gesamtbetrag von {{gesamt}} nicht bis zum {{frist}} bei mir ein, werde ich die Forderung ohne weitere Ankündigung gerichtlich geltend machen (gerichtliches Mahnverfahren). Die dadurch entstehenden Kosten gehen zu Ihren Lasten. Wenn Sie Schwierigkeiten mit der Zahlung haben, melden Sie sich bitte – über eine Ratenzahlung können wir sprechen.',
+  mahnung_email_subject: '{{titel}} zur Rechnung {{number}}',
+  mahnung_email_body: 'Guten Tag {{customer_name}},\n\nanbei {{titel_klein}} zur Rechnung {{number}} mit der Bitte um Zahlung von {{gesamt}} bis zum {{frist}}. Das Schreiben und die Rechnung finden Sie im Anhang.\n\nMit freundlichen Grüßen\n{{seller_name}}',
   invoice_email_body: 'Sehr geehrte/r {{customer_name}},\n\nanbei erhalten Sie Rechnung {{number}} über {{gross_amount}} €.\n\nBitte überweisen Sie den Betrag bis {{due_date}} unter Angabe des Verwendungszwecks „{{payment_reference}}“.\n\nMit freundlichen Grüßen\n{{seller_name}}',
 };
 
@@ -43,6 +50,16 @@ export const RECHNUNGSTEXT_FELDER: readonly RechnungstextFeld[] = [
     wirktIn: 'Betreff der E-Mail, mit der ein Angebot verschickt wird. {{number}} = Angebotsnummer.' },
   { key: 'angebot_email_body', label: 'Text der Angebots-E-Mail', mehrzeilig: true, max: 4000, pflicht: false,
     wirktIn: 'Text der E-Mail beim Angebotsversand. Platzhalter: {{customer_name}}, {{number}}, {{gross_amount}}, {{valid_until}}, {{seller_name}}.' },
+  { key: 'mahnung_text_1', label: 'Mahnwesen: Text der Zahlungserinnerung (Stufe 1)', mehrzeilig: true, max: 2000, pflicht: true,
+    wirktIn: 'Haupttext des Schreibens (nach der Anrede). Platzhalter: {{number}}, {{issue_date}}, {{due_date}}, {{gross_amount}}, {{offen}}, {{gebuehr}}, {{gesamt}}, {{frist}}, {{vorige_mahnung}}.' },
+  { key: 'mahnung_text_2', label: 'Mahnwesen: Text der 1. Mahnung (Stufe 2)', mehrzeilig: true, max: 2000, pflicht: true,
+    wirktIn: 'Haupttext des Schreibens. Platzhalter wie bei Stufe 1.' },
+  { key: 'mahnung_text_3', label: 'Mahnwesen: Text der letzten Mahnung (Stufe 3)', mehrzeilig: true, max: 2000, pflicht: true,
+    wirktIn: 'Haupttext des Schreibens. Platzhalter wie bei Stufe 1.' },
+  { key: 'mahnung_email_subject', label: 'Mahnwesen: Betreff der E-Mail', mehrzeilig: false, max: 200, pflicht: false,
+    wirktIn: 'Betreff beim Versand per E-Mail. {{titel}} = Zahlungserinnerung / 1. Mahnung / Letzte Mahnung, {{number}} = Rechnungsnummer.' },
+  { key: 'mahnung_email_body', label: 'Mahnwesen: Text der E-Mail', mehrzeilig: true, max: 4000, pflicht: false,
+    wirktIn: 'Kurzes Anschreiben; Mahnschreiben und Rechnung hängen als PDF an. Platzhalter: {{customer_name}}, {{titel}}, {{titel_klein}}, {{number}}, {{gesamt}}, {{frist}}, {{seller_name}}.' },
 ];
 
 export function pruefeRechnungstexte(form: Partial<Record<RechnungstextKey, string>>): {

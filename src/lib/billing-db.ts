@@ -283,6 +283,18 @@ export async function initBillingTables(): Promise<void> {
           ALTER TABLE billing_invoice_dunnings ADD CONSTRAINT billing_invoice_dunnings_brand_fkey FOREIGN KEY (brand) REFERENCES public.brands(id) ON UPDATE CASCADE ON DELETE RESTRICT NOT VALID;
         END IF;
       END $$;
+    -- K164/K165 (Handtest 01.11.2026): wie und mit welcher Frist eine Mahnung verschickt wurde.
+    ALTER TABLE billing_invoice_dunnings ADD COLUMN IF NOT EXISTS versandweg TEXT;
+    ALTER TABLE billing_invoice_dunnings ADD COLUMN IF NOT EXISTS sperre_am TIMESTAMPTZ;
+    ALTER TABLE billing_invoice_dunnings ADD COLUMN IF NOT EXISTS frist DATE;
+    -- N32 (Gerald 01.11.2026): verworfene Mahnung → bis zu diesem Tag wird die Rechnung nicht gemahnt.
+    CREATE TABLE IF NOT EXISTS billing_mahnpausen (
+      invoice_id  TEXT PRIMARY KEY REFERENCES billing_invoices(id) ON DELETE CASCADE,
+      bis         DATE NOT NULL,
+      grund       TEXT,
+      gesetzt_von TEXT,
+      gesetzt_am  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS billing_invoice_line_items (

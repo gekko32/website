@@ -93,7 +93,7 @@ export function unterschied(vorher: Record<string, unknown>, nachher: Record<str
 const RECHNUNG_AKTION: Record<string, string> = {
   created: 'Rechnung angelegt', finalize: 'Rechnung festgeschrieben', versand: 'Rechnung verschickt',
   paid: 'Zahlung erfasst', mark_paid: 'Als bezahlt markiert', storno: 'Rechnung storniert (Gutschrift)',
-  dunning_generated: 'Mahnung erstellt', dunning_sent: 'Mahnung verschickt',
+  dunning_generated: 'Mahnung erstellt', dunning_sent: 'Mahnung verschickt', dunning_amount_updated: 'Mahnbetrag aktualisiert', dunning_discarded: 'Mahnung verworfen',
 };
 
 export interface ProtokollFilter {

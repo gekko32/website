@@ -105,7 +105,7 @@ const kpis = [
   {
     label: 'Mahnungen zu versenden',
     value: offeneMahnungen,
-    href: '/admin/rechnungen?status=mahnwesen',
+    href: '/admin/mahnungen',
     color: offeneMahnungen > 0 ? 'danger' as const : 'neutral' as const,
     suffix: offeneMahnungen > 0 ? 'prüfen und versenden' : 'keine',
   },

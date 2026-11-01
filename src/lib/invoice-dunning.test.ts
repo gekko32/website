@@ -32,7 +32,7 @@ vi.mock('./billing-audit', () => ({
   logBillingEvent: (...a: unknown[]) => logBillingEvent(...a),
 }));
 
-import { listPendingDunnings, sendDunning, runDunningDetection } from './invoice-dunning';
+import { listPendingDunnings, runDunningDetection } from './invoice-dunning';
 
 beforeEach(() => {
   query.mockReset();
@@ -68,46 +68,6 @@ describe('invoice-dunning.listPendingDunnings', () => {
     expect(sql).toMatch(/FROM billing_invoice_dunnings d/);
     expect(sql).toMatch(/d\.brand=\$1 AND d\.sent_at IS NULL/);
     expect(params).toEqual(['mentolder']);
-  });
-});
-
-describe('invoice-dunning.sendDunning', () => {
-  it('returns false when no row is found', async () => {
-    query.mockResolvedValueOnce({ rows: [] });
-    expect(await sendDunning('missing', 'admin@example.com')).toBe(false);
-    expect(sendEmail).not.toHaveBeenCalled();
-  });
-
-  it('sends the email and stamps sent_at on success', async () => {
-    query
-      .mockResolvedValueOnce({ rows: [{ id: 'd-1', level: 1, invoice_id: 'inv-1', fee_amount: '5', interest_amount: '1.20', outstanding_at_generation: '100', number: 'R-1', payment_reference: 'R-1', email: 'a@b.com', name: 'Alice' }] })
-      .mockResolvedValueOnce({ rows: [] });  // UPDATE
-    sendEmail.mockResolvedValueOnce(true);
-    expect(await sendDunning('d-1', 'admin@example.com')).toEqual({ weg: 'email', pdfPath: null });
-    const [sendArg] = sendEmail.mock.calls[0];
-    expect(sendArg.to).toBe('a@b.com');
-    expect(sendArg.subject).toBe('Mahnung 1 zu Rechnung R-1');
-    expect(sendArg.text).toMatch(/Gesamt: 106,20/);
-    const updateSql = query.mock.calls[1][0] as string;
-    expect(updateSql).toMatch(/UPDATE billing_invoice_dunnings/);
-    expect(updateSql).toMatch(/sent_at=now\(\)/);
-    expect(logBillingEvent).toHaveBeenCalledTimes(1);
-  });
-
-  it('Stufe 4 T14 (K60): ohne E-Mail-Adresse keine Mail, sondern „per Post“ vermerkt', async () => {
-    query
-      .mockResolvedValueOnce({ rows: [{ id: 'd-2', level: 1, invoice_id: 'inv-2', fee_amount: '0', interest_amount: '0', outstanding_at_generation: '50', number: 'R-2', payment_reference: 'R-2', email: 'ohne-email-abc@mentolder.invalid', name: 'Otto', pdf_path: '/ablage/m.pdf' }] })
-      .mockResolvedValueOnce({ rows: [] });
-    expect(await sendDunning('d-2', 'admin@example.com')).toEqual({ weg: 'post', pdfPath: '/ablage/m.pdf' });
-    expect(sendEmail).not.toHaveBeenCalled();
-    expect(query.mock.calls[1][1]).toEqual(['d-2', 'admin@example.com (Post)']);
-  });
-
-  it('returns false and does not stamp when sendEmail fails', async () => {
-    query.mockResolvedValueOnce({ rows: [{ id: 'd-1', level: 1, invoice_id: 'inv-1', fee_amount: '5', interest_amount: '1.20', outstanding_at_generation: '100', number: 'R-1', payment_reference: 'R-1', email: 'a@b.com', name: 'Alice' }] });
-    sendEmail.mockResolvedValueOnce(false);
-    expect(await sendDunning('d-1', 'admin@example.com')).toBe(false);
-    expect(logBillingEvent).not.toHaveBeenCalled();
   });
 });
 

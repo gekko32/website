@@ -36,7 +36,10 @@ export async function getYearRevenue(brand: string, year: number): Promise<numbe
     `SELECT COALESCE(SUM(net_amount), 0)::numeric AS total
      FROM billing_invoices
      WHERE brand=$1 AND EXTRACT(YEAR FROM issue_date)=$2
-       AND status IN ('open','paid')
+       -- K167 (Handtest 01.11.2026, H45): alle festgeschriebenen Rechnungen außer stornierten zählen,
+       -- auch gemahnte und teilbezahlte; Gutschriften nicht (ihre Rechnung ist storniert und zählt schon nicht).
+       AND status NOT IN ('draft','cancelled','void')
+       AND COALESCE(kind, 'regular') <> 'gutschrift'
        AND is_test_data = false`,
     [brand, year]
   );
@@ -153,7 +156,10 @@ export async function getMonthlyBreakdown(brand: string, year: number): Promise<
     `SELECT EXTRACT(MONTH FROM issue_date)::int AS month, COALESCE(SUM(net_amount),0)::numeric AS net
      FROM billing_invoices
      WHERE brand=$1 AND EXTRACT(YEAR FROM issue_date)=$2
-       AND status IN ('open','paid')
+       -- K167 (Handtest 01.11.2026, H45): alle festgeschriebenen Rechnungen außer stornierten zählen,
+       -- auch gemahnte und teilbezahlte; Gutschriften nicht (ihre Rechnung ist storniert und zählt schon nicht).
+       AND status NOT IN ('draft','cancelled','void')
+       AND COALESCE(kind, 'regular') <> 'gutschrift'
        AND is_test_data = false
      GROUP BY month ORDER BY month`,
     [brand, year]
