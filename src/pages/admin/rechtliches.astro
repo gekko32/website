@@ -21,7 +21,7 @@ const [dbImpressum, dbDatenschutz, dbAgb, dbBarrierefreiheit] = await Promise.al
 const initialData = {
   'impressum-zusatz': dbImpressum ?? getDefaultImpressumZusatz(),
   'datenschutz':      dbDatenschutz ?? getDefaultDatenschutz(),
-  'agb':              dbAgb ?? getDefaultAgb(),
+  'agb':              dbAgb ?? getDefaultAgb(BRAND),
   'barrierefreiheit': dbBarrierefreiheit ?? getDefaultBarrierefreiheit(),
 };
 

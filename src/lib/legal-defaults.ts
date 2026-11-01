@@ -36,12 +36,16 @@ export function getDefaultDatenschutz(): string {
 <p>Stand: April 2026.</p>`;
 }
 
-export function getDefaultAgb(): string {
+/** brand: mentolder hat seit dem neuen Auftritt keine Seite „Leistungen“ mehr (SPEZ-NEUER-AUFTRITT K214). */
+export function getDefaultAgb(brand?: string): string {
+  const leistungenSatz = brand === 'mentolder'
+    ? 'Was ich anbiete, steht auf der Website. Das erste Gespräch dauert bis zu 45 Minuten und ist kostenlos und unverbindlich.'
+    : 'Inhalt, Dauer und Preis der Leistungen stehen auf der Seite <a href="/leistungen">Leistungen</a>.';
   return `<h1>Allgemeine Geschäftsbedingungen</h1>
 <h2>1. Geltungsbereich</h2>
 <p>Diese Bedingungen gelten für alle Verträge über Coaching, Beratung, Begleitung und sonstige Leistungen von <strong>{{stammdaten.name}}</strong>, {{stammdaten.role}}, {{stammdaten.street}}, {{stammdaten.zip}} {{stammdaten.city}}, mit Privatpersonen (Verbrauchern) und mit Unternehmen. Was im Einzelfall schriftlich oder per E-Mail vereinbart ist, insbesondere in einem Angebot, geht diesen Bedingungen vor.</p>
 <h2>2. Leistungen und Vertragsschluss</h2>
-<p>Inhalt, Dauer und Preis der Leistungen stehen auf der Seite <a href="/leistungen">Leistungen</a>. Vorträge, Moderationen, Analysen und andere individuelle Aufträge werden einzeln vereinbart; maßgeblich ist dann das Angebot.</p>
+<p>${leistungenSatz} Vorträge, Moderationen, Analysen und andere individuelle Aufträge werden einzeln vereinbart; maßgeblich ist dann das Angebot.</p>
 <p>Buchungen über die Website sind eine Anfrage. Der Vertrag kommt mit meiner Bestätigung per E-Mail zustande, bei individuellen Aufträgen mit der Annahme meines Angebots per E-Mail oder schriftlich.</p>
 <h2>3. Coaching ist keine Therapie</h2>
 <p>Coaching und Beratung sind keine Psychotherapie, keine Heilbehandlung und keine Rechts- oder Steuerberatung und ersetzen diese nicht. Wer in psychotherapeutischer oder ärztlicher Behandlung ist, spricht das bitte vor Beginn an. Entscheidungen und deren Umsetzung liegen in der Verantwortung des Kunden.</p>

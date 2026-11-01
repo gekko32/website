@@ -120,3 +120,13 @@ describe('Markengebundene Regeln (K187, K189, K193, K197)', async () => {
     expect(sichtbar).toEqual(['fuehrung-persoenlichkeit', 'kleine-unternehmen', 'selbststaendige-vereine', 'verwaltung']);
   });
 });
+
+describe('Standard-AGB (K214)', async () => {
+  const { getDefaultAgb } = await import('./legal-defaults');
+  it('verweist bei mentolder nicht mehr auf die Seite Leistungen, andere Marken unverändert', () => {
+    expect(getDefaultAgb('mentolder')).not.toContain('href="/leistungen"');
+    expect(getDefaultAgb('mentolder')).toContain('bis zu 45 Minuten');
+    expect(getDefaultAgb('massage')).toContain('href="/leistungen"');
+    expect(getDefaultAgb()).toContain('href="/leistungen"');
+  });
+});

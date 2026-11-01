@@ -74,7 +74,7 @@ const [startseite, uebermich, leistungen, priceListUrl, faq, kontakt, referenzen
 const rechtliches = {
   'impressum-zusatz': dbImpressum ?? getDefaultImpressumZusatz(),
   'datenschutz':      dbDatenschutz ?? getDefaultDatenschutz(),
-  'agb':              dbAgb ?? getDefaultAgb(),
+  'agb':              dbAgb ?? getDefaultAgb(BRAND),
   'barrierefreiheit': dbBarrierefreiheit ?? getDefaultBarrierefreiheit(),
 };
 // Flag: welche Felder sind echte DB-Werte (true) vs. Standardtext-Vorschau (false)

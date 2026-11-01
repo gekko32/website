@@ -14,7 +14,7 @@ const sd = await getEffectiveStammdaten().catch(() => ({} as Stammdaten));
 const stored = await getLegalPage(BRAND, 'agb').catch(() => null);
 // Stufe 3 T2: Frist, Ausfallhöhe und Zahlungsziel aus den Einstellungen (K37, K38).
 const regelWerte = await ladeRegelTokenWerte(BRAND);
-const contentHtml = resolveRegelTokens(resolveTokens(stored?.trim() ? stored : getDefaultAgb(), sd), regelWerte);
+const contentHtml = resolveRegelTokens(resolveTokens(stored?.trim() ? stored : getDefaultAgb(BRAND_ID), sd), regelWerte);
 ---
 
 {isKore ? (
