@@ -19,7 +19,7 @@ export const mentolderConfig: BrandConfig = {
     chamber: 'Entfallt',
     ustId: process.env.LEGAL_UST_ID ?? '',
     website: process.env.LEGAL_WEBSITE ?? '',
-    tagline: 'IT, KI und Coaching',
+    tagline: 'Digitale Prozessberatung und KI-gestützte Lösungen',
   },
   navigation: [
     { label: 'Angebote',   href: '/#angebote' },
@@ -415,7 +415,7 @@ export const mentolderConfig: BrandConfig = {
     hasBilling: true,
   },
   i18n: {
-    tagline: { de: 'IT, KI und Coaching', en: 'IT, AI and coaching' },
+    tagline: { de: 'Digitale Prozessberatung und KI-gestützte Lösungen', en: 'IT, AI and coaching' },
     siteDescription: {
       de: 'Ich mache sichtbar, wie Ihre Arbeit zusammenhängt, und nehme dabei alle mit. IT, Websites, KI und Coaching in Lüneburg, Hamburg und online.',
       en: 'Coaching & digital accompaniment in Lüneburg and Hamburg – personal, experienced, at eye level. For leadership personalities and people in transition.',

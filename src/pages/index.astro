@@ -211,13 +211,20 @@ const processSteps = homepage.processSteps ?? [];
         avatarSrc={homepage.avatarSrc}
         avatarInitials={homepage.avatarInitials}
         personName={stammdaten.name}
-        personRole={stammdaten.role}
+        personRole="Digitaler Prozessberater"
         primaryText="Erzählen Sie mir, worum es geht"
-        secondaryText="Wobei ich helfe"
-        secondaryHref="/#hilfe"
+        secondaryText="So arbeite ich"
+        secondaryHref="/#process-heading"
       />
 
-      <!-- Wobei ich helfe -->
+      <!-- So arbeite ich -->
+      <Process
+        steps={processSteps}
+        eyebrow={homepage.processEyebrow}
+        headline={homepage.processHeadline}
+      />
+
+      <!-- Für wen -->
       <section id="hilfe" class="section" aria-labelledby="hilfe-heading">
         <div class="wrap">
           <div class="section-head">
@@ -274,13 +281,6 @@ const processSteps = homepage.processSteps ?? [];
           </div>
         </div>
       </section>
-
-      <!-- Process -->
-      <Process
-        steps={processSteps}
-        eyebrow={homepage.processEyebrow}
-        headline={homepage.processHeadline}
-      />
 
       <!-- CTA -->
       <CallToAction

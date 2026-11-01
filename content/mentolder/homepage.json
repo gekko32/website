@@ -1,9 +1,9 @@
 {
   "hero": {
-    "title": "Ich mache sichtbar, wie Ihre Arbeit zusammenhängt,",
-    "titleEmphasis": "und nehme dabei alle mit.",
-    "subtitle": "Erst dann kommt die Technik. IT, Websites und KI für Selbstständige, Vereine, kleine Unternehmen und Verwaltung. Dazu Coaching für Menschen in Verantwortung.",
-    "tagline": "IT · Websites · KI · Coaching"
+    "tagline": "Digitale Prozessberatung · KI-gestützte Lösungen",
+    "title": "Ihre Arbeitsabläufe digital und verbunden,",
+    "titleEmphasis": "von der Analyse bis zur fertigen Lösung.",
+    "subtitle": "Ich helfe Selbstständigen und kleinen Unternehmen, ihre Arbeitsabläufe zu digitalisieren und miteinander zu verbinden. Ich analysiere, plane und entwickle individuelle Lösungen mit KI-Unterstützung und übergebe ein System, das möglichst wenig Wartung braucht. Das Ziel: weniger Handarbeit, weniger Medienbrüche, weniger Fehler."
   },
   "stats": [
     {
@@ -23,7 +23,7 @@
       "label": "Pionier der ersten Stunde"
     }
   ],
-  "servicesHeadline": "Wobei ich helfe",
+  "servicesHeadline": "Für wen",
   "servicesSubheadline": "Sie müssen nicht wissen, was Sie brauchen. Es reicht, wenn Sie wissen, was hakt.",
   "whyMeHeadline": "Wie das aussieht",
   "whyMeIntro": "Drei Geschichten aus 40 Jahren",
@@ -51,21 +51,26 @@
   "quoteName": "Gerald Korczewski",
   "processSteps": [
     {
-      "num": "01 — Gespräch",
-      "heading": "Sie erzählen",
-      "description": "Kostenlos, am Telefon, online oder vor Ort. Nichts ist belanglos."
+      "num": "01 — Analyse",
+      "heading": "Sichtbar machen",
+      "description": "Ich höre zu und zeige, wie Ihre Arbeit tatsächlich läuft: wer was tut, wo Daten doppelt liegen, wo Medienbrüche entstehen."
     },
     {
-      "num": "02 — Überblick",
-      "heading": "Ich zeige Ihnen ein Bild",
-      "description": "Wie Ihre Arbeit, Ihre Daten und Ihre Technik zusammenhängen."
+      "num": "02 — Konzept",
+      "heading": "Gemeinsam planen",
+      "description": "Wir legen fest, was die Lösung leisten soll. Sie wissen vorher, was Sie bekommen und was es kostet."
     },
     {
-      "num": "03 — Entscheidung",
-      "heading": "Sie entscheiden",
-      "description": "Was wir angehen, in welcher Reihenfolge, zu welchem Preis."
+      "num": "03 — Umsetzung",
+      "heading": "Selbst entwickeln",
+      "description": "Ich entwickle die Lösung selbst, mit KI-Unterstützung. Jedes Ergebnis prüfe ich, bevor Sie sich darauf verlassen."
+    },
+    {
+      "num": "04 — Übergabe",
+      "heading": "Wartungsarm übergeben",
+      "description": "Sie bekommen ein System mit Anleitung, das möglichst wenig Pflege braucht. Sie sind nicht dauerhaft von mir abhängig."
     }
   ],
-  "processEyebrow": "So fangen wir an",
-  "processHeadline": "Drei Schritte, ohne Verpflichtung."
+  "processEyebrow": "So arbeite ich",
+  "processHeadline": "Von der Analyse bis zur Übergabe."
 }

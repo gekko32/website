@@ -1,22 +1,27 @@
 [
   {
-    "label": "Wobei ich helfe",
-    "href": "/#hilfe",
+    "label": "So arbeite ich",
+    "href": "/#process-heading",
     "order": 0
+  },
+  {
+    "label": "Für wen",
+    "href": "/#hilfe",
+    "order": 1
   },
   {
     "label": "Geschichten",
     "href": "/geschichten",
-    "order": 1
+    "order": 2
   },
   {
     "label": "Über mich",
     "href": "/ueber-mich",
-    "order": 2
+    "order": 3
   },
   {
     "label": "Kontakt",
     "href": "/kontakt",
-    "order": 3
+    "order": 4
   }
 ]

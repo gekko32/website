@@ -11,14 +11,14 @@ export interface HilfeKarte {
 export const hilfeKarten: HilfeKarte[] = [
   {
     titel: 'Selbstständige & Vereine',
-    zitat: '„Meine Technik und meine Website sollen einfach funktionieren.“',
-    beleg: 'Ein fester Ansprechpartner, der zuhört und erklärt, ohne Fachchinesisch.',
+    zitat: '„Ich tippe dieselben Daten dreimal ab: in die Anmeldung, die Liste und die Rechnung.“',
+    beleg: 'Ich verbinde Anmeldung, Termine, Mitglieder und Rechnungen, sodass jede Angabe nur einmal erfasst wird.',
     href: '/selbststaendige-vereine',
   },
   {
     titel: 'Kleine Unternehmen',
     zitat: '„Bei uns weiß keiner mehr, was wo liegt und wer was macht.“',
-    beleg: 'Ich bringe Abläufe und Daten in eine Ordnung, bevor neue Software gekauft wird. Datenschutz inklusive.',
+    beleg: 'Ich mache die Abläufe sichtbar, ordne sie und entwickle eine Lösung, die Ihre Programme verbindet.',
     href: '/kleine-unternehmen',
   },
   {
@@ -37,7 +37,7 @@ export const hilfeKarten: HilfeKarte[] = [
 
 export const werIchBin = [
   '40 Jahre war ich bei der Polizei Hamburg, über 30 davon in Führung, zuletzt als Leiter der Videotechnik in der IT. Ich habe den Digitalfunk mit aufgebaut und im G20-Einsatz Gesichtserkennung eingeführt.',
-  'Seit 2023 bin ich mit mentolder selbstständig und als systemischer Coach ausgebildet. KI nutze ich so, wie ich es bei der Polizei gelernt habe: Sie liefert schnell ein Ergebnis, aber ich prüfe es, bevor sich jemand darauf verlässt.',
+  'Seit 2023 bin ich mit mentolder selbstständig. Heute analysiere ich Arbeitsabläufe und entwickle daraus individuelle digitale Lösungen. Ich bin außerdem ausgebildeter systemischer Coach. KI nutze ich so, wie ich es bei der Polizei gelernt habe: Sie liefert schnell ein Ergebnis, aber ich prüfe es, bevor sich jemand darauf verlässt.',
 ];
 
 export interface Geschichte {

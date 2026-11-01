@@ -2,47 +2,47 @@
   {
     "slug": "selbststaendige-vereine",
     "title": "Selbstständige & Vereine",
-    "description": "Technik und Website, die einfach funktionieren, mit einem festen Ansprechpartner.",
+    "description": "Anmeldung, Termine, Mitglieder und Rechnungen verbinden, sodass jede Angabe nur einmal erfasst wird.",
     "icon": "💻",
     "iconSpriteId": "prop-compass",
     "features": [
-      "Website",
-      "Rechner, E-Mail, Datensicherung",
-      "Programme für Mitglieder und Termine"
+      "Abläufe analysieren",
+      "Programme verbinden",
+      "Wartungsarm übergeben"
     ],
     "price": "nach Vereinbarung",
     "pageContent": {
-      "headline": "Ihre Technik soll einfach funktionieren.",
-      "intro": "Sie haben ein Studio, eine Praxis, einen kleinen Betrieb oder einen Verein, aber keine eigene IT. Ich kümmere mich um Website, Rechner, Daten und Programme, erkläre, was ich tue, und bleibe Ihr Ansprechpartner.",
+      "headline": "Jede Angabe nur einmal erfassen.",
+      "intro": "Sie haben ein Studio, eine Praxis, einen kleinen Betrieb oder einen Verein. Dieselben Daten landen in der Anmeldung, in einer Liste und in der Rechnung, oft von Hand übertragen. Ich sehe mir an, wie Ihre Arbeit läuft, und entwickle eine Lösung, die diese Schritte verbindet. Am Ende übergebe ich ein System, das Sie selbst bedienen können.",
       "forWhom": [
         "Selbstständige ohne eigene IT-Abteilung",
-        "Vereine, deren Vorstand die Technik nebenbei betreut",
-        "Alle, deren Website nicht mehr passt",
-        "Alle, die wissen wollen, ob ihre Daten sicher sind"
+        "Vereine, deren Vorstand die Verwaltung nebenbei erledigt",
+        "Alle, die Daten mehrfach abtippen",
+        "Alle, deren Website, Buchung und Rechnung nicht zusammenpassen"
       ],
       "sections": [
         {
-          "title": "Website",
+          "title": "Analyse",
           "items": [
-            "Bestandsaufnahme der vorhandenen Seite",
-            "Umbau oder Neuaufbau",
-            "Datenschutz und Impressum prüfen"
+            "Wie läuft Ihre Arbeit heute?",
+            "Wo wird doppelt erfasst?",
+            "Was kostet Sie am meisten Zeit?"
           ]
         },
         {
-          "title": "Alltag",
+          "title": "Lösung",
           "items": [
-            "Rechner, Handy und E-Mail einrichten",
-            "Datensicherung, die wirklich läuft",
-            "Programme für Mitglieder und Termine, z. B. easyVerein"
+            "Website, Anmeldung und Terminbuchung verbinden",
+            "Mitglieder- und Kundendaten an einer Stelle",
+            "Rechnungen ohne Abtippen"
           ]
         },
         {
-          "title": "Begleitung",
+          "title": "Übergabe",
           "items": [
-            "Erklären statt Fachchinesisch",
-            "Ansprechpartner, wenn etwas hakt",
-            "KI dort, wo sie Arbeit spart"
+            "System mit Anleitung",
+            "Möglichst wenig Wartung",
+            "Datenschutz von Anfang an"
           ]
         }
       ],
@@ -60,14 +60,14 @@
         }
       ],
       "faq": [],
-      "seoTitle": "IT und Website für Selbstständige und Vereine | mentolder.de",
-      "seoDescription": "Website, Rechner, Datensicherung und Vereinsprogramme mit einem festen Ansprechpartner. Persönlich, ohne Fachchinesisch."
+      "seoTitle": "Abläufe digitalisieren für Selbstständige und Vereine | mentolder.de",
+      "seoDescription": "Anmeldung, Termine, Mitglieder und Rechnungen verbinden. Von der Analyse bis zum wartungsarmen System."
     }
   },
   {
     "slug": "kleine-unternehmen",
     "title": "Kleine Unternehmen",
-    "description": "Abläufe und Daten in eine Ordnung bringen, bevor neue Software gekauft wird.",
+    "description": "Abläufe sichtbar machen, ordnen und mit einer passenden Lösung verbinden.",
     "icon": "🏢",
     "iconSpriteId": "prop-compass",
     "features": [
@@ -78,7 +78,7 @@
     "price": "nach Vereinbarung",
     "pageContent": {
       "headline": "Erst das Bild, dann die Software.",
-      "intro": "Mit der Zeit sammeln sich Programme, Listen und Gewohnheiten. Irgendwann weiß keiner mehr genau, was wo liegt und wer was pflegt. Ich höre mir an, wie Ihre Arbeit tatsächlich läuft, bringe sie auf ein Bild und ordne sie mit Ihnen neu. Erst dann entscheiden wir, welche Technik Sie brauchen.",
+      "intro": "Mit der Zeit sammeln sich Programme, Listen und Gewohnheiten. Irgendwann weiß keiner mehr genau, was wo liegt und wer was pflegt. Ich höre mir an, wie Ihre Arbeit tatsächlich läuft, bringe sie auf ein Bild und ordne sie mit Ihnen neu. Danach entwickle ich eine Lösung, die Ihre Abläufe verbindet, und übergebe sie so, dass Sie sie selbst betreiben können.",
       "forWhom": [
         "Betriebe, in denen Daten doppelt geführt werden",
         "Teams vor einer Software-Entscheidung",
@@ -95,19 +95,19 @@
           ]
         },
         {
-          "title": "Technik",
+          "title": "Lösung",
           "items": [
-            "Website, Buchung, Rechnungen",
-            "Datenschutz und Datensicherung",
-            "Auf Wunsch selbst betrieben statt vieler Abos"
+            "Individuell entwickelt, mit KI-Unterstützung",
+            "Vorhandene Programme verbinden statt ersetzen",
+            "Datenschutz und Datensicherung inklusive"
           ]
         },
         {
-          "title": "KI",
+          "title": "Übergabe",
           "items": [
-            "Wo KI Arbeit spart",
-            "Ergebnisse prüfen, bevor man sich darauf verlässt",
-            "Die Mitarbeitenden mitnehmen"
+            "System mit Anleitung",
+            "Möglichst wenig Wartung",
+            "Mitarbeitende einweisen"
           ]
         }
       ],
