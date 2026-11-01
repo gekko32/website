@@ -6,7 +6,7 @@ import FAQ from '../components/FAQ.svelte';
 import Process from '../components/Process.astro';
 import KoreHomepage from '../components/kore/KoreHomepage.svelte';
 import { config } from '../config/index';
-import { hilfeKarten, werIchBin, geschichten } from '../data/mentolder-auftritt';
+import { hilfeKarten, werIchBin, geschichten, beispiele } from '../data/mentolder-auftritt';
 import {
   getEffectiveServices,
   getEffectiveHomepage,
@@ -224,6 +224,29 @@ const processSteps = homepage.processSteps ?? [];
         headline={homepage.processHeadline}
       />
 
+      <!-- Was ich heute umsetze -->
+      <section id="beispiele" class="section section-line" aria-labelledby="beispiele-heading">
+        <div class="wrap">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Was ich heute umsetze</p>
+              <h2 id="beispiele-heading">Beispiele aus der Praxis</h2>
+            </div>
+          </div>
+          <ul class="karten" role="list">
+            {beispiele.map((b) => (
+              <li class="karte beispiel">
+                <p class="beispiel-bereich">{b.bereich}</p>
+                <h3>{b.titel}</h3>
+                <p class="karte-beleg"><strong>Vorher:</strong> {b.vorher}</p>
+                <p class="karte-beleg"><strong>Lösung:</strong> {b.loesung}</p>
+                <p class="beispiel-stand">{b.stand}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
       <!-- Für wen -->
       <section id="hilfe" class="section" aria-labelledby="hilfe-heading">
         <div class="wrap">
@@ -371,6 +394,10 @@ const processSteps = homepage.processSteps ?? [];
   .karte-beleg { color: var(--fg-soft); font-size: 15px; line-height: 1.55; margin: 0 0 20px; flex: 1; }
   .karte a, .weiter { color: var(--brass); text-decoration: none; font-size: 15px; }
   .karte a:hover, .weiter:hover { text-decoration: underline; }
+  .beispiel-bereich { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--brass); margin: 0 0 10px; }
+  .karte .karte-beleg strong { color: var(--fg); font-weight: 600; }
+  .beispiel .karte-beleg { flex: none; margin-bottom: 12px; }
+  .beispiel-stand { font-size: 13px; color: var(--mute); margin: auto 0 0; border-top: 1px solid var(--line); padding-top: 12px; }
   .geschichten { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
   .geschichte { border-left: 2px solid var(--brass); padding: 4px 0 4px 22px; }
   .geschichte-zeit { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; color: var(--mute); margin: 0 0 8px; }

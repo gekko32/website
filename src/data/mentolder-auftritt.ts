@@ -35,6 +35,46 @@ export const hilfeKarten: HilfeKarte[] = [
   },
 ];
 
+export interface Beispiel {
+  bereich: string;
+  titel: string;
+  vorher: string;
+  loesung: string;
+  stand: string;
+}
+
+// Bewusst ohne Namen von Kunden (Gerald, 01.11.2026).
+export const beispiele: Beispiel[] = [
+  {
+    bereich: 'Stadtführungen',
+    titel: 'Touren, Einsätze und Anfragen in einem System',
+    vorher: 'Termine, Einsatzplanung und Anfragen liefen über E-Mail, Telefon und Listen.',
+    loesung: 'Ein Kalender aller Touren, die Einsatzplanung der Guides und Anfragen für Leihfahrräder an einer Stelle.',
+    stand: 'Prototyp in Erprobung',
+  },
+  {
+    bereich: 'Eigene Plattform',
+    titel: 'Vom Termin bis zur Mahnung',
+    vorher: 'Termine, Kundendaten und Rechnungen wären sonst in getrennten Programmen gelandet.',
+    loesung: 'Terminbuchung, Kundenportal, Rechnungen und Mahnwesen greifen ineinander. Jede Angabe wird einmal erfasst, Belege entstehen automatisch.',
+    stand: 'Im Einsatz bei mentolder',
+  },
+  {
+    bereich: 'Verein',
+    titel: 'Mitglieder an einer Stelle statt in Listen',
+    vorher: 'Mitglieder, Beiträge und Termine wurden in verschiedenen Listen gepflegt.',
+    loesung: 'Bestandsaufnahme der Vereinsabläufe und Einführung einer Vereinsverwaltung.',
+    stand: 'Begleitet',
+  },
+  {
+    bereich: 'Coaching',
+    titel: 'Ein digitales Aufstellungsbrett',
+    vorher: 'Systemische Aufstellungen brauchten ein Brett und Figuren im selben Raum.',
+    loesung: 'Ein eigenes Werkzeug, mit dem Klienten online gemeinsam aufstellen können, selbst entwickelt und betrieben.',
+    stand: 'Im Einsatz',
+  },
+];
+
 export const werIchBin = [
   '40 Jahre war ich bei der Polizei Hamburg, über 30 davon in Führung, zuletzt als Leiter der Videotechnik in der IT. Ich habe den Digitalfunk mit aufgebaut und im G20-Einsatz Gesichtserkennung eingeführt.',
   'Seit 2023 bin ich mit mentolder selbstständig. Heute analysiere ich Arbeitsabläufe und entwickle daraus individuelle digitale Lösungen. Ich bin außerdem ausgebildeter systemischer Coach. KI nutze ich so, wie ich es bei der Polizei gelernt habe: Sie liefert schnell ein Ergebnis, aber ich prüfe es, bevor sich jemand darauf verlässt.',
