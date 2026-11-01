@@ -295,6 +295,14 @@ export async function initBillingTables(): Promise<void> {
       gesetzt_von TEXT,
       gesetzt_am  TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    -- N33 (Gerald 01.11.2026): Mahnverfahren von Hand beendet (abgeschrieben, übergeben, eingestellt).
+    CREATE TABLE IF NOT EXISTS billing_mahnabschluss (
+      invoice_id       TEXT PRIMARY KEY REFERENCES billing_invoices(id) ON DELETE CASCADE,
+      art              TEXT NOT NULL CHECK (art IN ('abgeschrieben','uebergeben','eingestellt')),
+      grund            TEXT NOT NULL,
+      von              TEXT,
+      abgeschlossen_am TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS billing_invoice_line_items (

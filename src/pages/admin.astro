@@ -15,6 +15,7 @@ import PipelineSidekickView from '../components/assistant/PipelineSidekickView.s
 import { listInboxItems } from '../lib/messaging-db';
 import { toInboxPreview } from '../lib/admin/inbox-preview';
 import { listPendingDunnings } from '../lib/invoice-dunning';
+import { zaehleEntscheidungen } from '../lib/mahn-vorgang';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -30,6 +31,7 @@ let openInvoiceAmount = 0;
 let freeSlots         = 0;
 // K160 (Handtest 30.10.2026, H35): Mahnungen und überfällige Rechnungen sichtbar.
 let offeneMahnungen   = 0;
+let mahnEntscheidungen = 0;
 let ueberfaellig      = 0;
 let shortcuts: AdminShortcut[] = [];
 let inboxRows: import('../lib/admin/inbox-preview').InboxPreviewRow[] = [];
@@ -57,6 +59,9 @@ await Promise.allSettled([
     }),
   listPendingDunnings(BRAND)
     .then(d => { offeneMahnungen = d.length; }),
+  // N33: Frist der letzten Mahnung abgelaufen – Entscheidung nötig.
+  zaehleEntscheidungen(BRAND)
+    .then(n => { mahnEntscheidungen = n; }),
   listAdminShortcuts()
     .then(s => { shortcuts = s; }),
   listInboxItems({ status: 'pending' })
@@ -103,11 +108,12 @@ const datum = now.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit',
 
 const kpis = [
   {
-    label: 'Mahnungen zu versenden',
-    value: offeneMahnungen,
+    label: 'Mahnungen zu erledigen',
+    value: offeneMahnungen + mahnEntscheidungen,
     href: '/admin/mahnungen',
-    color: offeneMahnungen > 0 ? 'danger' as const : 'neutral' as const,
-    suffix: offeneMahnungen > 0 ? 'prüfen und versenden' : 'keine',
+    color: offeneMahnungen + mahnEntscheidungen > 0 ? 'danger' as const : 'neutral' as const,
+    suffix: [offeneMahnungen > 0 ? `${offeneMahnungen} zu versenden` : '', mahnEntscheidungen > 0 ? `${mahnEntscheidungen} entscheiden` : '']
+      .filter(Boolean).join(', ') || 'keine',
   },
   {
     label: 'Überfällige Rechnungen',

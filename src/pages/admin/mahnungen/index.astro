@@ -1,11 +1,12 @@
 ---
-// K163 (Handtest 01.11.2026, H41): eigene Seite für Mahnungen – zu versenden und verschickt, Mahnlauf von Hand.
+// K163 (Handtest 01.11.2026, H41): eigene Seite für Mahnungen – zu versenden, laufend, abgeschlossen (N33), Mahnlauf von Hand.
 // Der Link in der Mahnungs-Mail an Gerald führt hierher. Verschickt wird über die Prüfseite je Mahnung.
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { listeMahnungen, listeMahnpausen, type Mahnung, type Mahnpause } from '../../../lib/mahnung-versand';
-import { ladeMahnEinstellungen } from '../../../lib/mahn-einstellungen';
+import { ladeMahnEinstellungen, stufenName } from '../../../lib/mahn-einstellungen';
+import { listeVorgaenge, ABSCHLUSS_TEXT, type MahnVorgang } from '../../../lib/mahn-vorgang';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -14,7 +15,10 @@ Astro.response.headers.set('Cache-Control', 'no-store');
 
 const brand = process.env.BRAND || 'mentolder';
 let fehler = false;
-const { offen, verschickt } = await listeMahnungen(brand).catch(() => { fehler = true; return { offen: [] as Mahnung[], verschickt: [] as Mahnung[] }; });
+const { offen } = await listeMahnungen(brand).catch(() => { fehler = true; return { offen: [] as Mahnung[], verschickt: [] as Mahnung[] }; });
+const vorgaenge = await listeVorgaenge(brand).catch(() => { fehler = true; return [] as MahnVorgang[]; });
+const laeuft = vorgaenge.filter((v) => !v.abschluss).sort((a, b) => Number(b.entscheidungNoetig) - Number(a.entscheidungNoetig));
+const abgeschlossen = vorgaenge.filter((v) => v.abschluss).sort((a, b) => (b.abschluss!.am ?? '').localeCompare(a.abschluss!.am ?? ''));
 const pausen = await listeMahnpausen(brand).catch(() => [] as Mahnpause[]);
 const einst = await ladeMahnEinstellungen(brand);
 const euro = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
@@ -24,7 +28,7 @@ const q = Astro.url.searchParams;
 
 <AdminLayout title="Mahnungen">
   <div style="padding:1.5rem;max-width:900px;">
-    <AdminPageHeader title="Mahnungen" description="Zu versenden zuerst. Jede Mahnung vor dem Versand prüfen: Schreiben ansehen, E-Mail anpassen, dann senden – oder ohne E-Mail drucken und per Post schicken." />
+    <AdminPageHeader title="Mahnungen" description="Zu versenden zuerst. Jede Mahnung vor dem Versand prüfen: Schreiben ansehen, E-Mail anpassen, dann senden – oder ohne E-Mail drucken und per Post schicken. Darunter die laufenden Mahnverfahren; bezahlte, stornierte und beendete stehen unter „Abgeschlossen“." />
 
     {q.get('verschickt') && <p class="meldung-gut mb-4">{q.get('verschickt')}</p>}
     {fehler && <p role="alert" class="text-sm text-red-400 mb-4">Die Mahnungen konnten gerade nicht geladen werden.</p>}
@@ -71,21 +75,49 @@ const q = Astro.url.searchParams;
       <p id="mahnlauf-meldung" role="status" class="text-sm mt-2"></p>
     </section>
 
-    <section class="kasten">
-      <h2 class="kasten-titel">Verschickt ({verschickt.length})</h2>
-      {verschickt.length === 0 ? <p class="text-sm text-muted">Noch keine verschickt.</p> : (
+    {/* N33 (01.11.2026, H47): Vorgänge je Rechnung – läuft (Entscheidung nötig zuerst) und abgeschlossen. */}
+    <section class="kasten mb-6">
+      <h2 class="kasten-titel">Läuft ({laeuft.length})</h2>
+      {laeuft.length === 0 ? <p class="text-sm text-muted">Keine laufenden Mahnverfahren.</p> : (
         <ul class="space-y-2">
-          {verschickt.map((m) => (
-            <li class="zeile">
+          {laeuft.map((v) => (
+            <li class={`zeile ${v.entscheidungNoetig ? 'entscheiden' : ''}`}>
               <div>
-                <p class="text-light">{m.klientName || m.empfaengerName} · {m.stufenName}</p>
-                <p class="text-sm text-muted">Rechnung <span class="font-mono">{m.rechnungsnummer}</span> · {euro(m.gesamt)} · verschickt {m.versandweg === 'post' ? 'per Post' : 'per E-Mail'} am {fd(m.versendetAm)}{m.frist ? ` · zahlbar bis ${fd(m.frist)}` : ''}</p>
+                <p class="text-light">{v.klientName} · Rechnung <span class="font-mono">{v.rechnungsnummer}</span></p>
+                <p class="text-sm text-muted">{stufenName(v.stufe)} verschickt am {fd(v.letzterVersand)}{v.frist ? ` · zahlbar bis ${fd(v.frist)}` : ''} · offen {euro(v.offenJetzt)}</p>
+                {v.entscheidungNoetig && <p class="text-sm text-amber-300 mt-1">Frist der letzten Mahnung abgelaufen – jetzt entscheiden: abschreiben, an Gericht/Inkasso übergeben oder weiter warten.</p>}
               </div>
-              <a href={`/admin/mahnungen/${m.id}`} class="px-3 py-1.5 rounded-lg border border-light/40 text-sm whitespace-nowrap">Ansehen ›</a>
+              {v.mahnungId && <a href={`/admin/mahnungen/${v.mahnungId}#beenden`} class="px-3 py-1.5 rounded-lg border border-light/40 text-sm whitespace-nowrap">{v.entscheidungNoetig ? 'Entscheiden ›' : 'Ansehen ›'}</a>}
             </li>
           ))}
         </ul>
       )}
+    </section>
+
+    <section class="kasten" id="abgeschlossen">
+      <details open={q.has('offen')}>
+        <summary class="kasten-titel cursor-pointer">Abgeschlossen ({abgeschlossen.length})</summary>
+        {abgeschlossen.length === 0 ? <p class="text-sm text-muted">Noch nichts abgeschlossen.</p> : (
+          <ul class="space-y-2 mt-2">
+            {abgeschlossen.map((v) => (
+              <li class="zeile">
+                <div>
+                  <p class="text-light">{v.klientName} · Rechnung <span class="font-mono">{v.rechnungsnummer}</span></p>
+                  <p class="text-sm text-muted">{ABSCHLUSS_TEXT[v.abschluss!.art]}{v.abschluss!.am ? ` am ${fd(v.abschluss!.am)}` : ''}{v.abschluss!.grund ? ` · ${v.abschluss!.grund}` : ''}{v.stufe > 0 ? ` · zuletzt ${stufenName(v.stufe)}` : ''}</p>
+                </div>
+                <div class="flex gap-2">
+                  {/* Prüfung G21: Wiederaufnehmen auch ohne verschickte Mahnung (dann gibt es keine Prüfseite). */}
+                  {['abgeschrieben', 'uebergeben', 'eingestellt'].includes(v.abschluss!.art) && (
+                    <button type="button" class="aufnehmen px-3 py-1.5 rounded-lg border border-gold text-gold text-sm whitespace-nowrap"
+                      data-invoice={v.invoiceId} data-nummer={v.rechnungsnummer}>Wieder aufnehmen …</button>
+                  )}
+                  {v.mahnungId && <a href={`/admin/mahnungen/${v.mahnungId}`} class="px-3 py-1.5 rounded-lg border border-light/40 text-sm whitespace-nowrap">Ansehen ›</a>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </details>
     </section>
   </div>
 </AdminLayout>
@@ -95,6 +127,7 @@ const q = Astro.url.searchParams;
   .kasten-titel { font-size: 1.05rem; font-weight: 600; color: var(--color-light, #eee); margin-bottom: 0.75rem; }
   .zeile { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;
     padding: 0.75rem; border: 1px solid var(--color-dark-lighter, #333); border-radius: 0.75rem; }
+  .zeile.entscheiden { border-color: #f59e0b; background: rgba(245, 158, 11, 0.08); }
   .meldung-gut { padding: 0.75rem 1rem; border: 1px solid #22c55e; background: rgba(34, 197, 94, 0.12); border-radius: 0.75rem; color: #dcfce7; font-size: 0.875rem; }
 </style>
 
@@ -114,5 +147,20 @@ const q = Astro.url.searchParams;
       meldung.textContent = `${data.generated ?? 0} neue Mahnung(en) angelegt, ${data.pending ?? 0} zu versenden.`;
     }
     if ((data.generated ?? 0) > 0) setTimeout(() => window.location.reload(), 1500);
+  });
+
+  // N33/G21: beendetes Mahnverfahren wieder aufnehmen.
+  document.querySelectorAll<HTMLButtonElement>('button.aufnehmen').forEach((knopf) => {
+    knopf.addEventListener('click', async () => {
+      const nummer = knopf.dataset.nummer ?? '';
+      if (!window.confirm(`Mahnverfahren zu Rechnung ${nummer} wieder aufnehmen?\nDer nächste Mahnlauf macht mit der nächsten Stufe weiter.`)) return;
+      knopf.disabled = true;
+      const res = await fetch(`/api/admin/billing/mahnverfahren/${knopf.dataset.invoice}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aktion: 'aufnehmen' }),
+      });
+      const data = await res.json().catch(() => ({})) as { error?: string };
+      if (!res.ok) { knopf.disabled = false; window.alert(data.error ?? 'Hat nicht geklappt.'); return; }
+      window.location.href = `/admin/mahnungen?verschickt=${encodeURIComponent(`Mahnverfahren zu ${nummer} wieder aufgenommen.`)}`;
+    });
   });
 </script>

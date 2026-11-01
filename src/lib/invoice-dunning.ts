@@ -113,6 +113,8 @@ export async function runDunningDetection(brand: string): Promise<{ generated: n
        FROM v_billing_invoices_with_state v
       WHERE brand=$1
         AND status IN ('open','partially_paid','overdue','dunning_1','dunning_2')
+        -- N33 (01.11.2026): beendete Mahnverfahren (abgeschrieben, übergeben, eingestellt) nicht weiter mahnen.
+        AND NOT EXISTS (SELECT 1 FROM billing_mahnabschluss a WHERE a.invoice_id = v.id)
         AND locked=true`,
     [brand]
   );

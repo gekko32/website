@@ -4,7 +4,8 @@
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
-import { holeMahnung } from '../../../lib/mahnung-versand';
+import { holeMahnung, listeMahnungen } from '../../../lib/mahnung-versand';
+import { listeVorgaenge, ABSCHLUSS_TEXT } from '../../../lib/mahn-vorgang';
 import { ladeMahnEinstellungen, fristDatum } from '../../../lib/mahn-einstellungen';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
@@ -26,6 +27,12 @@ const teilzahlung = offen && m.offenJetzt < m.offen - 0.005;
 const tag = (d: Date) => d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
 const heute = tag(new Date());
 const pauseVorschlag = tag(new Date(Date.now() + einst.pauseTage * 86_400_000));
+// N33: Vorgang dieser Rechnung – Verlauf aller Stufen, beenden oder wieder aufnehmen.
+const vorgang = (await listeVorgaenge(brand, m.invoiceId).catch(() => []))[0];
+const { offen: alleOffen, verschickt: alleVerschickt } = await listeMahnungen(brand);
+const verlauf = [...alleVerschickt, ...alleOffen].filter((x) => x.invoiceId === m.invoiceId).sort((a, b) => a.stufe - b.stufe);
+const vonHandBeendet = vorgang?.abschluss && !['bezahlt', 'storniert'].includes(vorgang.abschluss.art);
+const beendbar = !m.rechnungBezahlt && !m.rechnungStorniert && !vorgang?.abschluss;
 ---
 
 <AdminLayout title={`${m.stufenName} ${m.rechnungsnummer}`}>
@@ -37,6 +44,14 @@ const pauseVorschlag = tag(new Date(Date.now() + einst.pauseTage * 86_400_000));
     <AdminPageHeader title={`${m.stufenName} zu Rechnung ${m.rechnungsnummer}`}
       description={m.versendetAm ? `Verschickt ${m.versandweg === 'post' ? 'per Post' : 'per E-Mail'} am ${fd(m.versendetAm)} · zahlbar bis ${fd(m.frist)}` : 'Noch nicht verschickt. Bitte prüfen.'} />
 
+    <p id="meldung" role="alert" class="text-sm mb-2"></p>
+    {vorgang?.abschluss && (
+      <p class="text-sm border border-light/30 rounded-lg p-3 mb-3">
+        Mahnverfahren abgeschlossen: <strong>{ABSCHLUSS_TEXT[vorgang.abschluss.art]}</strong>{vorgang.abschluss.am ? ` am ${fd(vorgang.abschluss.am)}` : ''}{vorgang.abschluss.grund ? ` – ${vorgang.abschluss.grund}` : ''}.
+        {vorgang.abschluss.art === 'uebergeben' && ' Eine spätere Zahlung wird trotzdem normal gebucht.'}
+      </p>
+    )}
+    {vorgang?.entscheidungNoetig && <p role="alert" class="text-sm text-amber-300 border border-amber-400/50 rounded-lg p-3 mb-3">Die Frist der letzten Mahnung ist abgelaufen. Unten unter „Mahnverfahren beenden“ entscheiden – oder weiter warten.</p>}
     {m.rechnungStorniert && <p role="alert" class="text-sm text-red-400 mb-3">Die Rechnung ist storniert – diese Mahnung nicht mehr verschicken.</p>}
     {m.rechnungBezahlt && !m.versendetAm && <p class="text-sm text-green-400 mb-3">Die Rechnung ist inzwischen bezahlt – diese Mahnung wird nicht mehr verschickt.</p>}
     {teilzahlung && (
@@ -70,7 +85,6 @@ const pauseVorschlag = tag(new Date(Date.now() + einst.pauseTage * 86_400_000));
     {offen && (
       <section class="kasten mb-5" id="versand">
         <h2 class="kasten-titel">Verschicken</h2>
-        <p id="meldung" role="alert" class="text-sm mb-2"></p>
         <div id="mail-bereich" class="grid gap-3 text-sm">
           <label class="text-xs text-muted">An <span id="mail-an-quelle" class="ml-1"></span>
             <input id="mail-an" type="email" autocomplete="off" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark text-sm text-light" /></label>
@@ -103,6 +117,49 @@ const pauseVorschlag = tag(new Date(Date.now() + einst.pauseTage * 86_400_000));
       </section>
     )}
 
+    {verlauf.length > 1 && (
+      <section class="kasten mb-5">
+        <h2 class="kasten-titel">Verlauf zu Rechnung {m.rechnungsnummer}</h2>
+        <ul class="text-sm space-y-1">
+          {verlauf.map((x) => (
+            <li>{x.id === m.id ? <strong>{x.stufenName}</strong> : <a class="underline" href={`/admin/mahnungen/${x.id}`}>{x.stufenName}</a>}
+              {' · '}{x.versendetAm ? `verschickt ${x.versandweg === 'post' ? 'per Post' : 'per E-Mail'} am ${fd(x.versendetAm)}${x.frist ? `, zahlbar bis ${fd(x.frist)}` : ''}` : 'noch nicht verschickt'} · {euro(x.gesamt)}</li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {beendbar && (
+      <section class="kasten mb-5" id="beenden">
+        <h2 class="kasten-titel">Mahnverfahren beenden</h2>
+        <p class="text-xs text-muted mb-3">Geht jederzeit, auch vor der letzten Mahnung. Danach legt der Mahnlauf zu dieser Rechnung keine Mahnung
+          mehr an; eine noch nicht verschickte Mahnung wird verworfen. Die Rechnung selbst bleibt unverändert (GoBD), eine spätere
+          Zahlung wird normal gebucht. Lässt sich wieder aufnehmen.</p>
+        <div class="grid gap-2 text-sm">
+          <label class="flex gap-2 items-start"><input type="radio" name="art" value="abgeschrieben" class="mt-1" />
+            <span><strong>Abgeschrieben</strong> – das Geld ist verloren (uneinbringlich). <span class="text-muted">Steuerliche Behandlung bitte mit dem Steuerberater klären.</span></span></label>
+          <label class="flex gap-2 items-start"><input type="radio" name="art" value="uebergeben" class="mt-1" />
+            <span><strong>An Gericht/Inkasso übergeben</strong> – gerichtliches Mahnverfahren oder Inkassobüro übernimmt.</span></label>
+          <label class="flex gap-2 items-start"><input type="radio" name="art" value="eingestellt" class="mt-1" />
+            <span><strong>Mahnungen eingestellt</strong> – z. B. Kulanz oder Ratenzahlung vereinbart. <span class="text-muted">(Nur kurz warten? Dann lieber „Nicht verschicken“ mit Mahnpause.)</span></span></label>
+          <label class="text-xs text-muted mt-1">Grund (steht im Protokoll)
+            <input id="beenden-grund" maxlength="300" class="block w-full mt-1 px-2 py-1.5 rounded bg-dark text-sm text-light" /></label>
+          <div class="flex justify-end">
+            <button type="button" id="beenden-knopf" class="px-3 py-2 rounded-lg border border-red-400/70 text-red-300 text-sm">Mahnverfahren beenden …</button>
+          </div>
+        </div>
+      </section>
+    )}
+
+    {vonHandBeendet && (
+      <section class="kasten mb-5" id="beenden">
+        <h2 class="kasten-titel">Mahnverfahren wieder aufnehmen</h2>
+        <p class="text-xs text-muted mb-3">Zum Beispiel, wenn Gericht oder Inkasso erfolglos waren oder eine Absprache nicht eingehalten wurde.
+          Der nächste Mahnlauf macht dann mit der nächsten Stufe weiter.</p>
+        <div class="flex justify-end"><button type="button" id="aufnehmen" class="px-3 py-2 rounded-lg border border-gold text-gold text-sm">Wieder aufnehmen …</button></div>
+      </section>
+    )}
+
     <div id="rueckfrage" hidden class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div class="bg-surface border border-gold/60 rounded-xl p-5 max-w-md w-full shadow-xl">
         <p id="rueckfrage-text" class="text-sm text-light mb-4 whitespace-pre-line"></p>
@@ -120,7 +177,7 @@ const pauseVorschlag = tag(new Date(Date.now() + einst.pauseTage * 86_400_000));
   .kasten-titel { font-size: 1.05rem; font-weight: 600; color: var(--color-light, #eee); margin-bottom: 0.75rem; }
 </style>
 
-<script define:vars={{ id: m.id, offen, teilzahlung }}>
+<script define:vars={{ id: m.id, offen, teilzahlung, invoiceId: m.invoiceId, nummer: m.rechnungsnummer }}>
   const box = document.getElementById('rueckfrage');
   function frage(text, ja) {
     return new Promise((fertig) => {
@@ -167,11 +224,38 @@ const pauseVorschlag = tag(new Date(Date.now() + einst.pauseTage * 86_400_000));
   });
 
   document.getElementById('betrag')?.addEventListener('click', async (e) => {
-    e.currentTarget.disabled = true;
+    const knopf = e.currentTarget;
+    knopf.disabled = true;
     const res = await fetch(`/api/admin/billing/dunning/${id}/betrag`, { method: 'POST' });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { e.currentTarget.disabled = false; zeige(data.error ?? 'Betrag nicht aktualisiert.', false); return; }
+    if (!res.ok) { knopf.disabled = false; zeige(data.error ?? 'Betrag nicht aktualisiert.', false); return; }
     window.location.reload();
+  });
+
+  // N33: Mahnverfahren beenden oder wieder aufnehmen.
+  const ARTEN = { abgeschrieben: 'Abgeschrieben (uneinbringlich)', uebergeben: 'An Gericht/Inkasso übergeben', eingestellt: 'Mahnungen eingestellt' };
+  async function mahnverfahren(daten, erfolg) {
+    const res = await fetch(`/api/admin/billing/mahnverfahren/${invoiceId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(daten),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { zeige(data.error ?? 'Hat nicht geklappt.', false); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    window.location.href = `/admin/mahnungen?verschickt=${encodeURIComponent(erfolg)}`;
+  }
+  document.getElementById('beenden-knopf')?.addEventListener('click', async (e) => {
+    const knopf = e.currentTarget;
+    const art = document.querySelector('input[name="art"]:checked')?.value;
+    const grund = document.getElementById('beenden-grund').value.trim();
+    if (!art) { zeige('Bitte wählen: abgeschrieben, übergeben oder eingestellt.', false); return; }
+    if (!grund) { zeige('Bitte kurz den Grund eintragen – er steht im Protokoll.', false); return; }
+    if (!(await frage(`Mahnverfahren zu Rechnung ${nummer} beenden?\n${ARTEN[art]}\nGrund: ${grund}\n\nEine noch nicht verschickte Mahnung wird verworfen.`, 'Beenden'))) return;
+    knopf.disabled = true;
+    await mahnverfahren({ art, grund }, `Mahnverfahren zu ${nummer} beendet: ${ARTEN[art]}.`);
+    knopf.disabled = false;
+  });
+  document.getElementById('aufnehmen')?.addEventListener('click', async () => {
+    if (!(await frage(`Mahnverfahren zu Rechnung ${nummer} wieder aufnehmen?\nDer nächste Mahnlauf macht mit der nächsten Stufe weiter.`, 'Wieder aufnehmen'))) return;
+    await mahnverfahren({ aktion: 'aufnehmen' }, `Mahnverfahren zu ${nummer} wieder aufgenommen.`);
   });
 
   document.getElementById('verwerfen')?.addEventListener('click', async (e) => {
