@@ -41,6 +41,8 @@
     showSteps?: boolean;
     journeyServices?: JourneyService[];
     journeyEnabled?: boolean;
+    anliegen?: { value: string; label: string }[];
+    erstgespraechMin?: number;
   }
 
   let {
@@ -59,6 +61,8 @@
     showSteps = false,
     journeyServices = [],
     journeyEnabled = false,
+    anliegen,
+    erstgespraechMin = 30,
   }: Props = $props();
 
   type Mode = 'termin' | 'message' | 'callback' | 'anfrage';
@@ -203,7 +207,7 @@
             onclick={() => (activeMode = 'termin')}>
             <span class="ch-mode-num">{journeyEnabled ? '02 — Termin' : '01 — Termin'}</span>
             <span class="ch-mode-title">Erstgespräch <em>buchen.</em></span>
-            <span class="ch-mode-sub">30 Minuten, Online oder vor Ort. Direkter Slot in meinem Kalender.</span>
+            <span class="ch-mode-sub">{erstgespraechMin} Minuten, Online oder vor Ort. Direkter Slot in meinem Kalender.</span>
           </button>
 
           <button type="button" role="tab" aria-selected={activeMode === 'message'}
@@ -253,7 +257,7 @@
             <BookingForm initialType="erstgespraech" serviceKey={initialServiceKey}
               {initialDate} {initialStart} {initialEnd} />
           {:else if activeMode === 'message'}
-            <ContactForm {locale} />
+            <ContactForm {locale} {anliegen} />
           {:else if activeMode === 'callback'}
             <BookingForm initialType="callback" serviceKey={initialServiceKey} />
           {:else}
@@ -393,7 +397,7 @@
 
           <div class="ch-side-block">
             <span class="ch-side-label">Kostenloses Erstgespräch</span>
-            <h3 class="ch-side-h3">30 Minuten <em>Klarheit.</em></h3>
+            <h3 class="ch-side-h3">{erstgespraechMin} Minuten <em>Klarheit.</em></h3>
             {#if sidebarText}<p class="ch-side-p">{sidebarText}</p>{/if}
             {#if sidebarCta}<p class="ch-three-beat">{sidebarCta}</p>{/if}
           </div>

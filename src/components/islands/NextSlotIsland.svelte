@@ -10,6 +10,10 @@
     slots: Array<{ start: string; end: string; available: boolean }>;
   };
 
+  // label/buchenHref: optional für den Kontaktabschnitt der mentolder-Startseite (SPEZ K181).
+  export let label = 'Nächster Termin:';
+  export let buchenHref = '';
+
   let next: DaySlot | null = null;
   let loaded = false;
 
@@ -47,12 +51,15 @@
 {#if next}
   {@const first = next.slots.find((s) => s.available)}
   <span class="next-slot-island">
-    Nächster Termin: <strong>{formatDate(next.date)}</strong>
+    {label} <strong>{formatDate(next.date)}</strong>
     {#if first}um <strong>{formatTime(first.start)}</strong>{/if}
+    {#if buchenHref}<a href={buchenHref}>Termin buchen →</a>{/if}
   </span>
 {/if}
 
 <style>
   .next-slot-island { font-size: 0.95em; }
   strong { font-weight: 600; }
+  a { margin-left: 0.6em; color: var(--brass, currentColor); text-decoration: none; }
+  a:hover { text-decoration: underline; }
 </style>

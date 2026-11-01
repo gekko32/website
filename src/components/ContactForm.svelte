@@ -1,7 +1,8 @@
 <script lang="ts">
   import { t, type Locale } from '../i18n/index';
 
-  let { locale = 'de' }: { locale?: Locale } = $props();
+  // anliegen: markeneigene Auswahl (mentolder, SPEZ K193); ohne Angabe gilt die Standardliste.
+  let { locale = 'de', anliegen }: { locale?: Locale; anliegen?: { value: string; label: string }[] } = $props();
 
   let name = $state('');
   let email = $state('');
@@ -12,7 +13,7 @@
   let result = $state<{ success: boolean; message: string } | null>(null);
 
   // Submission-Values bleiben stabil (API-Kontrakt); Labels kommen aus i18n.
-  const typeOptions = [
+  const standardOptions = [
     { value: 'allgemein', key: 'contact.type-allgemein' },
     { value: 'erstgespraech', key: 'contact.type-erstgespraech' },
     { value: '50plus-digital', key: 'contact.type-50plus' },
@@ -21,6 +22,9 @@
     { value: 'support', key: 'contact.type-support' },
     { value: 'feedback', key: 'contact.type-feedback' },
   ];
+  const typeOptions = $derived(
+    anliegen ?? standardOptions.map((o) => ({ value: o.value, label: t(locale, o.key) })),
+  );
 
   async function handleSubmit(e: Event) {
     e.preventDefault();
@@ -60,7 +64,7 @@
     <label for="cf-type" class="cf-label">{t(locale, 'contact.type-label')}</label>
     <select id="cf-type" bind:value={type} class="cf-input">
       {#each typeOptions as item}
-        <option value={item.value}>{t(locale, item.key)}</option>
+        <option value={item.value}>{item.label}</option>
       {/each}
     </select>
   </div>

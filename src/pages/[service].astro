@@ -159,5 +159,10 @@ const visibleSections = (pc.sections ?? []).filter((s) => s.title !== '__introNo
     </section>
   )}
 
-  <CallToAction client:visible secondaryText={contact.email} secondaryHref={`mailto:${contact.email}`} />
+  <CallToAction
+    client:visible
+    title={isMentolder ? 'In 45 Minuten wissen wir,' : undefined}
+    secondaryText={contact.email}
+    secondaryHref={`mailto:${contact.email}`}
+  />
 </Layout>

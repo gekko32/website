@@ -7,6 +7,7 @@ import Process from '../components/Process.astro';
 import KoreHomepage from '../components/kore/KoreHomepage.svelte';
 import { config } from '../config/index';
 import { getAuftritt, getGeschichten } from '../lib/auftritt';
+import NextSlotIsland from '../components/islands/NextSlotIsland.svelte';
 import {
   getEffectiveServices,
   getEffectiveHomepage,
@@ -320,6 +321,9 @@ const geschichten = getGeschichten(BRAND_ID);
         secondaryText={stammdaten?.phone}
         secondaryHref={`tel:${(stammdaten?.phone ?? '').replace(/\s+/g, '')}`}
       />
+      <p class="naechster-termin">
+        <NextSlotIsland client:idle label="Nächster freier Termin für ein Erstgespräch:" buchenHref="/kontakt?mode=termin" />
+      </p>
 
     </Fragment>
   )}
@@ -390,6 +394,7 @@ const geschichten = getGeschichten(BRAND_ID);
 
 
   /* mentolder: neuer Auftritt (31.10.2026) */
+  .naechster-termin { text-align: center; color: var(--fg-soft); margin: -40px auto 64px; padding: 0 22px; }
   .section-line { border-top: 1px solid var(--line); }
   .karten { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
   .karte { background: var(--ink-850); border: 1px solid var(--line); border-radius: var(--radius, 14px); padding: 28px 24px; display: flex; flex-direction: column; }

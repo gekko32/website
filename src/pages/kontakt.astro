@@ -24,6 +24,18 @@ const massageServices = [
 ];
 
 const kontakt = await getEffectiveKontakt();
+// SPEZ K197: Erstgespräch bei mentolder 45 Minuten.
+const erstgespraechMin = BRAND_ID === 'mentolder' ? 45 : 30;
+// K193: mentolder fragt nach den neuen Bereichen; Werte müssen in TYPE_LABELS von /api/contact stehen.
+const mentolderAnliegen = BRAND_ID === 'mentolder' ? [
+  { value: 'allgemein', label: 'Allgemeine Frage' },
+  { value: 'erstgespraech', label: 'Erstgespräch (kostenlos, 45 Minuten)' },
+  { value: 'selbststaendige-vereine', label: 'Selbstständige & Vereine' },
+  { value: 'kleine-unternehmen', label: 'Kleine Unternehmen' },
+  { value: 'verwaltung', label: 'Verwaltung' },
+  { value: 'coaching', label: 'Coaching' },
+  { value: 'feedback', label: 'Feedback' },
+] : undefined;
 const stammdaten = await getEffectiveStammdaten().catch(() => null);
 
 // Kontaktdaten: stammdaten (DB site_settings) wins; legacy kontaktOverride.footer* as fallback; static config as final fallback
@@ -73,7 +85,7 @@ const seoOgImage = getSeoOgImage(BRAND_ID, 'kontakt');
   <section class="kh-hero">
     <div class="kh-wrap">
       <span class="kh-eyebrow">Kontakt · Lüneburg · DE</span>
-      <h1 class="kh-h1">In 30 Minuten<br/>wissen wir, <em>ob es passt.</em></h1>
+      <h1 class="kh-h1">In {erstgespraechMin} Minuten<br/>wissen wir, <em>ob es passt.</em></h1>
       <p class="kh-lede">{kontakt.intro}</p>
     </div>
   </section>
@@ -94,6 +106,8 @@ const seoOgImage = getSeoOgImage(BRAND_ID, 'kontakt');
     showSteps={kontakt.showSteps}
     journeyEnabled={isMassage}
     journeyServices={massageServices}
+    anliegen={mentolderAnliegen}
+    {erstgespraechMin}
   />
 </Layout>
 
