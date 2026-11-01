@@ -1,10 +1,11 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import CallToAction from '../../components/CallToAction.svelte';
-import { geschichten } from '../../data/mentolder-auftritt';
+import { getGeschichten } from '../../lib/auftritt';
 
 const BRAND_ID = process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder';
-if (BRAND_ID !== 'mentolder') {
+const geschichten = getGeschichten(BRAND_ID);
+if (BRAND_ID !== 'mentolder' || geschichten.length === 0) {
   return Astro.redirect('/404');
 }
 ---

@@ -13,6 +13,7 @@ import {
 import {
   StammdatenSchema, NavigationSchema, FooterConfigSchema, KoreFlagsSchema,
 } from './site';
+import { AuftrittSchema, GeschichtenSchema } from './auftritt';
 
 export {
   HomepageSchema, HomepageBlocksSchema, SeoSchema, SCHEMA_VERSION,
@@ -34,6 +35,8 @@ export type {
   ServicePageSection, LeistungServiceRow, LeistungCategory, HighlightEntryResolved,
   ReferenzItem, ReferenzenType, ReferenzenConfig,
 } from './pages';
+export { AuftrittSchema, GeschichtenSchema } from './auftritt';
+export type { AuftrittContent, FuerWenKarte, Beispiel, Geschichte } from './auftritt';
 export type {
   Stammdaten, NavItem, FooterLink, FooterColumn, FooterConfig, KoreFlags,
 } from './site';
@@ -52,6 +55,8 @@ export const DOMAINS = [
   'footer',
   'referenzen',
   'kore-flags',
+  'auftritt',
+  'geschichten',
 ] as const;
 export type Domain = typeof DOMAINS[number];
 
@@ -69,6 +74,8 @@ export type DomainContent = {
   'footer': import('./site').FooterConfig;
   'referenzen': import('./pages').ReferenzenConfig;
   'kore-flags': import('./site').KoreFlags;
+  'auftritt': import('./auftritt').AuftrittContent;
+  'geschichten': import('./auftritt').Geschichte[];
 };
 
 // ContentBundleSchema — the single source of truth for what the bundle
@@ -89,6 +96,8 @@ export const ContentBundleSchema = {
   'footer':          FooterConfigSchema,
   'referenzen':      ReferenzenConfigSchema,
   'kore-flags':      KoreFlagsSchema,
+  'auftritt':        AuftrittSchema,
+  'geschichten':     GeschichtenSchema,
 } satisfies { [K in Domain]: z.ZodType<DomainContent[K]> };
 
 export type SchemaOf<D extends Domain> = z.infer<typeof ContentBundleSchema[D]>;

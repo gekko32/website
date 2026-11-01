@@ -1,17 +1,19 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import CallToAction from '../../components/CallToAction.svelte';
-import { geschichten } from '../../data/mentolder-auftritt';
+import { getGeschichten } from '../../lib/auftritt';
+import { geschichteZuHtml } from '../../lib/geschichten-text';
 
 const BRAND_ID = process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder';
 const { slug } = Astro.params;
+const geschichten = getGeschichten(BRAND_ID);
 const index = geschichten.findIndex((g) => g.slug === slug);
 if (BRAND_ID !== 'mentolder' || index === -1) {
   return Astro.redirect('/404');
 }
 const g = geschichten[index];
 const naechste = geschichten[(index + 1) % geschichten.length];
-const { Content } = g;
+const textHtml = geschichteZuHtml(g.text);
 ---
 
 <Layout title={`${g.title} | mentolder.de`} rawTitle description={g.teaser}>
@@ -20,7 +22,7 @@ const { Content } = g;
       <p class="gs-eyebrow"><a href="/geschichten">Geschichten</a> · {g.zeit}</p>
       <h1>{g.title}</h1>
       <div class="gs-text">
-        <Content />
+        <Fragment set:html={textHtml} />
       </div>
       <nav class="gs-nav" aria-label="Weitere Geschichten">
         <a href="/geschichten">← Alle Geschichten</a>

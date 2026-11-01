@@ -6,7 +6,7 @@ import FAQ from '../components/FAQ.svelte';
 import Process from '../components/Process.astro';
 import KoreHomepage from '../components/kore/KoreHomepage.svelte';
 import { config } from '../config/index';
-import { hilfeKarten, werIchBin, geschichten, beispiele } from '../data/mentolder-auftritt';
+import { getAuftritt, getGeschichten } from '../lib/auftritt';
 import {
   getEffectiveServices,
   getEffectiveHomepage,
@@ -68,6 +68,10 @@ const massagePhoneHref = (massagePhone === '' || massagePhone.startsWith('slot:'
 const wantsTimeline = effectiveKoreFlags.timeline;
 
 const processSteps = homepage.processSteps ?? [];
+
+// mentolder-Auftritt (SPEZ-NEUER-AUFTRITT): Inhalte aus content/<brand>/auftritt.json und geschichten.json.
+const { fuerWen: hilfeKarten, beispiele, werIchBin } = getAuftritt(BRAND_ID);
+const geschichten = getGeschichten(BRAND_ID);
 ---
 
 <Layout title={pageTitle} rawTitle={!isKore} description={metaDescription} brand={layoutBrand} ogImage={homeOgImage ?? undefined}>
@@ -225,7 +229,7 @@ const processSteps = homepage.processSteps ?? [];
       />
 
       <!-- Was ich heute umsetze -->
-      <section id="beispiele" class="section section-line" aria-labelledby="beispiele-heading">
+      {beispiele.length > 0 && (<section id="beispiele" class="section section-line" aria-labelledby="beispiele-heading">
         <div class="wrap">
           <div class="section-head">
             <div>
@@ -245,7 +249,7 @@ const processSteps = homepage.processSteps ?? [];
             ))}
           </ul>
         </div>
-      </section>
+      </section>)}
 
       <!-- Für wen -->
       <section id="hilfe" class="section" aria-labelledby="hilfe-heading">
@@ -269,8 +273,8 @@ const processSteps = homepage.processSteps ?? [];
         </div>
       </section>
 
-      <!-- Geschichten -->
-      <section id="geschichten" class="section section-line" aria-labelledby="geschichten-heading">
+      <!-- Geschichten (nur freigegebene, K210) -->
+      {geschichten.length > 0 && (<section id="geschichten" class="section section-line" aria-labelledby="geschichten-heading">
         <div class="wrap">
           <div class="section-head">
             <div>
@@ -289,7 +293,7 @@ const processSteps = homepage.processSteps ?? [];
             ))}
           </div>
         </div>
-      </section>
+      </section>)}
 
       <!-- Wer ich bin -->
       <section class="section section-line" aria-labelledby="wer-heading">

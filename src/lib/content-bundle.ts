@@ -34,6 +34,8 @@ import {
   type ReferenzenConfig,
   type SeoContent,
   type HomepageBlocksContent,
+  type AuftrittContent,
+  type Geschichte,
 } from '../content-schema';
 
 export class BundleValidationError extends Error {
@@ -127,6 +129,14 @@ export const bundleNavigation      = (brand: string) => loadDomain(brand, 'navig
 export const bundleFooter          = (brand: string) => loadDomain(brand, 'footer') as FooterConfig;
 export const bundleReferenzen      = (brand: string) => loadDomain(brand, 'referenzen') as ReferenzenConfig;
 export const bundleKoreFlags       = (brand: string) => loadDomain(brand, 'kore-flags') as KoreFlags;
+
+// mentolder-Auftritt (SPEZ-NEUER-AUFTRITT K199–K201): Marken ohne diese Dateien bekommen leere Inhalte.
+export const bundleAuftritt = (brand: string): AuftrittContent =>
+  state.data.get(brand)?.has('auftritt')
+    ? loadDomain(brand, 'auftritt') as AuftrittContent
+    : { fuerWen: [], beispiele: [], werIchBin: [] };
+export const bundleGeschichten = (brand: string): Geschichte[] =>
+  state.data.get(brand)?.has('geschichten') ? loadDomain(brand, 'geschichten') as Geschichte[] : [];
 
 /** List every brand that has at least one content file. */
 export function listBundleBrands(): string[] {
