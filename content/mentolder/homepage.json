@@ -10,24 +10,7 @@
   "servicesSubheadline": "Unterschiedliche Aufgaben, ein Ziel: weniger Aufwand im Alltag.",
   "whyMeHeadline": "Wie das aussieht",
   "whyMeIntro": "Drei Geschichten aus 40 Jahren",
-  "whyMePoints": [
-    {
-      "title": "Erste deutsche Polizeibehörde mit KI",
-      "text": "Pionier, nicht Nachahmer."
-    },
-    {
-      "title": "Systemischer Coach",
-      "text": "IT + Empathie."
-    },
-    {
-      "title": "Generation 50+",
-      "text": "Aus eigener Erfahrung."
-    },
-    {
-      "title": "Wie ich arbeite",
-      "text": "Analytische Präzision mit Beziehungsarbeit."
-    }
-  ],
+  "whyMePoints": [],
   "avatarType": "image",
   "avatarSrc": "/gerald.webp",
   "quote": "Ich stelle unbequeme Fragen – weil echte Lösungen manchmal unbequeme Wahrheiten brauchen.",
