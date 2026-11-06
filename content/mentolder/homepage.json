@@ -1,9 +1,9 @@
 {
   "hero": {
-    "tagline": "Digitale Prozessberatung · KI-gestützte Lösungen",
-    "title": "Ihre Arbeitsabläufe digital und verbunden,",
-    "titleEmphasis": "von der Analyse bis zur fertigen Lösung.",
-    "subtitle": "Ich helfe Selbstständigen und kleinen Unternehmen, ihre Arbeitsabläufe zu digitalisieren und miteinander zu verbinden. Ich analysiere, plane und entwickle individuelle Lösungen mit KI-Unterstützung und übergebe ein System, das möglichst wenig Wartung braucht. Das Ziel: weniger Handarbeit, weniger Medienbrüche, weniger Fehler."
+    "tagline": "Beratung · Begleitung · KI-gestützte Lösungen",
+    "title": "KI übernimmt die Routine.",
+    "titleEmphasis": "Damit Menschen Zeit für das haben, was nur sie können.",
+    "subtitle": "Künstliche Intelligenz verändert, wie wir arbeiten. Sie ersetzt nicht alles, aber sie kann Menschen von Standardabläufen befreien. Ich berate Selbstständige, kleine Unternehmen und Verwaltung, wo das sinnvoll ist, begleite die Veränderung und setze passende Lösungen auf Wunsch auch selbst um."
   },
   "stats": [
     {
@@ -62,8 +62,8 @@
     },
     {
       "num": "03 — Umsetzung",
-      "heading": "Selbst entwickeln",
-      "description": "Ich entwickle die Lösung selbst, mit KI-Unterstützung. Jedes Ergebnis prüfe ich, bevor Sie sich darauf verlassen."
+      "heading": "Umsetzen",
+      "description": "Auf Wunsch setze ich die Lösung selbst um, mit KI-Unterstützung. Jedes Ergebnis prüfe ich, bevor Sie sich darauf verlassen."
     },
     {
       "num": "04 — Übergabe",
