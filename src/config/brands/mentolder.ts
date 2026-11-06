@@ -163,7 +163,7 @@ export const mentolderConfig: BrandConfig = {
         faq: [
           { question: 'Wie lange dauert ein Coaching?', answer: 'Das hängt von Ihrer Situation ab. Manche brauchen nur 2-3 Sessions zur Vorbereitung auf ein Gespräch. Andere buchen ein 6er-Paket für eine komplette Neuausrichtung.' },
           { question: 'Ist das auch für Führungskräfte außerhalb Lüneburgs?', answer: 'Ja! Coaching läuft meist online via Video – das funktioniert hervorragend. Wenn Sie in der Nähe sind, können wir auch persönlich arbeiten.' },
-          { question: 'Was unterscheidet Sie von anderen Coaches?', answer: 'Ich komme aus 30+ Jahren Führungspraxis. Ich kenne beide Seiten des Tisches. Und: Ich bin direkt und ehrlich – kein "Coaching-Sprech".' },
+          { question: 'Was unterscheidet Sie von anderen Coaches?', answer: 'Ich komme aus langer Führungspraxis. Ich kenne beide Seiten des Tisches. Und: Ich bin direkt und ehrlich – kein "Coaching-Sprech".' },
         ],
       },
     },
@@ -327,7 +327,7 @@ export const mentolderConfig: BrandConfig = {
     pageHeadline: 'Von der Polizei Hamburg in die digitale Begleitung',
     subheadline: 'Über mich',
     introParagraphs: [
-      'Nach über 30 Jahren bei der Polizei Hamburg – davon viele Jahre in Führungspositionen – habe ich 2023 einen neuen Weg eingeschlagen.',
+      'Nach 40 Jahren bei der Polizei Hamburg – einen großen Teil davon in Führungsverantwortung – habe ich 2023 einen neuen Weg eingeschlagen.',
       'Was ich in all den Jahren gelernt habe? Menschen führen bedeutet vor allem: Menschen verstehen, Geduld haben, und Wissen so vermitteln, dass es ankommt.',
     ],
     sections: [
@@ -338,11 +338,11 @@ export const mentolderConfig: BrandConfig = {
       },
       {
         title: 'Warum Führungskräfte-Coaching?',
-        content: '30+ Jahre Führungserfahrung bedeutet auch: Ich kenne beide Seiten. Ich habe hunderte Führungskräfte eingestellt, entwickelt, befördert. Ich weiß, worauf es ankommt. Diese Erfahrung gebe ich heute weiter.',
+        content: 'Viele Jahre Führungsverantwortung bedeuten auch: Ich kenne beide Seiten. Ich habe hunderte Führungskräfte eingestellt, entwickelt, befördert. Ich weiß, worauf es ankommt. Diese Erfahrung gebe ich heute weiter.',
       },
     ],
     milestones: [
-      { year: '1980-2023', title: 'Polizei Hamburg', desc: 'Über 30 Jahre in Führungspositionen. Personalführung, Organisationsentwicklung, Strategie.' },
+      { year: '1980-2023', title: 'Polizei Hamburg', desc: 'Ein großer Teil davon in Führungsverantwortung. Personalführung, Organisationsentwicklung, Strategie.' },
       { year: 'ca. 2016/2017', title: 'KI-Pionier', desc: 'Erste deutsche Polizeibehörde mit KI/Gesichtserkennung. BOS-Digitalfunk bundesweit führend gemacht.' },
       // KORRIGIERT: "leitete" → "verantwortlich mitgestaltet"
       { year: '2023', title: 'Digital Café', desc: '6 Monate Digital Café im Altenheim verantwortlich mitgestaltet. Über 50 Teilnehmer individuell begleitet.' },
@@ -372,7 +372,7 @@ export const mentolderConfig: BrandConfig = {
     { question: 'Wie läuft ein Coaching ab?', answer: 'Wir starten mit einem kostenlosen Erstgespräch (30-45 Min.), um Ihre Situation zu verstehen. Danach arbeiten wir in individuellen Sessions an Ihren Zielen – online oder vor Ort.' },
     { question: 'Arbeiten Sie auch online?', answer: 'Ja! Coaching und Beratung funktionieren hervorragend online per Video. 50+ digital biete ich bevorzugt vor Ort in {city} an.' },
     { question: 'Was kostet ein Erstgespräch?', answer: 'Nichts. Das Erstgespräch ist kostenlos und unverbindlich. Wir lernen uns kennen und klären, ob eine Zusammenarbeit passt.' },
-    { question: 'Was unterscheidet Sie von anderen Coaches?', answer: 'Ich komme aus 30+ Jahren Führungspraxis bei der Polizei Hamburg. Ich kenne beide Seiten des Tisches, bin direkt und ehrlich – und verstehe die Herausforderungen der Generation 50+ aus eigener Erfahrung.' },
+    { question: 'Was unterscheidet Sie von anderen Coaches?', answer: 'Ich komme aus langer Führungspraxis bei der Polizei Hamburg. Ich kenne beide Seiten des Tisches, bin direkt und ehrlich – und verstehe die Herausforderungen der Generation 50+ aus eigener Erfahrung.' },
   ],
   leistungenCta: {
     href: '/termin',
@@ -403,7 +403,7 @@ export const mentolderConfig: BrandConfig = {
       {
         id: 'polizei-hamburg',
         name: 'Polizei Hamburg',
-        description: 'KI-gestützte Gesichtserkennung + BOS-Digitalfunk – Referenz aus der beruflichen Laufbahn mit ~30 Jahren Führungserfahrung',
+        description: 'KI-gestützte Gesichtserkennung + BOS-Digitalfunk – Referenz aus der beruflichen Laufbahn mit langer Führungserfahrung',
         type: 'laufbahn',
       },
     ],
