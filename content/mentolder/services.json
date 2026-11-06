@@ -2,18 +2,18 @@
   {
     "slug": "selbststaendige-vereine",
     "title": "Selbstständige & Vereine",
-    "description": "Anmeldung, Termine, Mitglieder und Rechnungen verbinden, sodass jede Angabe nur einmal erfasst wird.",
+    "description": "Weniger Abtippen, mehr Zeit für Ihre eigentliche Arbeit. Ich berate, welche Abläufe sich verbinden lassen, und setze sie auf Wunsch um.",
     "icon": "💻",
     "iconSpriteId": "prop-compass",
     "features": [
-      "Abläufe analysieren",
-      "Programme verbinden",
-      "Wartungsarm übergeben"
+      "Beratung",
+      "Begleitung",
+      "Umsetzung auf Wunsch"
     ],
     "price": "nach Vereinbarung",
     "pageContent": {
-      "headline": "Jede Angabe nur einmal erfassen.",
-      "intro": "Sie haben ein Studio, eine Praxis, einen kleinen Betrieb oder einen Verein. Dieselben Daten landen in der Anmeldung, in einer Liste und in der Rechnung, oft von Hand übertragen. Ich sehe mir an, wie Ihre Arbeit läuft, und entwickle eine Lösung, die diese Schritte verbindet. Am Ende übergebe ich ein System, das Sie selbst bedienen können.",
+      "headline": "Mehr Zeit für Ihre eigentliche Arbeit.",
+      "intro": "Sie haben ein Studio, eine Praxis, einen kleinen Betrieb oder einen Verein. Dieselben Daten landen in der Anmeldung, in einer Liste und in der Rechnung, oft von Hand übertragen. Diese Routine lässt sich heute vielfach digital und mit KI-Unterstützung erledigen. Ich sehe mir mit Ihnen an, wie Ihre Arbeit läuft, berate Sie, was sich lohnt, und begleite die Umstellung. Auf Wunsch setze ich die Lösung auch selbst um.",
       "forWhom": [
         "Selbstständige ohne eigene IT-Abteilung",
         "Vereine, deren Vorstand die Verwaltung nebenbei erledigt",
@@ -22,26 +22,26 @@
       ],
       "sections": [
         {
-          "title": "Analyse",
+          "title": "Beratung",
           "items": [
             "Wie läuft Ihre Arbeit heute?",
             "Wo wird doppelt erfasst?",
-            "Was kostet Sie am meisten Zeit?"
+            "Was lohnt sich, was nicht?"
           ]
         },
         {
-          "title": "Lösung",
+          "title": "Begleitung",
           "items": [
-            "Website, Anmeldung und Terminbuchung verbinden",
-            "Mitglieder- und Kundendaten an einer Stelle",
-            "Rechnungen ohne Abtippen"
+            "Passende Werkzeuge auswählen",
+            "Website, Anmeldung und Termine verbinden",
+            "Sie und Ihr Team mitnehmen"
           ]
         },
         {
-          "title": "Übergabe",
+          "title": "Umsetzung auf Wunsch",
           "items": [
-            "System mit Anleitung",
-            "Möglichst wenig Wartung",
+            "Lösung mit KI-Unterstützung einrichten",
+            "Anleitung zum Selbstbedienen",
             "Datenschutz von Anfang an"
           ]
         }
@@ -60,25 +60,25 @@
         }
       ],
       "faq": [],
-      "seoTitle": "Abläufe digitalisieren für Selbstständige und Vereine | mentolder.de",
-      "seoDescription": "Anmeldung, Termine, Mitglieder und Rechnungen verbinden. Von der Analyse bis zum wartungsarmen System."
+      "seoTitle": "Beratung zu digitalen Abläufen für Selbstständige und Vereine | mentolder.de",
+      "seoDescription": "Weniger Routine, mehr Zeit für Ihre Arbeit: Beratung, Begleitung und auf Wunsch Umsetzung, mit KI-Unterstützung."
     }
   },
   {
     "slug": "kleine-unternehmen",
     "title": "Kleine Unternehmen",
-    "description": "Abläufe sichtbar machen, ordnen und mit einer passenden Lösung verbinden.",
+    "description": "Abläufe sichtbar machen, Routine digital erledigen, Menschen entlasten. Beratung, Begleitung und Umsetzung auf Wunsch.",
     "icon": "🏢",
     "iconSpriteId": "prop-compass",
     "features": [
       "Abläufe sichtbar machen",
-      "Daten ordnen",
-      "Technik und KI passend auswählen"
+      "Beraten, wo KI hilft",
+      "Begleiten und umsetzen"
     ],
     "price": "nach Vereinbarung",
     "pageContent": {
       "headline": "Erst das Bild, dann die Software.",
-      "intro": "Mit der Zeit sammeln sich Programme, Listen und Gewohnheiten. Irgendwann weiß keiner mehr genau, was wo liegt und wer was pflegt. Ich höre mir an, wie Ihre Arbeit tatsächlich läuft, bringe sie auf ein Bild und ordne sie mit Ihnen neu. Danach entwickle ich eine Lösung, die Ihre Abläufe verbindet, und übergebe sie so, dass Sie sie selbst betreiben können.",
+      "intro": "Mit der Zeit sammeln sich Programme, Listen und Gewohnheiten. Irgendwann weiß keiner mehr genau, was wo liegt und wer was pflegt. Ich höre mir an, wie Ihre Arbeit tatsächlich läuft, bringe sie auf ein Bild und ordne sie mit Ihnen neu. Dann beraten wir, wo KI und Software Routine übernehmen können und wo Menschen gefragt bleiben. Ich begleite die Einführung und setze passende Lösungen auf Wunsch selbst um.",
       "forWhom": [
         "Betriebe, in denen Daten doppelt geführt werden",
         "Teams vor einer Software-Entscheidung",
@@ -95,19 +95,19 @@
           ]
         },
         {
-          "title": "Lösung",
+          "title": "KI und Software",
           "items": [
-            "Individuell entwickelt, mit KI-Unterstützung",
-            "Vorhandene Programme verbinden statt ersetzen",
-            "Datenschutz und Datensicherung inklusive"
+            "Wo Routine digital laufen kann",
+            "Was weiter Menschen machen sollten",
+            "Vorhandene Programme verbinden statt ersetzen"
           ]
         },
         {
-          "title": "Übergabe",
+          "title": "Begleitung",
           "items": [
-            "System mit Anleitung",
-            "Möglichst wenig Wartung",
-            "Mitarbeitende einweisen"
+            "Mitarbeitende mitnehmen",
+            "Umsetzung auf Wunsch, mit KI-Unterstützung",
+            "Datenschutz und Datensicherung inklusive"
           ]
         }
       ],
@@ -125,8 +125,8 @@
         }
       ],
       "faq": [],
-      "seoTitle": "Abläufe, Daten und KI für kleine Unternehmen | mentolder.de",
-      "seoDescription": "Erst sichtbar machen, wie Ihre Arbeit zusammenhängt, dann die passende Technik wählen. Datenschutz inklusive."
+      "seoTitle": "Beratung zu Abläufen, Daten und KI für kleine Unternehmen | mentolder.de",
+      "seoDescription": "Abläufe sichtbar machen, beraten, wo KI Routine übernimmt, und die Umstellung begleiten. Umsetzung auf Wunsch."
     }
   },
   {
@@ -143,7 +143,7 @@
     "price": "nach Vereinbarung",
     "pageContent": {
       "headline": "KI einführen, ohne dass es schiefgeht.",
-      "intro": "Ich war 40 Jahre bei der Polizei Hamburg, über 30 davon in Führung. Ich habe den Digitalfunk mit aufgebaut, die Videotechnik geleitet und im G20-Einsatz Gesichtserkennung eingeführt. Ich weiß, wie es ist, neue Technik gegen Widerstände in eine Behörde zu bringen, und was es braucht, damit die Menschen mitgehen.",
+      "intro": "Ich war 40 Jahre bei der Polizei Hamburg, über 30 davon in Führung. Ich habe den Digitalfunk mit aufgebaut, die Videotechnik geleitet und im G20-Einsatz Gesichtserkennung eingeführt. Ich weiß, wie es ist, neue Technik gegen Widerstände in eine Behörde zu bringen, und was es braucht, damit die Menschen mitgehen. Heute berate und begleite ich Behörden dabei, KI so einzusetzen, dass sie Beschäftigte von Routine entlastet, und dort, wo Menschen gefragt sind, nicht ersetzt.",
       "forWhom": [
         "Behörden und Ämter, die KI einführen sollen",
         "Führungskräfte, die neue Technik verantworten",
@@ -227,7 +227,7 @@
         {
           "title": "Führen im Wandel",
           "items": [
-            "Neue Technik einführen und die Menschen mitnehmen",
+            "KI und neue Technik einführen und die Menschen mitnehmen",
             "Mit Widerstand umgehen"
           ]
         },
