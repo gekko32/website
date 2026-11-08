@@ -147,9 +147,10 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
         });
         statusParts.push(calEvent ? 'Kalendereintrag erstellt' : 'Kalendereintrag fehlgeschlagen');
 
-        // AGB als Anhang, abwählbar je Buchung. Scheitert das PDF, geht die Bestätigung trotzdem raus.
+        // AGB als Anhang nur auf Wunsch: Bis zur Freigabe der endgültigen Fassung ist das Häkchen aus (Gerald 08.11.2026).
+        // Scheitert das PDF, geht die Bestätigung trotzdem raus.
         let anhang: { filename: string; content: Buffer }[] | undefined;
-        if (agbAnhaengen !== false) {
+        if (agbAnhaengen === true) {
           try {
             anhang = [{ filename: 'AGB.pdf', content: await erzeugeAgbPdf(process.env.BRAND || 'mentolder', process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder') }];
             statusParts.push('AGB als PDF angehängt');

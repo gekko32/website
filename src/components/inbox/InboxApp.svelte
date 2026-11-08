@@ -43,7 +43,7 @@
   let threadMessages  = $state<Message[]>([]);
   let threadLoading   = $state(false);
   let replyBody       = $state('');
-  let agbAnhaengen    = $state(true);
+  let agbAnhaengen    = $state(false);
   let replySending    = $state(false);
   let bugNote         = $state('');
 
@@ -377,7 +377,7 @@
       case 'registration':     await postAction(it, 'approve_registration'); break;
       case 'booking':
         await postAction(it, 'approve_booking', undefined, { agbAnhaengen });
-        agbAnhaengen = true;
+        agbAnhaengen = false;
         break;
       case 'contact':          await postAction(it, 'archive_contact');     break;
       case 'bug':

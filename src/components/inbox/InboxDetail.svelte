@@ -37,7 +37,7 @@
     item, counts, busy, error,
     threadMessages, threadLoading, replyBody, replySending, bugNote,
     showMobileBack = false,
-    agbAnhaengen = true,
+    agbAnhaengen = false,
     onAgbChange,
     bindReplyTextarea,
     onPrev, onNext, onPrimary, onSecondary, onDelete,
