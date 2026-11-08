@@ -76,13 +76,13 @@ describe('Admin-Sidebar — Gliederung', () => {
     expect(labels).not.toContain('Infrastruktur');
   });
 
-  it('enthält genau die siebzehn freigegebenen Einträge', () => {
+  it('enthält genau die sechzehn freigegebenen Einträge', () => {
     const hrefs = allItems(buildNavSections(OPTS)).map((i) => i.href);
 
     // Zwölf seit 19.10.2026, dazu „Leistungen“ und „Offene Posten“ (Rechnungswesen Stufe 3, 20.10.2026),
     // „Angebote“ (K85) und „Änderungsprotokoll“ (K97, beide 24.10.2026).
-    // „Mahnungen“ (K163, Handtest 01.11.2026).
-    expect(hrefs).toHaveLength(17);
+    // „Mahnungen“ (K163, Handtest 01.11.2026). „3D Generator“ entfernt (08.11.2026).
+    expect(hrefs).toHaveLength(16);
     expect(hrefs).toContain('/admin/mahnungen');
     expect(hrefs).toContain('/admin/protokoll');
     expect(hrefs).toContain('/admin/leistungen');
