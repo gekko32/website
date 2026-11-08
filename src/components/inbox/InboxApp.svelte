@@ -43,6 +43,7 @@
   let threadMessages  = $state<Message[]>([]);
   let threadLoading   = $state(false);
   let replyBody       = $state('');
+  let agbAnhaengen    = $state(true);
   let replySending    = $state(false);
   let bugNote         = $state('');
 
@@ -320,14 +321,14 @@
     }
   }
 
-  async function postAction(item: InboxItem, action: string, note?: string): Promise<boolean> {
+  async function postAction(item: InboxItem, action: string, note?: string, extra?: Record<string, unknown>): Promise<boolean> {
     busy = true;
     actionError = null;
     try {
       const res = await fetch(`/api/admin/inbox/${item.id}/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, note }),
+        body: JSON.stringify({ action, note, ...extra }),
       });
       // 204 No Content (used by `delete`) returns no JSON body — guard the parse.
       const data = res.status === 204
@@ -374,7 +375,10 @@
     if (!it || busy) return;
     switch (it.type) {
       case 'registration':     await postAction(it, 'approve_registration'); break;
-      case 'booking':          await postAction(it, 'approve_booking');      break;
+      case 'booking':
+        await postAction(it, 'approve_booking', undefined, { agbAnhaengen });
+        agbAnhaengen = true;
+        break;
       case 'contact':          await postAction(it, 'archive_contact');     break;
       case 'bug':
         if (!bugNote.trim()) { actionError = 'Bitte Notiz eingeben.'; return; }
@@ -534,6 +538,8 @@
         replyBody={replyBody}
         replySending={replySending}
         bugNote={bugNote}
+        agbAnhaengen={agbAnhaengen}
+        onAgbChange={(v) => { agbAnhaengen = v; }}
         showMobileBack={mobileView === 'detail'}
         bindReplyTextarea={(el) => { replyTextarea = el; }}
         onPrev={() => moveSelection(-1)}
