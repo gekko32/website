@@ -1,0 +1,70 @@
+---
+// Pausen zwischen Terminen und Feiertage (Gerald 08.11.2026).
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../../components/admin/ui/AdminPageHeader.svelte';
+import AdminEinstellungenTabs from '../../../components/AdminEinstellungenTabs.astro';
+import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
+import { getBookingBuffers, getHolidays } from '../../../lib/website-core-db';
+import { MAX_BUFFER_MIN } from '../../../lib/business-settings';
+import { bundesweiteFeiertage, feiertagDeutsch } from '../../../lib/termin-planung';
+
+const session = await getSession(Astro.request.headers.get('cookie'));
+if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
+if (!isAdmin(session)) return Astro.redirect('/admin');
+
+const BRAND = process.env.BRAND || 'mentolder';
+const saved = Astro.url.searchParams.get('saved') === '1';
+const fehler = Astro.url.searchParams.get('fehler');
+const [pausen, feiertage] = await Promise.all([getBookingBuffers(BRAND), getHolidays(BRAND)]);
+const jahr = new Date().getFullYear();
+const vorschlag = [...bundesweiteFeiertage(jahr), ...bundesweiteFeiertage(jahr + 1)].map(feiertagDeutsch);
+
+const labelStyle = 'display:block;font-family:var(--font-mono);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--mute-2);margin-bottom:0.5rem;';
+const inputStyle = 'width:100%;background:var(--ink-800);border:1px solid var(--line);border-radius:8px;padding:0.625rem 0.875rem;color:var(--fg);font-size:0.875rem;';
+const hinweisStyle = 'font-size:0.75rem;color:var(--mute);line-height:1.4;margin-top:0.375rem;';
+---
+
+<AdminLayout title="Termine">
+  <AdminEinstellungenTabs current={Astro.url.pathname} />
+  <div class="admin-form-wide" style="padding: 2rem; max-width: 640px;">
+    <AdminPageHeader title="Regeln für die Terminbuchung" description="Die freien Zeiträume selbst tragen Sie unter Termine ein." />
+
+    {saved && <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1.5rem;color:var(--fg);font-size:0.875rem;">Gespeichert. Gilt ab sofort.</div>}
+    {fehler && <div role="alert" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1.5rem;color:#fca5a5;font-size:0.875rem;">Nicht gespeichert. {fehler}</div>}
+
+    <form method="POST" action="/api/admin/einstellungen/termine">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.375rem;">
+        <div>
+          <label for="pause-vor" style={labelStyle}>Pause vor einem Termin (Minuten)</label>
+          <input id="pause-vor" type="number" name="pause_vor" value={pausen.preMin} min="0" max={MAX_BUFFER_MIN} step="1" style={inputStyle} />
+        </div>
+        <div>
+          <label for="pause-nach" style={labelStyle}>Pause nach einem Termin (Minuten)</label>
+          <input id="pause-nach" type="number" name="pause_nach" value={pausen.postMin} min="0" max={MAX_BUFFER_MIN} step="1" style={inputStyle} />
+        </div>
+      </div>
+      <p style={hinweisStyle + 'margin-bottom:2rem;'}>Vor und nach jedem Eintrag in Ihrem Kalender bleibt diese Zeit für Kunden gesperrt.</p>
+
+      <label for="feiertage" style={labelStyle}>Feiertage und feste freie Tage</label>
+      <textarea id="feiertage" name="feiertage" rows="12" style={inputStyle + 'font-family:var(--font-mono);'} placeholder="24.12.2026">{feiertage.map(feiertagDeutsch).join('\n')}</textarea>
+      <p style={hinweisStyle}>Ein Datum je Zeile. An diesen Tagen ist keine Buchung möglich, auch wenn dort ein Zeitraum eingetragen ist.</p>
+      <p style={hinweisStyle + 'margin-bottom:2rem;'}>
+        <button type="button" id="feiertage-einfuegen" data-tage={JSON.stringify(vorschlag)} style="background:none;border:1px dashed var(--line);border-radius:6px;color:var(--brass);padding:0.375rem 0.75rem;cursor:pointer;font-size:0.8rem;">Bundesweite Feiertage {jahr} und {jahr + 1} einfügen</button>
+        <br />Feiertage nur Ihres Bundeslandes bitte von Hand ergänzen.
+      </p>
+
+      <button type="submit" style="background:var(--brass);color:var(--ink-900);border:none;border-radius:8px;padding:0.625rem 1.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;">Speichern</button>
+    </form>
+  </div>
+</AdminLayout>
+
+<script>
+  const knopf = document.getElementById('feiertage-einfuegen') as HTMLButtonElement | null;
+  const feld = document.getElementById('feiertage') as HTMLTextAreaElement | null;
+  knopf?.addEventListener('click', () => {
+    if (!feld) return;
+    const vorhanden = feld.value.split('\n').map((z) => z.trim()).filter(Boolean);
+    const neu = (JSON.parse(knopf.dataset.tage ?? '[]') as string[]).filter((t) => !vorhanden.includes(t));
+    feld.value = [...vorhanden, ...neu].join('\n');
+  });
+</script>

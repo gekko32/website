@@ -10,6 +10,7 @@ import { katalogIntern } from '../../lib/billing-leistungen';
 import type { LeistungCategory } from '../../config/types';
 import AdminBookingModal from '../../components/admin/AdminBookingModal.svelte';
 import { logger } from '../../lib/logger';
+import { BOOKING_HORIZON_DAYS } from '../../lib/caldav-cache';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
 if (!session) return Astro.redirect(getLoginUrl(Astro.url.pathname));
@@ -18,13 +19,15 @@ if (!isAdmin(session)) return Astro.redirect('/admin');
 const ncBase      = (process.env.NEXTCLOUD_EXTERNAL_URL ?? 'https://files.example.com').replace(/\/$/, '');
 const calendarUrl = `${ncBase}/apps/calendar`;
 const brand = process.env.BRAND_NAME || 'mentolder';
+// Zeiträume und Urlaub liegen unter der Kennung, nicht unter dem Anzeigenamen (08.11.2026).
+const BRAND_ID = process.env.BRAND || 'mentolder';
 const IN_PUBLIC_URL = process.env.INVOICENINJA_PUBLIC_URL || '';
 
 const WEEKDAYS_DE = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 
 const now = new Date();
 const horizon = new Date(now);
-horizon.setDate(horizon.getDate() + 14);
+horizon.setDate(horizon.getDate() + BOOKING_HORIZON_DAYS);
 
 let bookings: AdminBooking[] = [];
 let bookingProjectMap: Map<string, string> = new Map();
@@ -36,7 +39,7 @@ let calError = '';
 let vacationPeriods: VacationPeriod[] = [];
 
 try {
-  vacationPeriods = await getVacationPeriods(brand).catch(() => []);
+  vacationPeriods = await getVacationPeriods(BRAND_ID).catch(() => []);
 } catch { /**/ }
 
 try {
@@ -76,7 +79,7 @@ const allDays: Array<{ date: string; weekday: string }> = [];
 
 // Load time windows and group by date
 const timeWindowsList = await getFreeTimeWindows(
-  brand,
+  BRAND_ID,
   now.toISOString().split('T')[0],
   horizon.toISOString().split('T')[0]
 ).catch(() => [] as FreeTimeWindow[]);
@@ -327,8 +330,35 @@ function formatTime(d: Date) {
 
       <!-- Freie Zeiträume -->
       <div>
-        <h2 class="text-xl font-semibold text-light mb-1">Freie Zeiträume <span class="text-sm font-normal text-muted">(nächste 14 Tage)</span></h2>
+        <h2 class="text-xl font-semibold text-light mb-1">Freie Zeiträume <span class="text-sm font-normal text-muted">(nächste {BOOKING_HORIZON_DAYS} Tage)</span></h2>
         <p class="text-sm text-muted mb-4">Definiere Zeitfenster pro Tag. Kunden sehen automatisch alle Terminslots innerhalb dieser Fenster.</p>
+
+        <form id="serie-form" class="p-4 mb-4 bg-dark-light rounded-xl border border-dark-lighter">
+          <h3 class="text-light font-semibold text-sm mb-1">Wiederkehrend eintragen</h3>
+          <p class="text-xs text-muted mb-3">Zum Beispiel jeden Dienstag von 14 bis 17 Uhr. Einzelne Tage ändern Sie danach unten.</p>
+          <div class="flex flex-wrap gap-3 mb-3">
+            {[['Mo', 1], ['Di', 2], ['Mi', 3], ['Do', 4], ['Fr', 5], ['Sa', 6], ['So', 7]].map(([name, wert]) => (
+              <label class="text-sm text-light flex items-center gap-1"><input type="checkbox" class="serie-tag" value={wert} /> {name}</label>
+            ))}
+          </div>
+          <div class="flex flex-wrap items-center gap-2 mb-3 text-sm text-muted">
+            <span>Uhrzeit</span>
+            <input type="time" id="serie-start" required class="bg-dark border border-dark-lighter rounded px-2 py-1 text-light text-sm" />
+            <span>bis</span>
+            <input type="time" id="serie-ende" required class="bg-dark border border-dark-lighter rounded px-2 py-1 text-light text-sm" />
+          </div>
+          <div class="flex flex-wrap items-center gap-2 mb-3 text-sm text-muted">
+            <span>Vom</span>
+            <input type="date" id="serie-von" required value={now.toISOString().split('T')[0]} class="bg-dark border border-dark-lighter rounded px-2 py-1 text-light text-sm" />
+            <span>bis</span>
+            <input type="date" id="serie-bis" required value={new Date(now.getTime() + 84 * 86400000).toISOString().split('T')[0]} class="bg-dark border border-dark-lighter rounded px-2 py-1 text-light text-sm" />
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="submit" class="text-xs px-3 py-1.5 bg-gold text-dark rounded font-semibold">Eintragen</button>
+            <button type="button" id="serie-entfernen" class="text-xs px-3 py-1.5 border border-dark-lighter text-muted rounded">Genau diese Zeiten entfernen</button>
+            <span id="serie-meldung" role="status" class="text-xs text-gold"></span>
+          </div>
+        </form>
 
         <div class="grid gap-3">
           {allDays.map(day => {
@@ -402,6 +432,30 @@ function formatTime(d: Date) {
 </AdminLayout>
 
 <script>
+  // Wiederkehrende Zeiträume (08.11.2026)
+  {
+    const wert = (id: string) => (document.getElementById(id) as HTMLInputElement).value;
+    const meldung = document.getElementById('serie-meldung')!;
+    const sende = async (entfernen: boolean) => {
+      const wochentage = [...document.querySelectorAll<HTMLInputElement>('.serie-tag:checked')].map((c) => Number(c.value));
+      meldung.textContent = 'Wird gespeichert …';
+      try {
+        const res = await fetch('/api/admin/time-windows/serie', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ wochentage, winStart: wert('serie-start'), winEnd: wert('serie-ende'), von: wert('serie-von'), bis: wert('serie-bis'), entfernen }),
+        });
+        const d = await res.json();
+        if (!res.ok) { meldung.textContent = d.error ?? 'Fehler beim Speichern.'; return; }
+        meldung.textContent = entfernen
+          ? `${d.entfernt} Zeiträume entfernt. Seite lädt neu …`
+          : `${d.angelegt} eingetragen, ${d.uebersprungen} übersprungen (dort lag schon ein Zeitraum). Seite lädt neu …`;
+        setTimeout(() => location.reload(), 1800);
+      } catch { meldung.textContent = 'Keine Verbindung.'; }
+    };
+    document.getElementById('serie-form')?.addEventListener('submit', (e) => { e.preventDefault(); void sende(false); });
+    document.getElementById('serie-entfernen')?.addEventListener('click', () => void sende(true));
+  }
+
   // ── Zeitraum-Verwaltung ────────────────────────────────────────────────────
 
   function updateWindowsCounter(delta: number) {

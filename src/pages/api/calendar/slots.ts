@@ -31,7 +31,8 @@ export const GET: APIRoute = async ({ url , locals }) => {
       ? parseInt(durationParam, 10)
       : undefined;
 
-    const brand = process.env.BRAND_NAME || 'mentolder';
+    // BRAND ist die Kennung der Daten, BRAND_NAME nur der Anzeigename (08.11.2026).
+    const brand = process.env.BRAND || 'mentolder';
     const slots = await getAvailableSlots(fromDate, brand, durationMin);
 
     return new Response(JSON.stringify(slots), {

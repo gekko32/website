@@ -260,6 +260,14 @@
       "media": false
     },
     {
+      "route": "/admin/einstellungen/termine",
+      "authTier": "admin",
+      "brand": "both",
+      "dynamic": false,
+      "excludeFromSweep": false,
+      "media": false
+    },
+    {
       "route": "/admin/fragebogen/[assignmentId]",
       "authTier": "admin",
       "brand": "both",
