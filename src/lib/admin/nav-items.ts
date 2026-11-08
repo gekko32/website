@@ -118,7 +118,6 @@ export function buildNavSections({ inboxPending, brettUrl }: NavOptions): NavSec
       label: 'Werkzeuge',
       items: [
         { href: '/admin/assets', label: 'Assets', icon: 'palette' },
-        { href: '/admin/asset-generation', label: '3D Generator', icon: 'edit' },
         { href: brettUrl, label: 'Systembrett', icon: 'brett', external: true },
       ],
     },

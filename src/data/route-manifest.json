@@ -52,14 +52,6 @@
       "media": false
     },
     {
-      "route": "/admin/asset-generation",
-      "authTier": "admin",
-      "brand": "both",
-      "dynamic": false,
-      "excludeFromSweep": false,
-      "media": false
-    },
-    {
       "route": "/admin/assets",
       "authTier": "admin",
       "brand": "both",
