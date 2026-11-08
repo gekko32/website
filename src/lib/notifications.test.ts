@@ -63,10 +63,10 @@ describe('sendAdminNotification', () => {
   it('skips the email when the per-type toggle is "false"', async () => {
     mockGet.mockImplementation(async (_brand: string, key: string) => {
       if (key === 'notification_email') return 'admin@example.com';
-      if (key === 'notify_followup') return 'false';
+      if (key === 'notify_contact') return 'false';
       return undefined;
     });
-    await sendAdminNotification({ type: 'followup', subject: 'x', text: 'y' });
+    await sendAdminNotification({ type: 'contact', subject: 'x', text: 'y' });
     expect(mockSend).not.toHaveBeenCalled();
   });
 
@@ -81,7 +81,7 @@ describe('sendAdminNotification', () => {
     expect(mockSend).toHaveBeenCalled();
   });
 
-  it('falls back to TYPE_DEFAULTS ("true" for most types) when toggle is missing', async () => {
+  it('falls back to TYPE_DEFAULTS (an) when toggle is missing', async () => {
     mockGet.mockImplementation(async (_brand: string, key: string) => {
       if (key === 'notification_email') return 'admin@example.com';
       if (key === 'notify_booking') return null;

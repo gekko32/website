@@ -3,15 +3,13 @@ import { getSiteSetting } from './website-db';
 import { sendEmail } from './email';
 import { logger } from './logger';
 
-export type NotificationType = 'registration' | 'booking' | 'contact' | 'bug' | 'message' | 'followup';
+export type NotificationType = 'registration' | 'booking' | 'contact';
 
+// Vorgabe an (Gerald 08.11.2026), abschaltbar unter Einstellungen → Benachrichtigungen.
 const TYPE_DEFAULTS: Record<NotificationType, string> = {
-  registration: 'false',
-  booking:      'false',
-  contact:      'false',
-  bug:          'false',
-  message:      'false',
-  followup:     'false',
+  registration: 'true',
+  booking:      'true',
+  contact:      'true',
 };
 
 const SITE_URL = process.env.SITE_URL ?? '';
