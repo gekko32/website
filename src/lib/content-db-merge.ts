@@ -12,6 +12,12 @@ import type { QTemplate } from './questionnaire-db/types';
 import type { Template } from './coaching-db';
 import type { DocumentTemplate } from './documents-db';
 
+// Die Datenbank liefert echte Datumswerte; sortiert wird unten als Text (sonst Absturz, 08.11.2026).
+function alsText(d: unknown): string | undefined {
+  if (d === null || d === undefined) return undefined;
+  return d instanceof Date ? d.toISOString() : String(d);
+}
+
 export function mergeContentEntries(
   questionnaires: QTemplate[],
   vorlagen: Template[],
@@ -25,7 +31,7 @@ export function mergeContentEntries(
       id: q.id,
       title: q.title,
       meta: `${q.dimension_count} Dimensionen`,
-      createdAt: q.created_at,
+      createdAt: alsText(q.created_at),
       detailHref: '/admin/coaching/sessions',
     });
   }
@@ -47,7 +53,7 @@ export function mergeContentEntries(
       type: 'vertrag',
       id: c.id,
       title: c.title,
-      createdAt: c.created_at,
+      createdAt: alsText(c.created_at),
       detailHref: '/admin/dokumente',
     });
   }

@@ -3,7 +3,9 @@ import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../../lib/auth';
 import { getInboxItem, updateInboxItemStatus, deleteInboxItem } from '../../../../../lib/messaging-db';
 import { createUser, sendPasswordResetEmail } from '../../../../../lib/identity';
-import { createCalendarEvent } from '../../../../../lib/caldav';
+import { createCalendarEvent, getAllBookings } from '../../../../../lib/caldav';
+import { bestaetigungsMail } from '../../../../../lib/termin-bestaetigung';
+import { erzeugeAgbPdf } from '../../../../../lib/agb-pdf';
 import { createTalkRoom, inviteGuestByEmail, sendChatMessage } from '../../../../../lib/talk';
 import { sendRegistrationApproved, sendRegistrationDeclined, sendEmail } from '../../../../../lib/email';
 import { upsertCustomer, resolveBugTicket, createMeeting, claimBrettLinkPost, pool } from '../../../../../lib/website-db';
@@ -28,8 +30,8 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
     return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
   }
 
-  const body = await request.json() as { action: string; note?: string };
-  const { action, note } = body;
+  const body = await request.json() as { action: string; note?: string; agbAnhaengen?: boolean };
+  const { action, note, agbAnhaengen } = body;
 
   // `delete` is the unconditional escape hatch — it bypasses the
   // "Already actioned" lock so admins can clear rows stuck in `actioned`
@@ -97,9 +99,30 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
           name: string; email: string; phone?: string; typeLabel: string;
           slotStart: string; slotEnd: string; slotDisplay: string; date: string;
           serviceKey?: string; leistungKey?: string; projectId?: string;
+          token?: string; state?: string;
         };
+        // Über den Link verwaltete Anfrage: Der Kunde sieht danach „bestätigt“ (08.11.2026).
+        const entscheidung = (uid: string | null) => (p.state === 'offen'
+          ? { state: 'bestaetigt', outcome: 'bestaetigt', caldavUid: uid, decidedAt: new Date().toISOString(), decidedBy: session.preferred_username ?? null }
+          : {});
+        // Rückruf ohne Termin: kein Kalender, kein Raum, keine Terminbestätigung.
+        if (!p.slotStart) {
+          await pool.query(
+            `UPDATE inbox_items SET payload = payload || $1::jsonb WHERE id = $2`,
+            [JSON.stringify(entscheidung(null)), id],
+          ).catch(err => locals.requestLogger.error({ err }, '[approve_booking] Failed to mark callback as done:'));
+          await updateInboxItemStatus(id, 'actioned', session.preferred_username);
+          return new Response(JSON.stringify({ success: true, details: ['Rückruf als erledigt vermerkt'] }), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
         const meetingStart = new Date(p.slotStart);
         const meetingEnd   = new Date(p.slotEnd);
+        // Zwei Anfragen können denselben Termin wünschen; vergeben wird erst hier.
+        const belegt = await getAllBookings().catch(() => null);
+        if (belegt?.some(b => b.status !== 'CANCELLED' && b.start < meetingEnd && b.end > meetingStart)) {
+          return new Response(JSON.stringify({ error: 'Zu dieser Zeit steht schon ein Termin im Kalender. Bitte lehnen Sie die Anfrage ab oder klären Sie den Termin mit dem Kunden.' }), { status: 409 });
+        }
         const dateFormatted = new Date(p.date + 'T00:00:00').toLocaleDateString('de-DE', {
           weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric',
         });
@@ -124,14 +147,28 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
         });
         statusParts.push(calEvent ? 'Kalendereintrag erstellt' : 'Kalendereintrag fehlgeschlagen');
 
-        const meetingLinkHtml = room
-          ? `<p><a href="${room.url}" style="display:inline-block;background:#e8c870;color:#0f1623;padding:12px 24px;border-radius:25px;text-decoration:none;font-weight:bold">Zum Meeting beitreten</a></p>`
-          : '';
+        // AGB als Anhang nur auf Wunsch: Bis zur Freigabe der endgültigen Fassung ist das Häkchen aus (Gerald 08.11.2026).
+        // Scheitert das PDF, geht die Bestätigung trotzdem raus.
+        let anhang: { filename: string; content: Buffer }[] | undefined;
+        if (agbAnhaengen === true) {
+          try {
+            anhang = [{ filename: 'AGB.pdf', content: await erzeugeAgbPdf(process.env.BRAND || 'mentolder', process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder') }];
+            statusParts.push('AGB als PDF angehängt');
+          } catch (err) {
+            locals.requestLogger.error({ err }, '[approve_booking] AGB-PDF fehlgeschlagen:');
+            statusParts.push('AGB konnten nicht angehängt werden');
+          }
+        }
+        const basisUrl = SITE_URL || new URL(request.url).origin;
         await sendEmail({
           to: p.email,
-          subject: `Termin bestätigt: ${p.typeLabel} am ${dateFormatted}`,
-          text: `Hallo ${p.name},\n\nIhr Termin wurde bestätigt!\n\n  Typ:     ${p.typeLabel}\n  Datum:   ${dateFormatted}\n  Uhrzeit: ${p.slotDisplay}${room ? `\n\nIhr Meeting-Link:\n${room.url}` : ''}\n\nMit freundlichen Grüßen\n${BRAND_NAME}`,
-          html: `<p>Hallo ${p.name},</p><p><strong>Ihr Termin wurde bestätigt!</strong></p><table style="border-collapse:collapse;margin:16px 0"><tr><td style="padding:4px 12px 4px 0;color:#aabbcc">Typ</td><td>${p.typeLabel}</td></tr><tr><td style="padding:4px 12px 4px 0;color:#aabbcc">Datum</td><td>${dateFormatted}</td></tr><tr><td style="padding:4px 12px 4px 0;color:#aabbcc">Uhrzeit</td><td>${p.slotDisplay}</td></tr></table>${meetingLinkHtml}<p>Mit freundlichen Grüßen<br>${BRAND_NAME}</p>`,
+          ...bestaetigungsMail({
+            name: p.name, typeLabel: p.typeLabel, datum: dateFormatted, uhrzeit: p.slotDisplay, marke: BRAND_NAME,
+            meetingUrl: room?.url ?? null,
+            verwaltenUrl: p.token ? `${basisUrl.replace(/\/$/, '')}/anfrage/${p.token}` : null,
+            agbAngehaengt: !!anhang,
+          }),
+          attachments: anhang,
         }, request);
         statusParts.push('Bestätigungs-E-Mail versendet');
         const customer = await upsertCustomer({ name: p.name, email: p.email, phone: p.phone });
@@ -160,7 +197,7 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
         // abgesagt, wird er zum offenen Posten in der Akte (billing-posten).
         await pool.query(
           `UPDATE inbox_items SET payload = payload || $1::jsonb WHERE id = $2`,
-          [JSON.stringify({ freigegebenAm: new Date().toISOString(), klientId: customer.id }), id],
+          [JSON.stringify({ freigegebenAm: new Date().toISOString(), klientId: customer.id, ...entscheidung(calEvent?.uid ?? null) }), id],
         ).catch(err => locals.requestLogger.error({ err }, '[approve_booking] Failed to mark booking as approved:'));
         statusParts.push('Wird nach dem Termin als offener Posten in der Akte abgerechnet');
 
@@ -171,7 +208,7 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
       }
 
       case 'decline_booking': {
-        const p = item.payload as { name: string; email: string; typeLabel: string; slotDisplay: string; date: string };
+        const p = item.payload as { name: string; email: string; typeLabel: string; slotDisplay: string; date: string; state?: string };
         const dateFormatted = new Date(p.date + 'T00:00:00').toLocaleDateString('de-DE', {
           weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric',
         });
@@ -182,7 +219,8 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
         }, request);
         // Stufe 3, T6: abgelehnte Buchungen werden nie zu Posten (auch Admin-Buchungen).
         await pool.query(
-          `UPDATE inbox_items SET payload = payload || '{"abgelehnt": true}'::jsonb WHERE id = $1`, [id],
+          `UPDATE inbox_items SET payload = payload || $2::jsonb WHERE id = $1`,
+          [id, JSON.stringify({ abgelehnt: true, ...(p.state === 'offen' ? { state: 'abgelehnt', outcome: 'abgelehnt' } : {}) })],
         ).catch(err => locals.requestLogger.error({ err }, '[decline_booking] Failed to mark booking as declined:'));
         await updateInboxItemStatus(id, 'actioned', session.preferred_username);
         return new Response(JSON.stringify({ success: true }), { headers: { 'Content-Type': 'application/json' } });

@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
 import { removeSlotFromWhitelist } from '../../../../lib/website-db';
 
-const BRAND = process.env.BRAND_NAME || 'mentolder';
+const BRAND = process.env.BRAND || 'mentolder';
 
 export const DELETE: APIRoute = async ({ request , locals }) => {
   const session = await getSession(request.headers.get('cookie'));

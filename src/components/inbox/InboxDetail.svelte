@@ -15,6 +15,8 @@
     replyBody: string;
     replySending: boolean;
     bugNote: string;
+    agbAnhaengen?: boolean;
+    onAgbChange?: (v: boolean) => void;
     /** When true a "← Zurück" button is rendered at the top (mobile detail view). */
     showMobileBack?: boolean;
     bindReplyTextarea?: (el: HTMLTextAreaElement | null) => void;
@@ -35,6 +37,8 @@
     item, counts, busy, error,
     threadMessages, threadLoading, replyBody, replySending, bugNote,
     showMobileBack = false,
+    agbAnhaengen = false,
+    onAgbChange,
     bindReplyTextarea,
     onPrev, onNext, onPrimary, onSecondary, onDelete,
     onReplyChange, onSendReply, onBugNoteChange,
@@ -243,6 +247,12 @@
           </dd></div>
           <div><dt>Service</dt><dd>{p(item, 'serviceKey') ?? p(item, 'leistungKey') ?? '—'}</dd></div>
         </dl>
+        {#if item.status === 'pending' && p(item, 'slotStart')}
+          <label class="agb-toggle">
+            <input type="checkbox" checked={agbAnhaengen} onchange={(e) => onAgbChange?.(e.currentTarget.checked)} />
+            AGB als PDF an die Bestätigung anhängen
+          </label>
+        {/if}
 
       {:else if item.type === 'contact'}
         <dl class="fields">
@@ -834,4 +844,5 @@
     .btn-primary { align-self: stretch; justify-content: center; }
     .nav-btn { width: 30px; height: 30px; }
   }
+  .agb-toggle { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; cursor: pointer; }
 </style>

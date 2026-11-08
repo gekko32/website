@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { kalenderHinweis } from '../../../../lib/termin-freigeben';
 import { pool } from '../../../../lib/messaging-db-pool';
 import {
   TransitionError,
@@ -176,11 +177,12 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       await addSlotToWhitelist(BRAND, new Date(req.slotStart), new Date(req.slotEnd));
     }
 
+    const hinweis = await kalenderHinweis(oldPayload);
     const oldInfo = req.slotDisplay ?? req.slotStart ?? 'Rückruf';
     await sendAdminNotification({
       type: 'booking',
       subject: `[Umbuchung] ${req.name}: ${oldInfo} → ${newDisplay}`,
-      text: `Umbuchung einer Terminanfrage (alte Anfrage #${req.id} ist storniert).\n\nName: ${req.name}\nE-Mail: ${req.email}\nAlter Termin: ${oldInfo}\nNeuer Termin: ${newDisplay} (${berlinDayKey(start)})`,
+      text: `${hinweis}Umbuchung einer Terminanfrage (alte Anfrage #${req.id} ist storniert).\n\nName: ${req.name}\nE-Mail: ${req.email}\nAlter Termin: ${oldInfo}\nNeuer Termin: ${newDisplay} (${berlinDayKey(start)})`,
       replyTo: req.email,
     }, request);
 

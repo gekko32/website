@@ -207,7 +207,7 @@
             onclick={() => (activeMode = 'termin')}>
             <span class="ch-mode-num">{journeyEnabled ? '02 — Termin' : '01 — Termin'}</span>
             <span class="ch-mode-title">Erstgespräch <em>buchen.</em></span>
-            <span class="ch-mode-sub">{erstgespraechMin} Minuten, Online oder vor Ort. Direkter Slot in meinem Kalender.</span>
+            <span class="ch-mode-sub">{erstgespraechMin} Minuten, online oder vor Ort. Wunschtermin wählen, ich bestätige per E-Mail.</span>
           </button>
 
           <button type="button" role="tab" aria-selected={activeMode === 'message'}

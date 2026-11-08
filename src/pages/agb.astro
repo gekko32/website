@@ -1,20 +1,12 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { getLegalPage } from '../lib/website-db';
-import { getDefaultAgb } from '../lib/legal-defaults';
-import { resolveTokens, resolveRegelTokens } from '../lib/legal-tokens';
-import { getEffectiveStammdaten } from '../lib/content';
-import { ladeRegelTokenWerte } from '../lib/billing-regeln';
-import type { Stammdaten } from '../lib/website-db';
+import { ladeAgbHtml } from '../lib/agb-pdf';
 
 const BRAND = process.env.BRAND || 'mentolder';
 const BRAND_ID = process.env.BRAND_ID ?? BRAND;
 const isKore = BRAND_ID === 'korczewski';
-const sd = await getEffectiveStammdaten().catch(() => ({} as Stammdaten));
-const stored = await getLegalPage(BRAND, 'agb').catch(() => null);
 // Stufe 3 T2: Frist, Ausfallhöhe und Zahlungsziel aus den Einstellungen (K37, K38).
-const regelWerte = await ladeRegelTokenWerte(BRAND);
-const contentHtml = resolveRegelTokens(resolveTokens(stored?.trim() ? stored : getDefaultAgb(BRAND_ID), sd), regelWerte);
+const contentHtml = await ladeAgbHtml(BRAND, BRAND_ID);
 ---
 
 {isKore ? (

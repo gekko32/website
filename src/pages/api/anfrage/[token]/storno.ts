@@ -8,6 +8,7 @@ import {
   type InboxRowLike,
 } from '../../../../lib/appointment-requests';
 import { addSlotToWhitelist } from '../../../../lib/website-db';
+import { kalenderHinweis } from '../../../../lib/termin-freigeben';
 import { appendNotifyLog, notifyEntryFromResult, readNotifyLog, sendNotify } from '../../../../lib/appointment-notify';
 import { sendAdminNotification } from '../../../../lib/notifications';
 import { checkRateLimit, getClientIp } from '../../../../lib/rate-limit';
@@ -99,11 +100,12 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       await addSlotToWhitelist(BRAND, new Date(req.slotStart), new Date(req.slotEnd));
     }
 
+    const hinweis = await kalenderHinweis(rows.find((row) => row.payload.token === token)?.payload);
     const slotInfo = req.slotDisplay ?? req.slotStart ?? 'Rückruf';
     await sendAdminNotification({
       type: 'booking',
       subject: `[Storno] Anfrage von ${req.name} (${slotInfo})`,
-      text: `Storno einer Terminanfrage.\n\nName: ${req.name}\nE-Mail: ${req.email}\nTermin: ${slotInfo}${note !== '' ? `\n\nNotiz des Gastes:\n${note}` : ''}`,
+      text: `${hinweis}Storno einer Terminanfrage.\n\nName: ${req.name}\nE-Mail: ${req.email}\nTermin: ${slotInfo}${note !== '' ? `\n\nNotiz des Gastes:\n${note}` : ''}`,
       replyTo: req.email,
     }, request);
 
