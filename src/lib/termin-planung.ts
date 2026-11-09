@@ -36,12 +36,47 @@ export function pruefeSerie(e: { von?: unknown; bis?: unknown; wochentage?: unkn
   if (!Array.isArray(e.wochentage) || e.wochentage.length === 0 || !e.wochentage.every((w) => Number.isInteger(w) && w >= 1 && w <= 7)) {
     return 'Bitte mindestens einen Wochentag auswählen.';
   }
+  return pruefeZeiten(e);
+}
+
+function pruefeZeiten(e: { winStart?: unknown; winEnd?: unknown }): string | null {
   const zeit = /^([01]\d|2[0-3]):[0-5]\d$/;
   if (typeof e.winStart !== 'string' || typeof e.winEnd !== 'string' || !zeit.test(e.winStart) || !zeit.test(e.winEnd)) {
     return 'Bitte Von und Bis als Uhrzeit angeben.';
   }
   if (e.winStart >= e.winEnd) return 'Von muss vor Bis liegen.';
   return null;
+}
+
+/** Einzelne Tage aus dem Kalender. */
+export function pruefeTage(e: { tage?: unknown; winStart?: unknown; winEnd?: unknown }): string | null {
+  if (!Array.isArray(e.tage) || e.tage.length === 0) return 'Bitte mindestens einen Tag auswählen.';
+  if (e.tage.length > MAX_SERIE_TAGE || !e.tage.every(istEchterTag)) return 'Die Tagesauswahl ist ungültig.';
+  return pruefeZeiten(e);
+}
+
+export const WOCHENTAGE_KURZ = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+export const MONATSNAMEN = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+
+/** Wochen eines Monats, Montag zuerst; Tage außerhalb des Monats sind null. */
+export function monatsRaster(jahr: number, monat: number): (string | null)[][] {
+  const ersterIso = new Date(Date.UTC(jahr, monat - 1, 1)).getUTCDay() || 7;
+  const anzahl = new Date(Date.UTC(jahr, monat, 0)).getUTCDate();
+  const zellen: (string | null)[] = Array(ersterIso - 1).fill(null);
+  for (let t = 1; t <= anzahl; t++) zellen.push(utcAlsTag(Date.UTC(jahr, monat - 1, t)));
+  while (zellen.length % 7 !== 0) zellen.push(null);
+  const wochen: (string | null)[][] = [];
+  for (let i = 0; i < zellen.length; i += 7) wochen.push(zellen.slice(i, i + 7));
+  return wochen;
+}
+
+/** Uhrzeiten zum Durchscrollen, z. B. 06:00 bis 22:00 im Viertelstundentakt. */
+export function zeitListe(vonStunde: number, bisStunde: number, schrittMin: number): string[] {
+  const liste: string[] = [];
+  for (let m = vonStunde * 60; m <= bisStunde * 60; m += schrittMin) {
+    liste.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
+  }
+  return liste;
 }
 
 /** Eine Zeile je Tag, als 24.12.2026 oder 2026-12-24. */
@@ -73,6 +108,39 @@ function ostersonntag(jahr: number): number {
   const monat = Math.floor((h + l - 7 * m + 114) / 31);
   const tag = ((h + l - 7 * m + 114) % 31) + 1;
   return Date.UTC(jahr, monat - 1, tag);
+}
+
+export const BUNDESLAENDER: { key: string; name: string }[] = [
+  { key: 'BW', name: 'Baden-Württemberg' }, { key: 'BY', name: 'Bayern' }, { key: 'BE', name: 'Berlin' },
+  { key: 'BB', name: 'Brandenburg' }, { key: 'HB', name: 'Bremen' }, { key: 'HH', name: 'Hamburg' },
+  { key: 'HE', name: 'Hessen' }, { key: 'MV', name: 'Mecklenburg-Vorpommern' }, { key: 'NI', name: 'Niedersachsen' },
+  { key: 'NW', name: 'Nordrhein-Westfalen' }, { key: 'RP', name: 'Rheinland-Pfalz' }, { key: 'SL', name: 'Saarland' },
+  { key: 'SN', name: 'Sachsen' }, { key: 'ST', name: 'Sachsen-Anhalt' }, { key: 'SH', name: 'Schleswig-Holstein' },
+  { key: 'TH', name: 'Thüringen' },
+];
+
+/** Landesweit geltende Feiertage. Feiertage nur einzelner Gemeinden sind nicht enthalten. */
+export function feiertageFuerLand(jahr: number, land: string): string[] {
+  const ostern = ostersonntag(jahr);
+  const fest = (m: number, t: number) => utcAlsTag(Date.UTC(jahr, m - 1, t));
+  const beweglich = (abstand: number) => utcAlsTag(ostern + abstand * TAG_MS);
+  const in_ = (...laender: string[]) => laender.includes(land);
+  const extra: string[] = [];
+  if (in_('BW', 'BY', 'ST')) extra.push(fest(1, 6));
+  if (in_('BE', 'MV')) extra.push(fest(3, 8));
+  if (in_('BB')) extra.push(beweglich(0), beweglich(49));
+  if (in_('BW', 'BY', 'HE', 'NW', 'RP', 'SL')) extra.push(beweglich(60));
+  if (in_('SL')) extra.push(fest(8, 15));
+  if (in_('TH')) extra.push(fest(9, 20));
+  if (in_('BB', 'HB', 'HH', 'MV', 'NI', 'SN', 'ST', 'SH', 'TH')) extra.push(fest(10, 31));
+  if (in_('BW', 'BY', 'NW', 'RP', 'SL')) extra.push(fest(11, 1));
+  if (in_('SN')) {
+    // Buß- und Bettag: der Mittwoch vor dem 23. November.
+    const t23 = Date.UTC(jahr, 10, 23);
+    const zurueck = ((new Date(t23).getUTCDay() - 3 + 7) % 7) || 7;
+    extra.push(utcAlsTag(t23 - zurueck * TAG_MS));
+  }
+  return [...bundesweiteFeiertage(jahr), ...extra].sort();
 }
 
 /** Die neun Feiertage, die in ganz Deutschland gelten. */
