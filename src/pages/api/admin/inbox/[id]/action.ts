@@ -30,6 +30,8 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
 
   const body = await request.json() as { action: string; note?: string; agbAnhaengen?: boolean };
   const { action, note, agbAnhaengen } = body;
+  // Persönlicher Text an den Kunden beim Bestätigen oder Ablehnen.
+  const nachricht = note?.trim().slice(0, 2000) || undefined;
 
   // `delete` is the unconditional escape hatch — it bypasses the
   // "Already actioned" lock so admins can clear rows stuck in `actioned`
@@ -114,7 +116,7 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
           });
         }
         const ergebnis = await terminAnnehmen({
-          id, p, request, log: locals.requestLogger, akteur: session.preferred_username ?? null, agbAnhaengen,
+          id, p, request, log: locals.requestLogger, akteur: session.preferred_username ?? null, agbAnhaengen, nachricht,
         });
         if (ergebnis.art !== 'ok') {
           return new Response(JSON.stringify({ error: 'Zu dieser Zeit steht schon ein Termin im Kalender. Bitte lehnen Sie die Anfrage ab oder klären Sie den Termin mit dem Kunden.' }), { status: 409 });
@@ -132,7 +134,7 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
         await sendEmail({
           to: p.email,
           subject: `Zu Ihrer Terminanfrage bei ${BRAND_NAME}`,
-          text: `Hallo ${p.name},\n\nleider können wir den angefragten Termin (${p.typeLabel} am ${dateFormatted}, ${p.slotDisplay}) nicht bestätigen.\n\nBitte wählen Sie einen alternativen Termin unter https://web.${PROD_DOMAIN}/termin oder kontaktieren Sie uns direkt.\n\nMit freundlichen Grüßen\n${BRAND_NAME}`,
+          text: `Hallo ${p.name},\n\nleider können wir den angefragten Termin (${p.typeLabel} am ${dateFormatted}, ${p.slotDisplay}) nicht bestätigen.${nachricht ? `\n\n${nachricht}` : ''}\n\nBitte wählen Sie einen alternativen Termin unter https://web.${PROD_DOMAIN}/termin oder kontaktieren Sie uns direkt.\n\nMit freundlichen Grüßen\n${BRAND_NAME}`,
         }, request);
         // Stufe 3, T6: abgelehnte Buchungen werden nie zu Posten (auch Admin-Buchungen).
         await pool.query(

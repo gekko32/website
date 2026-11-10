@@ -5,6 +5,12 @@ import { mergeContentEntries } from './content-db-merge';
 const basis = { name: 'Anna <b>', typeLabel: 'Erstgespräch', datum: 'Montag, 09.11.2026', uhrzeit: '10:00 - 10:30', marke: 'mentolder' };
 
 describe('Bestätigungsmail', () => {
+  it('nimmt die persönliche Nachricht nur auf, wenn es eine gibt, und entschärft sie', () => {
+    expect(bestaetigungsMail(basis).text).not.toContain('Gerne');
+    const m = bestaetigungsMail({ ...basis, nachricht: 'Gerne <b>\nbis bald' });
+    expect(m.text).toContain('Gerne <b>\nbis bald');
+    expect(m.html).toContain('Gerne &lt;b&gt;<br>bis bald');
+  });
   it('enthält den Verwalten-Link und den AGB-Hinweis nur, wenn sie gelten', () => {
     const ohne = bestaetigungsMail(basis);
     expect(ohne.text).not.toContain('umbuchen');
