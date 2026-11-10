@@ -41,7 +41,7 @@ function json(body: Record<string, unknown>, init: { status: number }): Response
   });
 }
 
-export const POST: APIRoute = async ({ request, params, locals }) => {
+const verarbeiten: APIRoute = async ({ request, params, locals }) => {
   const ip = getClientIp(request);
   if (!checkRateLimit(`anfrage-storno:${ip}`, 5, 60_000)) {
     return json({ error: 'Zu viele Anfragen. Bitte warten Sie einen Moment.' }, { status: 429 });
@@ -132,4 +132,16 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     locals.requestLogger.error({ err }, '[anfrage/storno]');
     return json({ error: 'Interner Serverfehler.' }, { status: 500 });
   }
+};
+
+// Das Formular auf der Klientenseite wird direkt vom Browser abgeschickt: Statt
+// roher Daten sieht der Klient danach wieder seine Seite mit dem neuen Stand.
+export const POST: APIRoute = async (kontext) => {
+  const antwort = await verarbeiten(kontext);
+  const token = kontext.params.token;
+  if (!(kontext.request.headers.get('accept') ?? '').includes('text/html') || !isValidRequestTokenFormat(token)) return antwort;
+  return new Response(null, {
+    status: 303,
+    headers: { Location: `/anfrage/${token}${antwort.ok ? '' : '?fehler=1'}` },
+  });
 };

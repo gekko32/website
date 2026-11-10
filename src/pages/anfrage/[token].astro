@@ -34,6 +34,7 @@ const BADGES = {
   storniert: 'storniert',
 } as const;
 const badge = BADGES[req.state];
+const fehler = Astro.url.searchParams.has('fehler');
 const actionable = req.state === 'offen' || req.state === 'bestaetigt';
 const slotDate = req.slotStart !== null
   ? new Date(req.slotStart).toLocaleDateString('de-DE', {
@@ -60,6 +61,8 @@ const duration = req.serviceSnapshot?.durationMin;
       input, textarea { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font: inherit; }
       button { margin-top: 16px; padding: 12px 24px; min-height: 44px; border-radius: 8px; border: 1px solid #333; background: #222; color: #fff; font: inherit; cursor: pointer; }
       .hint { color: #666; font-size: 14px; }
+      .meldung { margin-top: 24px; padding: 14px 16px; background: #f4f1e8; border-radius: 8px; }
+      .anderer { margin-top: 24px; padding-top: 24px; border-top: 1px solid #eee; }
     </style>
   </head>
   <body>
@@ -87,6 +90,20 @@ const duration = req.serviceSnapshot?.durationMin;
       </dl>
       <p class="hint">Bewahren Sie diesen Link auf — nur über ihn können Sie Ihre Anfrage verwalten.</p>
 
+      {fehler && <p class="meldung" role="alert">Das hat leider nicht geklappt. Bitte nehmen Sie direkt Kontakt mit uns auf.</p>}
+
+      {(req.state === 'storniert' || req.state === 'abgelehnt') && (
+        <p class="meldung">Sie möchten einen anderen Termin? <a href="/kontakt">Neuen Termin buchen</a></p>
+      )}
+
+      {actionable && req.slotStart !== null && (
+        <section class="anderer">
+          <h2>Anderen Termin wählen</h2>
+          <p class="hint">Sehen Sie zuerst nach, welche Zeiten frei sind. Stornieren Sie dann diesen Termin und buchen Sie den neuen.</p>
+          <a href="/kontakt" target="_blank">Freie Termine ansehen</a>
+        </section>
+      )}
+
       {actionable && (
         <form method="post" action={`/api/anfrage/${token}/storno`}>
           <h2>Anfrage stornieren</h2>
@@ -96,17 +113,6 @@ const duration = req.serviceSnapshot?.durationMin;
         </form>
       )}
 
-      {actionable && req.slotStart !== null && (
-        <form method="post" action={`/api/anfrage/${token}/umbuchung`}>
-          <h2>Umbuchen</h2>
-          <p class="hint">Wählen Sie einen neuen Wunschtermin (frühestens morgen). Es entsteht eine neue Anfrage; die alte wird storniert.</p>
-          <label for="ub-start">Neuer Beginn</label>
-          <input id="ub-start" type="datetime-local" name="slotStart" required />
-          <label for="ub-end">Neues Ende</label>
-          <input id="ub-end" type="datetime-local" name="slotEnd" required />
-          <button type="submit">Umbuchung anfragen</button>
-        </form>
-      )}
     </main>
   </body>
 </html>

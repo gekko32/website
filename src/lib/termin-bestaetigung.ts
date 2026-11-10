@@ -1,5 +1,5 @@
 // Mail an den Kunden, wenn eine Buchung im Postfach angenommen wird (08.11.2026).
-// Enthält den Link zum Umbuchen und Absagen und auf Wunsch die AGB als Anhang.
+// Enthält den Link zum Absagen und auf Wunsch die AGB als Anhang.
 
 export interface BestaetigungDaten {
   name: string;
@@ -27,7 +27,7 @@ export function bestaetigungsMail(d: BestaetigungDaten): { subject: string; text
   ];
   if (d.ort) zeilen.push(`  Ort:     ${d.ort}`);
   if (d.meetingUrl) zeilen.push('', 'Ihr Meeting-Link:', d.meetingUrl);
-  if (d.verwaltenUrl) zeilen.push('', 'Termin umbuchen oder absagen:', d.verwaltenUrl);
+  if (d.verwaltenUrl) zeilen.push('', 'Termin ansehen oder absagen:', d.verwaltenUrl);
   if (d.agbAngehaengt) zeilen.push('', 'Unsere AGB finden Sie im Anhang.');
   zeilen.push('', 'Mit freundlichen Grüßen', d.marke);
 
@@ -36,7 +36,7 @@ export function bestaetigungsMail(d: BestaetigungDaten): { subject: string; text
   const knopf = d.meetingUrl
     ? `<p><a href="${esc(d.meetingUrl)}" style="display:inline-block;background:#e8c870;color:#0f1623;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">Zum Meeting</a></p>`
     : '';
-  const verwalten = d.verwaltenUrl ? `<p><a href="${esc(d.verwaltenUrl)}">Termin umbuchen oder absagen</a></p>` : '';
+  const verwalten = d.verwaltenUrl ? `<p><a href="${esc(d.verwaltenUrl)}">Termin ansehen oder absagen</a></p>` : '';
   const agb = d.agbAngehaengt ? '<p>Unsere AGB finden Sie im Anhang.</p>' : '';
 
   return {
