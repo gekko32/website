@@ -70,6 +70,8 @@ export function monatsRaster(jahr: number, monat: number): (string | null)[][] {
   return wochen;
 }
 
+export const ORT_TEXT: Record<string, string> = { online: 'Online', 'vor-ort': 'Vor Ort', telefon: 'Telefon' };
+
 /** Gilt ein Zeitraum für diese Leistung? Leere Liste heißt: für alle. */
 export function zeitraumGiltFuer(leistungen: string[] | undefined, leistung: string | null | undefined): boolean {
   if (!leistung || !leistungen || leistungen.length === 0) return true;

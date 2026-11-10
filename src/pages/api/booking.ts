@@ -11,6 +11,7 @@ import { appendNotifyLog, notifyEntryFromResult, readNotifyLog, sendNotify } fro
 import { sendAdminNotification } from '../../lib/notifications';
 import { terminAnnehmen, type BuchungsDaten } from '../../lib/termin-annehmen';
 import { ladeErstgespraech, ortFuerBuchung, ERSTGESPRAECH_VORGABE } from '../../lib/buchungs-einstellungen';
+import { ORT_TEXT } from '../../lib/termin-planung';
 import { isSlotInAnyWindow, isSlotWhitelisted, claimSlot } from '../../lib/website-db';
 import { berlinDayKey } from '../../lib/caldav-cache';
 import { getEffectiveLeistungen } from '../../lib/content';
@@ -89,7 +90,13 @@ export const POST: APIRoute = async ({ request , locals }) => {
     const ort = type === 'erstgespraech' ? ortFuerBuchung(erstgespraech, ortWunsch) : null;
     if (ort === undefined) {
       return new Response(
-        JSON.stringify({ error: 'Bitte wählen Sie online oder vor Ort.' }),
+        JSON.stringify({ error: 'Bitte wählen Sie, wie wir sprechen.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (ort === 'telefon' && !phone?.trim()) {
+      return new Response(
+        JSON.stringify({ error: 'Bitte geben Sie eine Telefonnummer an.' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -256,7 +263,7 @@ export const POST: APIRoute = async ({ request , locals }) => {
         await sendAdminNotification({
           type: 'booking',
           subject: `[Gebucht: ${typeLabel}] ${name} am ${dateFormatted}, ${slotDisplay ?? ''}`,
-          text: `Neue Buchung auf ${BRAND_NAME}, bereits bestätigt.\n\nName: ${name}\nE-Mail: ${email}\nTermin: ${dateFormatted}, ${slotDisplay ?? ''}${ort ? `\nOrt: ${ort === 'vor-ort' ? 'Vor Ort' : 'Online'}` : ''}`,
+          text: `Neue Buchung auf ${BRAND_NAME}, bereits bestätigt.\n\nName: ${name}\nE-Mail: ${email}\nTermin: ${dateFormatted}, ${slotDisplay ?? ''}${ort ? `\nOrt: ${ORT_TEXT[ort] ?? ort}` : ''}${phone ? `\nTelefon: ${phone}` : ''}`,
           replyTo: email,
         }, request);
         return new Response(
