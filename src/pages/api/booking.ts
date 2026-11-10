@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { oeffentlicheBasis } from '../../lib/site-origin';
 import { createInboxItem } from '../../lib/messaging-db';
 import { pool } from '../../lib/messaging-db-pool';
 import {
@@ -222,7 +223,7 @@ export const POST: APIRoute = async ({ request , locals }) => {
     // token link; the state starts unconfirmed (`offen`). The brand column
     // stays NULL like every other creation path (FK to public.brands).
     const requestToken = generateRequestToken();
-    const manageUrl = `${new URL(request.url).origin}/anfrage/${requestToken}`;
+    const manageUrl = `${oeffentlicheBasis(request)}/anfrage/${requestToken}`;
 
     const requestPayload: Record<string, unknown> = {
       name, email, phone: phone ?? null, type, typeLabel,

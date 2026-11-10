@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { oeffentlicheBasis } from '../../../../../lib/site-origin';
 import { requireOwner, ownerBusiness } from '../../../../../lib/owner-guard';
 import { pool } from '../../../../../lib/messaging-db-pool';
 import {
@@ -61,7 +62,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       return json({ error: 'Nur fehlgeschlagene Nachrichten können erneut gesendet werden.' }, { status: 409 });
     }
 
-    const manageUrl = `${new URL(request.url).origin}/anfrage/${req.token}`;
+    const manageUrl = `${oeffentlicheBasis(request)}/anfrage/${req.token}`;
     const note = asString(row.payload.declineNote) ?? '';
     const typeLabel = asString(row.payload.typeLabel) ?? undefined;
     const result = await sendNotify(

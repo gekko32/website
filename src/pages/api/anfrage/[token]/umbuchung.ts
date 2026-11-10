@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { oeffentlicheBasis } from '../../../../lib/site-origin';
 import { kalenderHinweis } from '../../../../lib/termin-freigeben';
 import { pool } from '../../../../lib/messaging-db-pool';
 import {
@@ -191,7 +192,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     if (createdReq === null) {
       locals.requestLogger.warn({ requestId: req.id }, '[anfrage/umbuchung] guest notice skipped: unmappable row');
     } else {
-      const newManageUrl = `${new URL(request.url).origin}/anfrage/${newToken}`;
+      const newManageUrl = `${oeffentlicheBasis(request)}/anfrage/${newToken}`;
       const result = await sendNotify(
         { request: createdReq, kind: 'umbuchung', manageUrl: newManageUrl, brandName: BRAND_NAME },
         { request, log: [] },

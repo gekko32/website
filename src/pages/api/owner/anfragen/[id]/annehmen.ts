@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { oeffentlicheBasis } from '../../../../../lib/site-origin';
 import { requireOwner, ownerBusiness } from '../../../../../lib/owner-guard';
 import { pool } from '../../../../../lib/messaging-db-pool';
 import {
@@ -158,7 +159,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       return json({ error: 'Diese Anfrage wurde bereits bearbeitet.' }, { status: 409 });
     }
 
-    const manageUrl = `${new URL(request.url).origin}/anfrage/${req.token}`;
+    const manageUrl = `${oeffentlicheBasis(request)}/anfrage/${req.token}`;
     const rowPayload = rows.find((row) => row.id === req.id)?.payload ?? {};
     const result = await sendNotify(
       { request: req, kind: 'bestaetigung', manageUrl, brandName: BRAND_NAME },
