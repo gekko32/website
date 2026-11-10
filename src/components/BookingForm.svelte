@@ -1,6 +1,6 @@
 <script lang="ts">
   import { monatsRaster, WOCHENTAGE_KURZ, MONATSNAMEN } from '../lib/termin-planung';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
 
   interface TimeSlot {
     start: string;
@@ -149,8 +149,13 @@
     }
   });
 
+  let formularEl = $state<HTMLFormElement | null>(null);
+  let tagGetippt = $state(false);
+
   function selectSlot(slot: TimeSlot) {
     selectedSlot = slot;
+    // Das Formular steht direkt darunter und soll sofort sichtbar sein (10.11.2026).
+    void tick().then(() => formularEl?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }
 
   function formatDate(dateStr: string): string {
@@ -165,6 +170,11 @@
       _prevDate = selectedDate;
       selectedSlot = null;
     }
+  });
+
+  // Gibt es an einem angetippten Tag nur eine Uhrzeit, ist sie gleich gewählt.
+  $effect(() => {
+    if (festerTyp && tagGetippt && !selectedSlot && currentDaySlots?.slots.length === 1) selectSlot(currentDaySlots.slots[0]);
   });
 
   async function handleSubmit(e: Event) {
@@ -297,7 +307,7 @@
               <div class="bf-kal-raster">
                 {#each woche as t, s (s)}
                   {#if t}
-                    <button type="button" class="bf-kal-tag" class:is-active={selectedDate === t} disabled={!tageMitTermin.has(t)} onclick={() => (selectedDate = t)}>{Number(t.slice(8))}</button>
+                    <button type="button" class="bf-kal-tag" class:is-active={selectedDate === t} disabled={!tageMitTermin.has(t)} onclick={() => { selectedDate = t; tagGetippt = true; }}>{Number(t.slice(8))}</button>
                   {:else}<span></span>{/if}
                 {/each}
               </div>
@@ -323,6 +333,7 @@
 
         <!-- Slot pills -->
         {#if currentDaySlots}
+          {#if festerTyp}<p class="bf-step-label bf-uhrzeit">Uhrzeit wählen</p>{/if}
           <div class="bf-slots">
             {#each currentDaySlots.slots as slot}
               <button
@@ -349,7 +360,7 @@
 
   <!-- Contact form -->
   {#if showContactForm}
-    <form onsubmit={handleSubmit} class="bf-form">
+    <form bind:this={formularEl} onsubmit={handleSubmit} class="bf-form">
       <div class="bf-form-head">
         <h3 class="bf-form-title">Ihre Angaben</h3>
         <span class="bf-form-req">* Pflichtfeld</span>
@@ -489,6 +500,8 @@
 
   /* Date strip */
   .bf-kal { max-width: 380px; }
+  .bf-uhrzeit { margin-top: 16px; }
+  .bf-form { scroll-margin-top: 96px; }
   .bf-kal-kopf { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .bf-kal-pfeil { width: 40px; height: 40px; background: none; border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font-size: 20px; cursor: pointer; }
   .bf-kal-pfeil:disabled { opacity: 0.3; cursor: default; }

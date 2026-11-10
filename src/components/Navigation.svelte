@@ -171,12 +171,14 @@
         {/if}
       {/if}
 
+      {#if !pathname.startsWith('/kontakt')}
       <a href="/kontakt" class="nav-cta">
         {ctaLabel ?? t(locale, 'nav.cta-label')}
         <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M2 7h10M8 3l4 4-4 4"/>
         </svg>
       </a>
+      {/if}
 
       <!-- Mobile toggle -->
       <button
