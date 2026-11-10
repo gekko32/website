@@ -3,6 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import ContactHub from '../components/ContactHub.svelte';
 import { kontaktAnliegen, erstgespraechMinuten } from '../lib/auftritt-wege';
 import BookingForm from '../components/BookingForm.svelte';
+import { websiteLeistungen } from '../lib/billing-leistungen';
 import { config } from '../config/index';
 import { getEffectiveKontakt, getEffectiveStammdaten } from '../lib/content';
 import { getSiteSetting, getSeoOgImage } from '../lib/website-db';
@@ -40,10 +41,17 @@ const displayCity  = BRAND_ID === 'mentolder' && kontakt.footerCity?.trim()
   : (stammdaten?.city  || kontakt.footerCity?.trim()  || config.contact.city);
 
 const rawMode = Astro.url.searchParams.get('mode') ?? '';
-const initialMode = ['message', 'termin', 'callback'].includes(rawMode)
-  ? (rawMode as 'message' | 'termin' | 'callback')
-  : null;
 const initialServiceKey = Astro.url.searchParams.get('service') ?? undefined;
+// Leistungen ohne Kalender: Der Knopf „Anfragen“ öffnet die Nachricht mit der Leistung (10.11.2026).
+const angefragt = !isMassage && initialServiceKey && !initialServiceKey.includes('erstgespraech')
+  ? (await websiteLeistungen(process.env.BRAND || 'mentolder').catch(() => [])).flatMap((k) => k.services).find((s) => s.key === initialServiceKey)
+  : undefined;
+const nachrichtVorgabe = angefragt ? `Anfrage zu: ${angefragt.name}\n\n` : '';
+const initialMode = angefragt
+  ? 'message' as const
+  : ['message', 'termin', 'callback'].includes(rawMode)
+    ? (rawMode as 'message' | 'termin' | 'callback')
+    : null;
 const initialDate  = Astro.url.searchParams.get('date')  ?? '';
 const initialStart = Astro.url.searchParams.get('start') ?? '';
 const initialEnd   = Astro.url.searchParams.get('end')   ?? '';
@@ -63,7 +71,7 @@ const seoOgImage = getSeoOgImage(BRAND_ID, 'kontakt');
         <h1>Slot vormerken.</h1>
         <p class="slot-preview-date">{initialDate} · {initialStart}{initialEnd ? ` – ${initialEnd}` : ''}</p>
         <div class="slot-preview-form">
-          <BookingForm client:load initialType="erstgespraech" serviceKey={initialServiceKey}
+          <BookingForm client:load initialType="erstgespraech" festerTyp={!isMassage} serviceKey={isMassage ? initialServiceKey : undefined}
             {initialDate} {initialStart} {initialEnd} />
         </div>
         <a href="/kontakt" class="slot-preview-back">← Zurück zur Übersicht</a>
@@ -104,6 +112,7 @@ const seoOgImage = getSeoOgImage(BRAND_ID, 'kontakt');
     journeyServices={massageServices}
     anliegen={mentolderAnliegen}
     {erstgespraechMin}
+    {nachrichtVorgabe}
   />
 </Layout>
 

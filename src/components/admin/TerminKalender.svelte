@@ -1,7 +1,7 @@
 <script lang="ts">
   // Kalender für die freien Zeiten (Gerald 09.11.2026): Monats- und Jahresübersicht,
   // Tage antippen, Uhrzeiten durchscrollen, eintragen.
-  import { monatsRaster, zeitListe, WOCHENTAGE_KURZ, MONATSNAMEN } from '../../lib/termin-planung';
+  import { monatsRaster, zeitListe, woechentlichBis, WOCHENTAGE_KURZ, MONATSNAMEN } from '../../lib/termin-planung';
 
   interface Fenster { id: string; date: string; winStart: string; winEnd: string }
 
@@ -22,6 +22,8 @@
   let von = $state('09:00');
   let bis = $state('12:00');
   let meldung = $state('');
+  let woechentlich = $state(false);
+  let serieBis = $state(tagInWochen(heute, 12));
   let beschaeftigt = $state(false);
 
   const jeTag = $derived.by(() => {
@@ -30,7 +32,14 @@
     return m;
   });
   const wochen = $derived(monatsRaster(jahr, monat));
-  const zahlTage = $derived(auswahl.length);
+  // Die Tage, auf die „eintragen“ wirkt: Auswahl, auf Wunsch wöchentlich fortgesetzt.
+  const zielTage = $derived(woechentlich ? woechentlichBis(auswahl, serieBis).filter(waehlbar) : auswahl);
+  const zahlTage = $derived(zielTage.length);
+  const maxSerie = $derived(tagInWochen(heute, 52));
+
+  function tagInWochen(tag: string, wochen: number): string {
+    return new Date(Date.parse(`${tag}T00:00:00Z`) + wochen * 7 * 86400000).toISOString().slice(0, 10);
+  }
 
   async function laden(j: number): Promise<void> {
     try {
@@ -73,7 +82,7 @@
     try {
       const r = await fetch('/api/admin/time-windows/serie', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tage: auswahl, winStart: von, winEnd: bis, entfernen }),
+        body: JSON.stringify({ tage: zielTage, winStart: von, winEnd: bis, entfernen }),
       });
       const d = await r.json();
       if (!r.ok) { meldung = d.error ?? 'Fehler beim Speichern.'; return; }
@@ -81,7 +90,7 @@
         ? `${d.entfernt} Zeiten entfernt.`
         : `${d.angelegt} eingetragen${d.uebersprungen ? `, ${d.uebersprungen} übersprungen (dort liegt schon eine überschneidende Zeit)` : ''}.`;
       await laden(jahr);
-      if (!entfernen) auswahl = [];
+      if (!entfernen) { auswahl = []; woechentlich = false; }
     } catch { meldung = 'Keine Verbindung.'; } finally { beschaeftigt = false; }
   }
 
@@ -133,6 +142,8 @@
     </button>
   </div>
 
+  <div class="breit">
+  <div class="links">
   {#if ansicht === 'jahr'}
     <div class="jahr">
       {#each MONATSNAMEN as name, i (name)}
@@ -140,14 +151,18 @@
           <button type="button" class="mini-titel" onclick={() => { monat = i + 1; ansicht = 'monat'; }}>{name}</button>
           <div class="mini-raster">
             {#each monatsRaster(jahr, i + 1).flat() as t, n (n)}
-              <span class:hat={t && jeTag.has(t)} class:zu={t && gesperrt(t)} class:heute={t === heute}>{t ? tagNummer(t) : ''}</span>
+              {#if t}
+                <button type="button" class:hat={jeTag.has(t)} class:zu={gesperrt(t)} class:heute={t === heute} class:gew={auswahl.includes(t)}
+                  disabled={!waehlbar(t)} aria-pressed={auswahl.includes(t)} aria-label={tagDeutsch(t)} onclick={() => tagUmschalten(t)}>{tagNummer(t)}</button>
+              {:else}
+                <span></span>
+              {/if}
             {/each}
           </div>
         </div>
       {/each}
     </div>
   {:else}
-    <div class="breit">
       <div class="monat">
         <div class="raster kopfzeile">
           {#each WOCHENTAGE_KURZ as w, s (w)}
@@ -174,11 +189,20 @@
         <p class="legende"><i class="p hat"></i> Zeit eingetragen <i class="p zu"></i> Urlaub oder Feiertag <i class="p gew"></i> ausgewählt</p>
       </div>
 
+  {/if}
+  </div>
       <div class="eingabe">
         <p class="stand">
-          {#if zahlTage === 0}Tippen Sie Tage an. Ein Tipp auf Mo, Di … wählt alle diese Wochentage im Monat.
-          {:else}<strong>{zahlTage} {zahlTage === 1 ? 'Tag' : 'Tage'}</strong> ausgewählt · <button type="button" class="link" onclick={() => (auswahl = [])}>leeren</button>{/if}
+          {#if auswahl.length === 0}Tippen Sie Tage an, auch in der Jahresübersicht. Ein Tipp auf Mo, Di … wählt in der Monatsansicht alle diese Wochentage.
+          {:else}<strong>{zahlTage} {zahlTage === 1 ? 'Tag' : 'Tage'}</strong> betroffen · <button type="button" class="link" onclick={() => (auswahl = [])}>leeren</button>{/if}
         </p>
+        {#if auswahl.length > 0}
+          <div class="wiederholen">
+            <label><input type="radio" name="wiederholen" checked={!woechentlich} onchange={() => (woechentlich = false)} /> Nur ausgewählte Tage</label>
+            <label><input type="radio" name="wiederholen" checked={woechentlich} onchange={() => (woechentlich = true)} /> Jede Woche bis</label>
+            {#if woechentlich}<input type="date" class="serie-bis" aria-label="Serie bis" min={heute} max={maxSerie} bind:value={serieBis} />{/if}
+          </div>
+        {/if}
         <div class="raeder">
           {@render zeitRad('Von', von, vonSetzen, null)}
           {@render zeitRad('Bis', bis, (z) => (bis = z), von)}
@@ -197,8 +221,7 @@
           </div>
         {/each}
       </div>
-    </div>
-  {/if}
+  </div>
 </div>
 
 <style>
@@ -240,13 +263,19 @@
   .zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; }
   .chip { background: rgba(200, 169, 110, 0.14); border-radius: 6px; padding: 3px 4px 3px 8px; font-variant-numeric: tabular-nums; }
   .chip button { padding: 2px 6px; color: var(--mute, #9aa4b2); }
+  .links { min-width: 0; }
+  .wiederholen { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-bottom: 10px; font-size: 13px; }
+  .wiederholen label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+  .serie-bis { background: var(--ink-800, #0e1116); border: 1px solid var(--line, #2a313b); border-radius: 6px; color: var(--fg, #e6edf3); padding: 4px 6px; font: inherit; }
   .jahr { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
   .mini-titel { font-size: 13px; font-weight: 600; color: var(--brass, #c8a96e); padding: 4px 0; }
   .mini-raster { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; font-size: 11px; text-align: center; }
-  .mini-raster span { padding: 3px 0; border-radius: 3px; }
+  .mini-raster button { padding: 3px 0; border-radius: 3px; font-size: 11px; -webkit-tap-highlight-color: transparent; }
+  .mini-raster button:disabled { opacity: 0.35; }
   .mini-raster .hat { background: rgba(200, 169, 110, 0.45); }
   .mini-raster .zu { background: rgba(208, 106, 92, 0.3); }
   .mini-raster .heute { outline: 1px solid var(--brass, #c8a96e); }
+  .mini-raster .gew { background: var(--brass, #c8a96e); color: var(--ink-900, #0e1116); font-weight: 700; }
   @media (max-width: 760px) {
     .kal { padding: 10px; }
     .breit { grid-template-columns: minmax(0, 1fr); }

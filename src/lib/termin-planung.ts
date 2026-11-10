@@ -70,6 +70,16 @@ export function monatsRaster(jahr: number, monat: number): (string | null)[][] {
   return wochen;
 }
 
+/** Ergänzt die Tage um denselben Wochentag in jeder folgenden Woche, bis einschließlich `bis`. */
+export function woechentlichBis(tage: string[], bis: string): string[] {
+  const alle = new Set<string>();
+  for (const tag of tage) {
+    for (let t = tagAlsUtc(tag); t <= tagAlsUtc(bis); t += 7 * TAG_MS) alle.add(utcAlsTag(t));
+    alle.add(tag);
+  }
+  return [...alle].sort();
+}
+
 /** Uhrzeiten zum Durchscrollen, z. B. 06:00 bis 22:00 im Viertelstundentakt. */
 export function zeitListe(vonStunde: number, bisStunde: number, schrittMin: number): string[] {
   const liste: string[] = [];

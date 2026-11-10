@@ -6,6 +6,7 @@ import AdminEinstellungenTabs from '../../../components/AdminEinstellungenTabs.a
 import { getSession, getLoginUrl, isAdmin } from '../../../lib/auth';
 import { getBookingBuffers, getHolidays } from '../../../lib/website-core-db';
 import { MAX_BUFFER_MIN } from '../../../lib/business-settings';
+import { ladeErstgespraech } from '../../../lib/buchungs-einstellungen';
 import { BUNDESLAENDER, feiertageFuerLand, feiertagDeutsch } from '../../../lib/termin-planung';
 
 const session = await getSession(Astro.request.headers.get('cookie'));
@@ -15,7 +16,7 @@ if (!isAdmin(session)) return Astro.redirect('/admin');
 const BRAND = process.env.BRAND || 'mentolder';
 const saved = Astro.url.searchParams.get('saved') === '1';
 const fehler = Astro.url.searchParams.get('fehler');
-const [pausen, feiertage] = await Promise.all([getBookingBuffers(BRAND), getHolidays(BRAND)]);
+const [pausen, feiertage, erst] = await Promise.all([getBookingBuffers(BRAND), getHolidays(BRAND), ladeErstgespraech(BRAND)]);
 const jahr = new Date().getFullYear();
 const vorschlaege = Object.fromEntries(BUNDESLAENDER.map((l) => [l.key, [...feiertageFuerLand(jahr, l.key), ...feiertageFuerLand(jahr + 1, l.key)].map(feiertagDeutsch)]));
 
@@ -34,6 +35,14 @@ const hinweisStyle = 'font-size:0.75rem;color:var(--mute);line-height:1.4;margin
     {fehler && <div role="alert" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1.5rem;color:#fca5a5;font-size:0.875rem;">Nicht gespeichert. {fehler}</div>}
 
     <form method="POST" action="/api/admin/einstellungen/termine">
+      <p style={labelStyle}>Erstgespräch</p>
+      <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:0.375rem;color:var(--fg);font-size:0.875rem;">
+        <label><input type="checkbox" name="erstgespraech_online" value="true" checked={erst.online} /> Online anbieten</label>
+        <label><input type="checkbox" name="erstgespraech_vor_ort" value="true" checked={erst.vorOrt} /> Vor Ort anbieten</label>
+        <label><input type="checkbox" name="erstgespraech_sofort" value="true" checked={erst.sofort} /> Sofort bestätigen, ohne Annahme im Postfach</label>
+      </div>
+      <p style={hinweisStyle + 'margin-bottom:2rem;'}>Ist nur ein Ort angehakt, wird der Kunde nicht gefragt. Ohne „Sofort bestätigen“ landet jede Buchung als Anfrage im Postfach.</p>
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.375rem;">
         <div>
           <label for="pause-vor" style={labelStyle}>Pause vor einem Termin (Minuten)</label>

@@ -2,13 +2,13 @@
   import { t, type Locale } from '../i18n/index';
 
   // anliegen: markeneigene Auswahl (mentolder, SPEZ K193); ohne Angabe gilt die Standardliste.
-  let { locale = 'de', anliegen }: { locale?: Locale; anliegen?: { value: string; label: string }[] } = $props();
+  let { locale = 'de', anliegen, vorgabe = '' }: { locale?: Locale; anliegen?: { value: string; label: string }[]; vorgabe?: string } = $props();
 
   let name = $state('');
   let email = $state('');
   let phone = $state('');
   let type = $state('allgemein');
-  let message = $state('');
+  let message = $state(vorgabe);
   let submitting = $state(false);
   let result = $state<{ success: boolean; message: string } | null>(null);
 

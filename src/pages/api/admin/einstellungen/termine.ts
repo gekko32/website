@@ -4,6 +4,7 @@ import { getSession, isAdmin } from '../../../../lib/auth';
 import { saveBookingBuffers, saveHolidays } from '../../../../lib/website-core-db';
 import { MAX_BUFFER_MIN } from '../../../../lib/business-settings';
 import { leseFeiertage } from '../../../../lib/termin-planung';
+import { speichereErstgespraech } from '../../../../lib/buchungs-einstellungen';
 
 const BRAND = process.env.BRAND || 'mentolder';
 
@@ -20,9 +21,15 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   for (const m of [preMin, postMin]) {
     if (!Number.isInteger(m) || m < 0 || m > MAX_BUFFER_MIN) return zurueck(`Pausen bitte als ganze Minuten von 0 bis ${MAX_BUFFER_MIN} angeben.`);
   }
+  const erst = {
+    online: form.get('erstgespraech_online') === 'true',
+    vorOrt: form.get('erstgespraech_vor_ort') === 'true',
+    sofort: form.get('erstgespraech_sofort') === 'true',
+  };
+  if (!erst.online && !erst.vorOrt) return zurueck('Bitte mindestens online oder vor Ort anbieten.');
   const feiertage = leseFeiertage(String(form.get('feiertage') ?? ''));
   if (feiertage.fehler) return zurueck(feiertage.fehler);
 
-  await Promise.all([saveBookingBuffers(BRAND, { preMin, postMin }), saveHolidays(BRAND, feiertage.werte)]);
+  await Promise.all([saveBookingBuffers(BRAND, { preMin, postMin }), saveHolidays(BRAND, feiertage.werte), speichereErstgespraech(BRAND, erst)]);
   return redirect('/admin/einstellungen/termine?saved=1', 303);
 };

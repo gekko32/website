@@ -43,6 +43,7 @@
     journeyEnabled?: boolean;
     anliegen?: { value: string; label: string }[];
     erstgespraechMin?: number;
+    nachrichtVorgabe?: string;
   }
 
   let {
@@ -63,6 +64,7 @@
     journeyEnabled = false,
     anliegen,
     erstgespraechMin = 30,
+    nachrichtVorgabe = '',
   }: Props = $props();
 
   type Mode = 'termin' | 'message' | 'callback' | 'anfrage';
@@ -207,7 +209,7 @@
             onclick={() => (activeMode = 'termin')}>
             <span class="ch-mode-num">{journeyEnabled ? '02 — Termin' : '01 — Termin'}</span>
             <span class="ch-mode-title">Erstgespräch <em>buchen.</em></span>
-            <span class="ch-mode-sub">{erstgespraechMin} Minuten, online oder vor Ort. Wunschtermin wählen, ich bestätige per E-Mail.</span>
+            <span class="ch-mode-sub">{erstgespraechMin} Minuten, kostenlos. Wunschtermin direkt im Kalender wählen.</span>
           </button>
 
           <button type="button" role="tab" aria-selected={activeMode === 'message'}
@@ -241,7 +243,7 @@
         <div class="ch-panel">
           <header class="ch-panel-head">
             {#if activeMode === 'termin'}
-              <h2>Termin <em>vorschlagen.</em></h2>
+              <h2>{#if journeyEnabled}Termin <em>vorschlagen.</em>{:else}Kostenloses <em>Erstgespräch.</em>{/if}</h2>
               <span class="ch-panel-meta">Lüneburg · DE</span>
             {:else if activeMode === 'message'}
               <h2>{journeyEnabled ? 'Schriftliche Rückfrage' : 'Eine Frage'} <em>stellen.</em></h2>
@@ -254,12 +256,12 @@
           </header>
 
           {#if activeMode === 'termin'}
-            <BookingForm initialType="erstgespraech" serviceKey={initialServiceKey} {erstgespraechMin}
+            <BookingForm initialType="erstgespraech" festerTyp={!journeyEnabled} serviceKey={journeyEnabled ? initialServiceKey : undefined} {erstgespraechMin}
               {initialDate} {initialStart} {initialEnd} />
           {:else if activeMode === 'message'}
-            <ContactForm {locale} {anliegen} />
+            <ContactForm {locale} {anliegen} vorgabe={nachrichtVorgabe} />
           {:else if activeMode === 'callback'}
-            <BookingForm initialType="callback" serviceKey={initialServiceKey} />
+            <BookingForm initialType="callback" festerTyp={!journeyEnabled} serviceKey={journeyEnabled ? initialServiceKey : undefined} />
           {:else}
             <ol class="j-steps" aria-label="Fortschritt der Anfrage">
               <li aria-current={journeyStep === 1 ? 'step' : undefined}>1. Service</li>
