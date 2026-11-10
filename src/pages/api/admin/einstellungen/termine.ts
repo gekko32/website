@@ -24,9 +24,10 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   const erst = {
     online: form.get('erstgespraech_online') === 'true',
     vorOrt: form.get('erstgespraech_vor_ort') === 'true',
+    telefon: form.get('erstgespraech_telefon') === 'true',
     sofort: form.get('erstgespraech_sofort') === 'true',
   };
-  if (!erst.online && !erst.vorOrt) return zurueck('Bitte mindestens online oder vor Ort anbieten.');
+  if (!erst.online && !erst.vorOrt && !erst.telefon) return zurueck('Bitte mindestens eine Art anbieten: online, vor Ort oder telefonisch.');
   const feiertage = leseFeiertage(String(form.get('feiertage') ?? ''));
   if (feiertage.fehler) return zurueck(feiertage.fehler);
 

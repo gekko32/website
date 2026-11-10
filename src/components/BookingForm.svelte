@@ -51,17 +51,46 @@
   let selectedLeistungKey = $state('');
   let leistungenLoaded = $state(false);
   let absageRegel = $state<{ ausfallFrist: string; ausfallHoehe: string } | null>(null);
-  let angebot = $state({ online: true, vorOrt: true, sofort: false });
+  let angebot = $state({ online: true, vorOrt: true, telefon: false, sofort: false });
   let ort = $state('');
   let kalMonat = $state('');
   const tageMitTermin = $derived(new Set(days.map((d) => d.date)));
   const monate = $derived([...new Set(days.map((d) => d.date.slice(0, 7)))]);
   const kalRaster = $derived(kalMonat ? monatsRaster(Number(kalMonat.slice(0, 4)), Number(kalMonat.slice(5, 7))) : []);
   const istErstgespraech = $derived(festerTyp && bookingType === 'erstgespraech');
-  const ortWaehlbar = $derived(istErstgespraech && angebot.online && angebot.vorOrt);
+  const orte = $derived([
+    ...(angebot.online ? [{ wert: 'online', text: 'Online' }] : []),
+    ...(angebot.vorOrt ? [{ wert: 'vor-ort', text: 'Vor Ort' }] : []),
+    ...(angebot.telefon ? [{ wert: 'telefon', text: 'Telefon' }] : []),
+  ]);
+  const ortWaehlbar = $derived(istErstgespraech && orte.length > 1);
+  const telefonPflicht = $derived(isCallback || (istErstgespraech && (ort === 'telefon' || (orte.length === 1 && orte[0].wert === 'telefon'))));
   $effect(() => { if (monate.length > 0 && !monate.includes(kalMonat)) kalMonat = monate[0]; });
 
+  // Wer zwischendurch AGB oder Datenschutz liest, soll seine Eingaben nicht verlieren.
+  // Bleibt nur in diesem Browser-Tab und wird nach dem Absenden gelöscht (10.11.2026).
+  const MERK_SCHLUESSEL = 'buchung-entwurf';
+  let merkenBereit = $state(false);
+  let ausSpeicher = false;
+
+  function entwurfLaden() {
+    if (!festerTyp || initialStart) return;
+    try {
+      const e = JSON.parse(sessionStorage.getItem(MERK_SCHLUESSEL) ?? 'null');
+      if (!e?.selectedSlot?.start || !e.selectedDate) return;
+      name = e.name ?? ''; email = e.email ?? ''; phone = e.phone ?? ''; message = e.message ?? '';
+      ort = e.ort ?? ''; agbAccepted = e.agbAccepted === true;
+      selectedDate = e.selectedDate;
+      _prevDate = e.selectedDate;
+      kalMonat = e.selectedDate.slice(0, 7);
+      selectedSlot = e.selectedSlot;
+      ausSpeicher = true;
+    } catch { /* Ohne Speicher beginnt das Formular leer. */ }
+  }
+
   onMount(async () => {
+    entwurfLaden();
+    merkenBereit = true;
     // Stufe 3, T9 (K21): Absageregel aus den Einstellungen anzeigen.
     fetch('/api/buchungsregeln')
       .then((r) => (r.ok ? r.json() : null))
@@ -130,8 +159,15 @@
       const data = await r.json();
       if (Array.isArray(data)) {
         days = data;
-        if (!initialDate && data.length > 0) selectedDate = data[0].date;
-        else if (initialDate) selectedDate = initialDate;
+        if (!initialDate && data.length > 0) {
+          if (!data.some((d: DaySlots) => d.date === selectedDate)) selectedDate = data[0].date;
+        } else if (initialDate) selectedDate = initialDate;
+        if (ausSpeicher) {
+          ausSpeicher = false;
+          // Die gemerkte Uhrzeit kann inzwischen vergeben sein.
+          const frei = data.find((d: DaySlots) => d.date === selectedDate)?.slots.find((t: TimeSlot) => t.start === selectedSlot?.start);
+          if (frei) selectSlot(frei); else selectedSlot = null;
+        }
       }
     } catch {
       clearTimeout(timeoutId);
@@ -172,6 +208,15 @@
     }
   });
 
+  $effect(() => {
+    if (!merkenBereit || !festerTyp) return;
+    const entwurf = JSON.stringify({ name, email, phone, message, ort, agbAccepted, selectedDate, selectedSlot });
+    try {
+      if (selectedSlot) sessionStorage.setItem(MERK_SCHLUESSEL, entwurf);
+      else sessionStorage.removeItem(MERK_SCHLUESSEL);
+    } catch { /* Speicher gesperrt: Das Formular funktioniert trotzdem. */ }
+  });
+
   // Gibt es an einem angetippten Tag nur eine Uhrzeit, ist sie gleich gewählt.
   $effect(() => {
     if (festerTyp && tagGetippt && !selectedSlot && currentDaySlots?.slots.length === 1) selectSlot(currentDaySlots.slots[0]);
@@ -180,6 +225,11 @@
   async function handleSubmit(e: Event) {
     e.preventDefault();
     if ((!selectedSlot && !isCallback) || !agbAccepted) return;
+    // Die Auswahl ist als Knöpfe gestaltet; der Browser könnte sie nicht selbst anmahnen.
+    if (ortWaehlbar && !ort) {
+      result = { success: false, message: 'Bitte wählen Sie oben noch, wie wir sprechen.' };
+      return;
+    }
     submitting = true;
     result = null;
 
@@ -383,18 +433,19 @@
         <div class="bf-field">
           <label for="b-phone" class="bf-label">
             Telefon
-            {#if isCallback}<span class="bf-req"> *</span>{:else}<span class="bf-opt"> (optional)</span>{/if}
+            {#if telefonPflicht}<span class="bf-req"> *</span>{:else}<span class="bf-opt"> (optional)</span>{/if}
           </label>
           <input id="b-phone" type="tel" bind:value={phone}
-            required={isCallback} placeholder="+49 …" class="bf-input" />
-          {#if isCallback}<p class="bf-hint">Wir rufen Sie unter dieser Nummer zurück.</p>{/if}
+            required={telefonPflicht} placeholder="+49 …" class="bf-input" />
+          {#if telefonPflicht}<p class="bf-hint">Wir rufen Sie unter dieser Nummer an.</p>{/if}
         </div>
         {#if ortWaehlbar}
         <div class="bf-field">
-          <span class="bf-label">Wo möchten Sie sprechen? <span class="bf-req">*</span></span>
+          <span class="bf-label">Wie möchten Sie sprechen? <span class="bf-req">*</span></span>
           <div class="bf-format-group" role="radiogroup">
-            <input type="radio" id="bf-f-online" name="bf-format" value="online" bind:group={ort} required /><label for="bf-f-online">Online</label>
-            <input type="radio" id="bf-f-vor-ort" name="bf-format" value="vor-ort" bind:group={ort} /><label for="bf-f-vor-ort">Vor Ort</label>
+            {#each orte as o (o.wert)}
+              <input type="radio" id={`bf-f-${o.wert}`} name="bf-format" value={o.wert} bind:group={ort} /><label for={`bf-f-${o.wert}`}>{o.text}</label>
+            {/each}
           </div>
         </div>
         {/if}
@@ -439,7 +490,7 @@
           {#if submitting}Wird gesendet…{:else if istErstgespraech && angebot.sofort}Termin buchen →{:else if isCallback}Rückruf anfragen →{:else}Termin anfragen →{/if}
         </button>
         <p class="bf-submit-note">
-          Mit dem Absenden bestätigen Sie die <a href="/datenschutz">Datenschutzerklärung</a>.
+          Mit dem Absenden bestätigen Sie die <a href="/datenschutz" target="_blank">Datenschutzerklärung</a>.
         </p>
       </div>
 

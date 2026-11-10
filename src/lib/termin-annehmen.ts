@@ -8,6 +8,7 @@ import { sendEmail } from './email';
 import { upsertCustomer, createMeeting, claimBrettLinkPost, pool } from './website-db';
 import { updateInboxItemStatus } from './messaging-db';
 import { berlinDayKey } from './caldav-cache';
+import { ORT_TEXT } from './termin-planung';
 
 const BRAND_NAME = process.env.BRAND_NAME || 'Workspace';
 const SITE_URL = process.env.SITE_URL || '';
@@ -56,10 +57,10 @@ export async function terminAnnehmen(o: {
       weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric',
     });
     const details: string[] = [];
-    const vorOrt = p.ort === 'vor-ort';
+    // Nur für Online-Gespräche gibt es einen Besprechungsraum.
+    const ohneRaum = p.ort === 'vor-ort' || p.ort === 'telefon';
 
-    // Vor Ort braucht keinen Besprechungsraum.
-    const room = vorOrt ? null : await createTalkRoom({
+    const room = ohneRaum ? null : await createTalkRoom({
       name: `${p.typeLabel}: ${p.name}`,
       description: `${p.typeLabel} mit ${p.name} (${p.email}) am ${datum}, ${p.slotDisplay}`,
     });
@@ -67,12 +68,12 @@ export async function terminAnnehmen(o: {
       await inviteGuestByEmail(room.token, p.email);
       details.push(`Talk-Raum erstellt: ${room.url}`);
     } else {
-      details.push(vorOrt ? 'Vor Ort: kein Talk-Raum' : 'Talk-Raum konnte nicht erstellt werden');
+      details.push(ohneRaum ? `${ORT_TEXT[p.ort ?? '']}: kein Talk-Raum` : 'Talk-Raum konnte nicht erstellt werden');
     }
 
     const kalender = await createCalendarEvent({
       summary: `${p.typeLabel}: ${p.name}`,
-      description: `Termin mit ${p.name} (${p.email})\nTyp: ${p.typeLabel}${p.ort ? `\nOrt: ${vorOrt ? 'Vor Ort' : 'Online'}` : ''}${room ? `\nMeeting: ${room.url}` : ''}`,
+      description: `Termin mit ${p.name} (${p.email})\nTyp: ${p.typeLabel}${p.ort ? `\nOrt: ${ORT_TEXT[p.ort] ?? p.ort}` : ''}${p.phone ? `\nTelefon: ${p.phone}` : ''}${room ? `\nMeeting: ${room.url}` : ''}`,
       start, end: ende,
       attendeeEmail: p.email, attendeeName: p.name,
     });
@@ -95,7 +96,7 @@ export async function terminAnnehmen(o: {
       to: p.email,
       ...bestaetigungsMail({
         name: p.name, typeLabel: p.typeLabel, datum, uhrzeit: p.slotDisplay, marke: BRAND_NAME,
-        ort: p.ort ? (vorOrt ? 'Vor Ort' : 'Online') : null,
+        ort: p.ort ? (ORT_TEXT[p.ort] ?? p.ort) : null,
         meetingUrl: room?.url ?? null,
         verwaltenUrl: p.token ? `${basisUrl}/anfrage/${p.token}` : null,
         agbAngehaengt: !!anhang,
