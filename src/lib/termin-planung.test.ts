@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { serienTage, ueberschneiden, pruefeSerie, leseFeiertage, bundesweiteFeiertage, istEchterTag } from './termin-planung';
+import { serienTage, ueberschneiden, pruefeSerie, pruefeTage, leseFeiertage, bundesweiteFeiertage, feiertageFuerLand, istEchterTag, monatsRaster, zeitListe } from './termin-planung';
 
 describe('Serien', () => {
   it('findet die richtigen Wochentage, auch über die Zeitumstellung', () => {
@@ -27,7 +27,43 @@ describe('Serien', () => {
   });
 });
 
+describe('Kalender', () => {
+  it('baut Monate mit Montag als erstem Tag', () => {
+    // 01.11.2026 ist ein Sonntag.
+    const w = monatsRaster(2026, 11);
+    expect(w[0]).toEqual([null, null, null, null, null, null, '2026-11-01']);
+    expect(w[1][0]).toBe('2026-11-02');
+    expect(w.flat().filter(Boolean)).toHaveLength(30);
+    expect(w.every((z) => z.length === 7)).toBe(true);
+    expect(monatsRaster(2028, 2).flat().filter(Boolean)).toHaveLength(29);
+  });
+  it('liefert Uhrzeiten zum Scrollen', () => {
+    const z = zeitListe(6, 22, 15);
+    expect(z[0]).toBe('06:00');
+    expect(z[1]).toBe('06:15');
+    expect(z[z.length - 1]).toBe('22:00');
+  });
+  it('prüft die Tagesauswahl', () => {
+    const gut = { tage: ['2026-11-10'], winStart: '14:00', winEnd: '17:00' };
+    expect(pruefeTage(gut)).toBeNull();
+    expect(pruefeTage({ ...gut, tage: [] })).toMatch(/mindestens/);
+    expect(pruefeTage({ ...gut, tage: ['2026-02-31'] })).toMatch(/ungültig/);
+    expect(pruefeTage({ ...gut, winEnd: '10:00' })).toMatch(/vor Bis/);
+  });
+});
+
 describe('Feiertage', () => {
+  it('berücksichtigt das Bundesland', () => {
+    expect(feiertageFuerLand(2027, 'HH')).toContain('2027-10-31');
+    expect(feiertageFuerLand(2027, 'HH')).not.toContain('2027-01-06');
+    const by = feiertageFuerLand(2027, 'BY');
+    expect(by).toContain('2027-01-06');
+    expect(by).toContain('2027-05-27'); // Fronleichnam
+    expect(by).toContain('2027-11-01');
+    expect(by).not.toContain('2027-10-31');
+    expect(feiertageFuerLand(2026, 'SN')).toContain('2026-11-18'); // Buß- und Bettag
+    expect(feiertageFuerLand(2027, 'BE')).toContain('2027-03-08');
+  });
   it('liest deutsche und technische Schreibweise', () => {
     expect(leseFeiertage('24.12.2026\n\n2026-12-31\n 1.1.2027 ').werte).toEqual(['2026-12-24', '2026-12-31', '2027-01-01']);
     expect(leseFeiertage('31.02.2026').fehler).toMatch(/gültiges/);

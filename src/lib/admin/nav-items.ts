@@ -55,6 +55,8 @@ export function buildNavSections({ inboxPending, brettUrl }: NavOptions): NavSec
         // Klientenakte (Stufe 2): alle Klienten, auch ohne Benutzerkonto.
         // Die Kontoseiten unter /admin/clients bleiben erreichbar (Akte → „Konto öffnen“).
         { href: '/admin/klienten', label: 'Klienten', icon: 'users', matches: ['/admin/klienten', '/admin/clients'] },
+        // Terminpflege (Gerald 09.11.2026): war bisher über kein Menü erreichbar.
+        { href: '/admin/termine', label: 'Termine', icon: 'calendar', matches: ['/admin/termine', '/admin/kalender'] },
         {
           href: '/admin/coaching/sessions',
           label: 'Sessions',
