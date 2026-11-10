@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { oeffentlicheBasis } from '../../../../lib/site-origin';
 import { pool } from '../../../../lib/messaging-db-pool';
 import {
   TransitionError,
@@ -110,7 +111,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     }, request);
 
     // Cancellation confirmation to the guest via the notify lib.
-    const manageUrl = `${new URL(request.url).origin}/anfrage/${req.token}`;
+    const manageUrl = `${oeffentlicheBasis(request)}/anfrage/${req.token}`;
     const rowPayload = rows.find((row) => row.payload.token === token)?.payload ?? {};
     const result = await sendNotify(
       { request: req, kind: 'storno', manageUrl, brandName: BRAND_NAME },

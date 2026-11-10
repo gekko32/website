@@ -10,3 +10,11 @@ export function siteOrigin(): string {
   const prodDomain = process.env.PUBLIC_PROD_DOMAIN ?? process.env.PROD_DOMAIN ?? '';
   return prodDomain ? `https://web.${prodDomain}` : '';
 }
+
+/**
+ * Adresse für Links in E-Mails. Hinter dem Proxy nennt die Anfrage selbst
+ * nur die interne Adresse (localhost:4321), deshalb zuerst die öffentliche.
+ */
+export function oeffentlicheBasis(request: Request): string {
+  return (siteOrigin() || new URL(request.url).origin).replace(/\/+$/, '');
+}

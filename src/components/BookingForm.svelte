@@ -63,8 +63,8 @@
     ...(angebot.vorOrt ? [{ wert: 'vor-ort', text: 'Vor Ort' }] : []),
     ...(angebot.telefon ? [{ wert: 'telefon', text: 'Telefon' }] : []),
   ]);
-  const ortWaehlbar = $derived(istErstgespraech && orte.length > 1);
-  const telefonPflicht = $derived(isCallback || (istErstgespraech && (ort === 'telefon' || (orte.length === 1 && orte[0].wert === 'telefon'))));
+  const ortWaehlbar = $derived(istErstgespraech && orte.length > 0);
+  const telefonPflicht = $derived(isCallback || (istErstgespraech && ort === 'telefon'));
   $effect(() => { if (monate.length > 0 && !monate.includes(kalMonat)) kalMonat = monate[0]; });
 
   // Wer zwischendurch AGB oder Datenschutz liest, soll seine Eingaben nicht verlieren.

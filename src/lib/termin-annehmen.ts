@@ -9,9 +9,9 @@ import { upsertCustomer, createMeeting, claimBrettLinkPost, pool } from './websi
 import { updateInboxItemStatus } from './messaging-db';
 import { berlinDayKey } from './caldav-cache';
 import { ORT_TEXT } from './termin-planung';
+import { oeffentlicheBasis } from './site-origin';
 
 const BRAND_NAME = process.env.BRAND_NAME || 'Workspace';
-const SITE_URL = process.env.SITE_URL || '';
 
 export interface BuchungsDaten {
   name: string; email: string; phone?: string | null; typeLabel: string;
@@ -91,7 +91,7 @@ export async function terminAnnehmen(o: {
         details.push('AGB konnten nicht angehängt werden');
       }
     }
-    const basisUrl = (SITE_URL || new URL(request.url).origin).replace(/\/$/, '');
+    const basisUrl = oeffentlicheBasis(request);
     await sendEmail({
       to: p.email,
       ...bestaetigungsMail({

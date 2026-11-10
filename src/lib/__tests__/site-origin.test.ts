@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { siteOrigin } from '../site-origin';
+import { siteOrigin, oeffentlicheBasis } from '../site-origin';
 
 describe('siteOrigin', () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -22,5 +22,14 @@ describe('siteOrigin', () => {
     vi.stubEnv('PUBLIC_PROD_DOMAIN', undefined as unknown as string);
     vi.stubEnv('PROD_DOMAIN', undefined as unknown as string);
     expect(siteOrigin()).toBe('');
+  });
+});
+
+describe('oeffentlicheBasis', () => {
+  it('nimmt für Mail-Links die öffentliche statt der internen Adresse', () => {
+    const vorher = process.env.SITE_URL;
+    process.env.SITE_URL = 'https://web.example.de/';
+    expect(oeffentlicheBasis(new Request('http://localhost:4321/api/booking'))).toBe('https://web.example.de');
+    if (vorher === undefined) delete process.env.SITE_URL; else process.env.SITE_URL = vorher;
   });
 });
