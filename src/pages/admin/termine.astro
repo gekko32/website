@@ -118,7 +118,7 @@ function formatTime(d: Date) {
           Tage antippen, Uhrzeit wählen, eintragen. Kunden sehen darin automatisch Termine im Takt der gewählten Leistung.
           Pausen und Feiertage: <a href="/admin/einstellungen/termine" class="text-gold underline">Buchungsregeln</a>.
         </p>
-        <TerminKalender client:load heute={berlinDayKey(now)} feiertage={feiertage} urlaub={vacationPeriods.map(p => ({ start: p.start, end: p.end }))} />
+        <TerminKalender client:load heute={berlinDayKey(now)} feiertage={feiertage} urlaub={vacationPeriods.map(p => ({ start: p.start, end: p.end }))} leistungen={leistungen.flatMap(k => k.services.map(s => ({ key: s.key, name: s.name })))} />
         <details class="mt-4">
           <summary class="text-sm text-gold cursor-pointer">Längere Serie eintragen (bis zu einem Jahr)</summary>
           <div class="mt-3">

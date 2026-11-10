@@ -392,6 +392,8 @@ export interface FreeTimeWindow {
   date: string;     // YYYY-MM-DD
   winStart: string; // HH:MM
   winEnd: string;   // HH:MM
+  /** Leer: gilt für alle Leistungen. Sonst nur für diese (10.11.2026). */
+  leistungen: string[];
 }
 
 async function initFreeTimeWindowsTable(): Promise<void> {
@@ -411,6 +413,7 @@ async function initFreeTimeWindowsTable(): Promise<void> {
           ALTER TABLE free_time_windows ADD CONSTRAINT free_time_windows_brand_fkey FOREIGN KEY (brand) REFERENCES public.brands(id) ON UPDATE CASCADE ON DELETE RESTRICT NOT VALID;
         END IF;
       END $$;
+    ALTER TABLE free_time_windows ADD COLUMN IF NOT EXISTS leistungen TEXT[] NOT NULL DEFAULT '{}';
   `);
 }
 
@@ -420,7 +423,8 @@ export async function getFreeTimeWindows(brand: string, fromDate?: string, toDat
     `SELECT id,
             to_char(date, 'YYYY-MM-DD')   AS date,
             to_char(win_start, 'HH24:MI') AS "winStart",
-            to_char(win_end,   'HH24:MI') AS "winEnd"
+            to_char(win_end,   'HH24:MI') AS "winEnd",
+            leistungen
      FROM free_time_windows
      WHERE brand = $1
        AND ($2::date IS NULL OR date >= $2::date)
@@ -431,13 +435,13 @@ export async function getFreeTimeWindows(brand: string, fromDate?: string, toDat
   return result.rows;
 }
 
-export async function addFreeTimeWindow(brand: string, date: string, winStart: string, winEnd: string): Promise<string> {
+export async function addFreeTimeWindow(brand: string, date: string, winStart: string, winEnd: string, leistungen: string[] = []): Promise<string> {
   await initFreeTimeWindowsTable();
   const result = await pool.query(
-    `INSERT INTO free_time_windows (brand, date, win_start, win_end)
-     VALUES ($1, $2::date, $3::time, $4::time)
+    `INSERT INTO free_time_windows (brand, date, win_start, win_end, leistungen)
+     VALUES ($1, $2::date, $3::time, $4::time, $5::text[])
      RETURNING id`,
-    [brand, date, winStart, winEnd]
+    [brand, date, winStart, winEnd, leistungen]
   );
   return result.rows[0].id as string;
 }
@@ -460,7 +464,7 @@ export async function removeFreeTimeWindowsExakt(brand: string, tage: string[], 
   return result.rowCount ?? 0;
 }
 
-export async function isSlotInAnyWindow(brand: string, slotStart: Date, slotEnd: Date): Promise<boolean> {
+export async function isSlotInAnyWindow(brand: string, slotStart: Date, slotEnd: Date, leistung?: string | null): Promise<boolean> {
   await initFreeTimeWindowsTable();
   // Berlin calendar-day bounds (T901023): DST-safe, no fixed offsets.
   const dateStr = berlinDayKey(slotStart);
@@ -471,8 +475,9 @@ export async function isSlotInAnyWindow(brand: string, slotStart: Date, slotEnd:
      WHERE brand = $1
        AND date = $2::date
        AND win_start <= $3::time
-       AND win_end   >= $4::time`,
-    [brand, dateStr, formatWall(berlinWallMinutes(slotStart)), formatWall(berlinWallMinutes(slotEnd))]
+       AND win_end   >= $4::time
+       AND ($5::text IS NULL OR cardinality(leistungen) = 0 OR $5::text = ANY(leistungen))`,
+    [brand, dateStr, formatWall(berlinWallMinutes(slotStart)), formatWall(berlinWallMinutes(slotEnd)), leistung ?? null]
   );
   return (result.rowCount ?? 0) > 0;
 }

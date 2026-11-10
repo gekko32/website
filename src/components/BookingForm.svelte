@@ -92,7 +92,7 @@
 
   let isCallback = $derived(bookingType === 'callback');
   // Step 2 (leistung) is considered "done" when leistung is selected or none available
-  let leistungSelected = $derived(festerTyp || selectedLeistungKey !== '' || (leistungenLoaded && leistungenOptions.length === 0));
+  let leistungSelected = $derived((festerTyp && leistungenLoaded) || selectedLeistungKey !== '' || (leistungenLoaded && leistungenOptions.length === 0));
   let showSlotSelection = $derived(!isCallback && leistungSelected);
   let showContactForm = $derived(isCallback || selectedSlot !== null);
   let currentDaySlots = $derived(days.find((d) => d.date === selectedDate));
@@ -119,6 +119,9 @@
     const duration = selectedLeistung?.durationMin ?? TYPE_DURATIONS[bookingType] ?? undefined;
     const params = new URLSearchParams();
     if (duration) params.set('durationMin', String(duration));
+    // Nur Zeiten, die für diese Leistung freigegeben sind (10.11.2026).
+    const leistung = selectedLeistungKey || (istErstgespraech ? leistungenOptions.find((l) => l.key.includes('erstgespraech'))?.key : '');
+    if (leistung) params.set('leistung', leistung);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
     try {

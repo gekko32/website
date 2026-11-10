@@ -260,7 +260,7 @@ function formatBerlinWall(d: Date): string {
 // When brand is provided, slots are generated from admin-defined free time windows.
 // Without brand, all calendar-free slots in working hours are returned (admin overview).
 // Calendar arithmetic runs in Europe/Berlin; slot start/end stay UTC ISO instants.
-export async function getAvailableSlots(fromDate?: Date, brand?: string, slotDurationMin?: number): Promise<DaySlots[]> {
+export async function getAvailableSlots(fromDate?: Date, brand?: string, slotDurationMin?: number, leistung?: string | null): Promise<DaySlots[]> {
   const duration = slotDurationMin ?? SLOT_DURATION_MIN;
 
   // windowsMap: date string → array of {winStart, winEnd} (HH:MM strings)
@@ -277,7 +277,9 @@ export async function getAvailableSlots(fromDate?: Date, brand?: string, slotDur
       const fromKey = berlinDayKey(fromDate || new Date());
       const windows = await getFreeTimeWindows(brand, fromKey, addDaysKey(fromKey, BOOKING_HORIZON_DAYS));
       windowsMap = new Map();
+      const { zeitraumGiltFuer } = await import('./termin-planung.js');
       for (const w of windows) {
+        if (!zeitraumGiltFuer(w.leistungen, leistung)) continue;
         if (!windowsMap.has(w.date)) windowsMap.set(w.date, []);
         windowsMap.get(w.date)!.push({ winStart: w.winStart, winEnd: w.winEnd });
       }
