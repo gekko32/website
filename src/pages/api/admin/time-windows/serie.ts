@@ -2,7 +2,7 @@
 // Legt echte Einzelfenster an, einzelne Tage bleiben also von Hand änderbar.
 import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
-import { addFreeTimeWindow, getFreeTimeWindows, removeFreeTimeWindowsExakt } from '../../../../lib/website-db';
+import { addFreeTimeWindow, getFreeTimeWindows, removeFreeTimeWindowsExakt, removeFreeTimeWindowsTage } from '../../../../lib/website-db';
 import { pruefeSerie, pruefeTage, serienTage, ueberschneiden } from '../../../../lib/termin-planung';
 
 const BRAND = process.env.BRAND || 'mentolder';
@@ -19,6 +19,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (fehler) return antwort({ error: fehler }, 400);
     const leistungen: string[] = Array.isArray(e.leistungen) ? [...new Set<string>(e.leistungen.filter((k: unknown) => typeof k === 'string' && k !== ''))] : [];
     const tage: string[] = Array.isArray(e.tage) ? [...new Set<string>(e.tage)].sort() : serienTage(e.von, e.bis, e.wochentage);
+
+    if (e.alleLoeschen === true) {
+      return antwort({ entfernt: await removeFreeTimeWindowsTage(BRAND, tage) });
+    }
 
     if (e.entfernen === true) {
       return antwort({ entfernt: await removeFreeTimeWindowsExakt(BRAND, tage, e.winStart, e.winEnd) });

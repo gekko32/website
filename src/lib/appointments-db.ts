@@ -464,6 +464,13 @@ export async function removeFreeTimeWindowsExakt(brand: string, tage: string[], 
   return result.rowCount ?? 0;
 }
 
+/** Entfernt alle Zeiträume an den genannten Tagen und gibt die Anzahl zurück. */
+export async function removeFreeTimeWindowsTage(brand: string, tage: string[]): Promise<number> {
+  await initFreeTimeWindowsTable();
+  const result = await pool.query('DELETE FROM free_time_windows WHERE brand = $1 AND date = ANY($2::date[])', [brand, tage]);
+  return result.rowCount ?? 0;
+}
+
 export async function isSlotInAnyWindow(brand: string, slotStart: Date, slotEnd: Date, leistung?: string | null): Promise<boolean> {
   await initFreeTimeWindowsTable();
   // Berlin calendar-day bounds (T901023): DST-safe, no fixed offsets.

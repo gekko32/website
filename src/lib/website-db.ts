@@ -258,7 +258,7 @@ export {
   listTasksInMonth, listProjectsInMonth, listMeetingsInRange,
   setBookingInvoice, getBookingInvoices, getBookingProjects, setBookingProject,
   getBookingLeistungen, getWhitelistedSlots, addSlotToWhitelist, removeSlotFromWhitelist,
-  isSlotWhitelisted, claimSlot, getFreeTimeWindows, addFreeTimeWindow, removeFreeTimeWindow, removeFreeTimeWindowsExakt,
+  isSlotWhitelisted, claimSlot, getFreeTimeWindows, addFreeTimeWindow, removeFreeTimeWindow, removeFreeTimeWindowsExakt, removeFreeTimeWindowsTage,
   isSlotInAnyWindow,
 } from './appointments-db';
 export type {

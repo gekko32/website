@@ -32,6 +32,7 @@
   let meldung = $state('');
   let woechentlich = $state(false);
   let fuerAlle = $state(true);
+  let loeschFrage = $state(false);
   let gewaehlteLeistungen = $state<string[]>([]);
   let serieBis = $state(tagInWochen(heute, 12));
   let beschaeftigt = $state(false);
@@ -46,6 +47,8 @@
   const zielTage = $derived(woechentlich ? woechentlichBis(auswahl, serieBis).filter(waehlbar) : auswahl);
   const zahlTage = $derived(zielTage.length);
   const maxSerie = $derived(tagInWochen(heute, 52));
+  const zeitenInZiel = $derived(fenster.filter((f) => zielTage.includes(f.date)).length);
+  $effect(() => { void zielTage; loeschFrage = false; });
 
   function tagInWochen(tag: string, wochen: number): string {
     return new Date(Date.parse(`${tag}T00:00:00Z`) + wochen * 7 * 86400000).toISOString().slice(0, 10);
@@ -100,7 +103,38 @@
         ? `${d.entfernt} Zeiten entfernt.`
         : `${d.angelegt} eingetragen${d.uebersprungen ? `, ${d.uebersprungen} übersprungen (dort liegt schon eine überschneidende Zeit)` : ''}.`;
       await laden(jahr);
-      if (!entfernen) { auswahl = []; woechentlich = false; }
+      if (entfernen) leereAbwaehlen();
+      else { auswahl = []; woechentlich = false; }
+    } catch { meldung = 'Keine Verbindung.'; } finally { beschaeftigt = false; }
+  }
+
+  /** Markierung von Tagen lösen, an denen keine Zeit mehr steht. */
+  function leereAbwaehlen(): void {
+    auswahl = auswahl.filter((t) => fenster.some((f) => f.date === t));
+  }
+
+  function alleMitZeitenWaehlen(): void {
+    const praefix = ansicht === 'monat' ? `${jahr}-${String(monat).padStart(2, '0')}` : String(jahr);
+    const tage = fenster.map((f) => f.date).filter((t) => t.startsWith(praefix) && t >= heute);
+    auswahl = [...new Set([...auswahl, ...tage])].sort();
+  }
+
+  async function alleLoeschen(): Promise<void> {
+    if (zeitenInZiel === 0 || beschaeftigt) return;
+    if (!loeschFrage) { loeschFrage = true; return; }
+    beschaeftigt = true;
+    meldung = '';
+    try {
+      const r = await fetch('/api/admin/time-windows/serie', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tage: zielTage, winStart: von, winEnd: bis, alleLoeschen: true }),
+      });
+      const d = await r.json();
+      if (!r.ok) { meldung = d.error ?? 'Fehler beim Löschen.'; return; }
+      meldung = `${d.entfernt} Zeiten gelöscht.`;
+      await laden(jahr);
+      auswahl = [];
+      woechentlich = false;
     } catch { meldung = 'Keine Verbindung.'; } finally { beschaeftigt = false; }
   }
 
@@ -108,7 +142,7 @@
     const r = await fetch('/api/admin/time-windows/remove', {
       method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
     }).catch(() => null);
-    if (r?.ok) fenster = fenster.filter((f) => f.id !== id);
+    if (r?.ok) { fenster = fenster.filter((f) => f.id !== id); leereAbwaehlen(); }
     else meldung = 'Die Zeit konnte nicht entfernt werden.';
   }
 
@@ -206,6 +240,7 @@
           {#if auswahl.length === 0}Tippen Sie Tage an, auch in der Jahresübersicht. Ein Tipp auf Mo, Di … wählt in der Monatsansicht alle diese Wochentage.
           {:else}<strong>{zahlTage} {zahlTage === 1 ? 'Tag' : 'Tage'}</strong> betroffen · <button type="button" class="link" onclick={() => (auswahl = [])}>leeren</button>{/if}
         </p>
+        <p class="auswahl-hilfe"><button type="button" class="link" onclick={alleMitZeitenWaehlen}>Alle Tage mit Zeiten {ansicht === 'monat' ? 'in diesem Monat' : 'in diesem Jahr'} auswählen</button></p>
         {#if auswahl.length > 0}
           <div class="wiederholen">
             <label><input type="radio" name="wiederholen" checked={!woechentlich} onchange={() => (woechentlich = false)} /> Nur ausgewählte Tage</label>
@@ -234,6 +269,11 @@
         <div class="knoepfe">
           <button type="button" class="haupt" disabled={zahlTage === 0 || beschaeftigt || (!fuerAlle && gewaehlteLeistungen.length === 0)} onclick={() => senden(false)}>{von} bis {bis} eintragen</button>
           <button type="button" class="neben" disabled={zahlTage === 0 || beschaeftigt} onclick={() => senden(true)}>Genau diese Zeit entfernen</button>
+          {#if zeitenInZiel > 0}
+            <button type="button" class="neben loeschen" disabled={beschaeftigt} onclick={alleLoeschen}>
+              {loeschFrage ? `Wirklich alle ${zeitenInZiel} Zeiten löschen?` : `Alle ${zeitenInZiel} Zeiten dieser Tage löschen`}
+            </button>
+          {/if}
         </div>
         {#if meldung}<p class="meldung" role="status">{meldung}</p>{/if}
         {#each auswahl.filter((t) => jeTag.has(t)).slice(0, 12) as t (t)}
@@ -285,6 +325,8 @@
   .haupt:disabled, .neben:disabled { opacity: 0.4; }
   .meldung { font-size: 13px; color: var(--brass, #c8a96e); margin: 10px 0 0; }
   .zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; }
+  .auswahl-hilfe { font-size: 13px; margin: 0 0 10px; }
+  .neben.loeschen { color: #f1948a; border-color: rgba(241, 148, 138, 0.5); }
   .gilt { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 12px; font-size: 13px; }
   .gilt .rad-titel { width: 100%; }
   .gilt label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
