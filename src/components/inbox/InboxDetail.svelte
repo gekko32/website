@@ -241,6 +241,7 @@
             {#if slot} · {slot}{/if}
             {#if date} · {date}{/if}
           </dd></div>
+          {#if p(item, 'ort')}<div><dt>Ort</dt><dd>{p(item, 'ort') === 'vor-ort' ? 'Vor Ort' : 'Online'}</dd></div>{/if}
           <div><dt>Telefon</dt><dd>{p(item, 'phone') ?? '—'}</dd></div>
           <div><dt>E-Mail</dt><dd>
             {#if h.email}<a href={`mailto:${h.email}`}>{h.email}</a>{:else}—{/if}

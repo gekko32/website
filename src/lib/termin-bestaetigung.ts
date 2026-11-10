@@ -6,6 +6,7 @@ export interface BestaetigungDaten {
   typeLabel: string;
   datum: string;
   uhrzeit: string;
+  ort?: string | null;
   marke: string;
   meetingUrl?: string | null;
   verwaltenUrl?: string | null;
@@ -21,6 +22,7 @@ export function bestaetigungsMail(d: BestaetigungDaten): { subject: string; text
     `Hallo ${d.name},`, '', 'Ihr Termin wurde bestätigt!', '',
     `  Typ:     ${d.typeLabel}`, `  Datum:   ${d.datum}`, `  Uhrzeit: ${d.uhrzeit}`,
   ];
+  if (d.ort) zeilen.push(`  Ort:     ${d.ort}`);
   if (d.meetingUrl) zeilen.push('', 'Ihr Meeting-Link:', d.meetingUrl);
   if (d.verwaltenUrl) zeilen.push('', 'Termin umbuchen oder absagen:', d.verwaltenUrl);
   if (d.agbAngehaengt) zeilen.push('', 'Unsere AGB finden Sie im Anhang.');
@@ -38,7 +40,7 @@ export function bestaetigungsMail(d: BestaetigungDaten): { subject: string; text
     subject: `Termin bestätigt: ${d.typeLabel} am ${d.datum}`,
     text: zeilen.join('\n'),
     html: `<p>Hallo ${esc(d.name)},</p><p><strong>Ihr Termin wurde bestätigt!</strong></p>`
-      + `<table style="border-collapse:collapse;margin:16px 0">${zeile('Typ', d.typeLabel)}${zeile('Datum', d.datum)}${zeile('Uhrzeit', d.uhrzeit)}</table>`
+      + `<table style="border-collapse:collapse;margin:16px 0">${zeile('Typ', d.typeLabel)}${zeile('Datum', d.datum)}${zeile('Uhrzeit', d.uhrzeit)}${d.ort ? zeile('Ort', d.ort) : ''}</table>`
       + `${knopf}${verwalten}${agb}<p>Mit freundlichen Grüßen<br>${esc(d.marke)}</p>`,
   };
 }

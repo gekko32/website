@@ -3,12 +3,10 @@ import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../../lib/auth';
 import { getInboxItem, updateInboxItemStatus, deleteInboxItem } from '../../../../../lib/messaging-db';
 import { createUser, sendPasswordResetEmail } from '../../../../../lib/identity';
-import { createCalendarEvent, getAllBookings } from '../../../../../lib/caldav';
-import { bestaetigungsMail } from '../../../../../lib/termin-bestaetigung';
-import { erzeugeAgbPdf } from '../../../../../lib/agb-pdf';
-import { createTalkRoom, inviteGuestByEmail, sendChatMessage } from '../../../../../lib/talk';
+import { terminAnnehmen } from '../../../../../lib/termin-annehmen';
+import { sendChatMessage } from '../../../../../lib/talk';
 import { sendRegistrationApproved, sendRegistrationDeclined, sendEmail } from '../../../../../lib/email';
-import { upsertCustomer, resolveBugTicket, createMeeting, claimBrettLinkPost, pool } from '../../../../../lib/website-db';
+import { upsertCustomer, resolveBugTicket, pool } from '../../../../../lib/website-db';
 
 const BRAND_NAME = process.env.BRAND_NAME || 'Workspace';
 const PROD_DOMAIN = process.env.PROD_DOMAIN || '';
@@ -99,110 +97,29 @@ export const POST: APIRoute = async ({ request, params , locals }) => {
           name: string; email: string; phone?: string; typeLabel: string;
           slotStart: string; slotEnd: string; slotDisplay: string; date: string;
           serviceKey?: string; leistungKey?: string; projectId?: string;
-          token?: string; state?: string;
+          token?: string; state?: string; ort?: string | null;
         };
-        // Über den Link verwaltete Anfrage: Der Kunde sieht danach „bestätigt“ (08.11.2026).
-        const entscheidung = (uid: string | null) => (p.state === 'offen'
-          ? { state: 'bestaetigt', outcome: 'bestaetigt', caldavUid: uid, decidedAt: new Date().toISOString(), decidedBy: session.preferred_username ?? null }
-          : {});
         // Rückruf ohne Termin: kein Kalender, kein Raum, keine Terminbestätigung.
         if (!p.slotStart) {
+          const vermerk = p.state === 'offen'
+            ? { state: 'bestaetigt', outcome: 'bestaetigt', caldavUid: null, decidedAt: new Date().toISOString(), decidedBy: session.preferred_username ?? null }
+            : {};
           await pool.query(
             `UPDATE inbox_items SET payload = payload || $1::jsonb WHERE id = $2`,
-            [JSON.stringify(entscheidung(null)), id],
+            [JSON.stringify(vermerk), id],
           ).catch(err => locals.requestLogger.error({ err }, '[approve_booking] Failed to mark callback as done:'));
           await updateInboxItemStatus(id, 'actioned', session.preferred_username);
           return new Response(JSON.stringify({ success: true, details: ['Rückruf als erledigt vermerkt'] }), {
             headers: { 'Content-Type': 'application/json' },
           });
         }
-        const meetingStart = new Date(p.slotStart);
-        const meetingEnd   = new Date(p.slotEnd);
-        // Zwei Anfragen können denselben Termin wünschen; vergeben wird erst hier.
-        const belegt = await getAllBookings().catch(() => null);
-        if (belegt?.some(b => b.status !== 'CANCELLED' && b.start < meetingEnd && b.end > meetingStart)) {
+        const ergebnis = await terminAnnehmen({
+          id, p, request, log: locals.requestLogger, akteur: session.preferred_username ?? null, agbAnhaengen,
+        });
+        if (ergebnis.art !== 'ok') {
           return new Response(JSON.stringify({ error: 'Zu dieser Zeit steht schon ein Termin im Kalender. Bitte lehnen Sie die Anfrage ab oder klären Sie den Termin mit dem Kunden.' }), { status: 409 });
         }
-        const dateFormatted = new Date(p.date + 'T00:00:00').toLocaleDateString('de-DE', {
-          weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric',
-        });
-        const statusParts: string[] = [];
-
-        const room = await createTalkRoom({
-          name: `${p.typeLabel}: ${p.name}`,
-          description: `${p.typeLabel} mit ${p.name} (${p.email}) am ${dateFormatted}, ${p.slotDisplay}`,
-        });
-        if (room) {
-          await inviteGuestByEmail(room.token, p.email);
-          statusParts.push(`Talk-Raum erstellt: ${room.url}`);
-        } else {
-          statusParts.push('Talk-Raum konnte nicht erstellt werden');
-        }
-
-        const calEvent = await createCalendarEvent({
-          summary: `${p.typeLabel}: ${p.name}`,
-          description: `Termin mit ${p.name} (${p.email})\nTyp: ${p.typeLabel}${room ? `\nMeeting: ${room.url}` : ''}`,
-          start: meetingStart, end: meetingEnd,
-          attendeeEmail: p.email, attendeeName: p.name,
-        });
-        statusParts.push(calEvent ? 'Kalendereintrag erstellt' : 'Kalendereintrag fehlgeschlagen');
-
-        // AGB als Anhang nur auf Wunsch: Bis zur Freigabe der endgültigen Fassung ist das Häkchen aus (Gerald 08.11.2026).
-        // Scheitert das PDF, geht die Bestätigung trotzdem raus.
-        let anhang: { filename: string; content: Buffer }[] | undefined;
-        if (agbAnhaengen === true) {
-          try {
-            anhang = [{ filename: 'AGB.pdf', content: await erzeugeAgbPdf(process.env.BRAND || 'mentolder', process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder') }];
-            statusParts.push('AGB als PDF angehängt');
-          } catch (err) {
-            locals.requestLogger.error({ err }, '[approve_booking] AGB-PDF fehlgeschlagen:');
-            statusParts.push('AGB konnten nicht angehängt werden');
-          }
-        }
-        const basisUrl = SITE_URL || new URL(request.url).origin;
-        await sendEmail({
-          to: p.email,
-          ...bestaetigungsMail({
-            name: p.name, typeLabel: p.typeLabel, datum: dateFormatted, uhrzeit: p.slotDisplay, marke: BRAND_NAME,
-            meetingUrl: room?.url ?? null,
-            verwaltenUrl: p.token ? `${basisUrl.replace(/\/$/, '')}/anfrage/${p.token}` : null,
-            agbAngehaengt: !!anhang,
-          }),
-          attachments: anhang,
-        }, request);
-        statusParts.push('Bestätigungs-E-Mail versendet');
-        const customer = await upsertCustomer({ name: p.name, email: p.email, phone: p.phone });
-
-        const meeting = await createMeeting({
-          customerId: customer.id,
-          meetingType: p.typeLabel,
-          scheduledAt: meetingStart,
-          talkRoomToken: room?.token ?? undefined,
-          projectId: p.projectId ?? undefined,
-        }).catch(err => { locals.requestLogger.error({ err }, '[approve_booking] Failed to create meeting record:'); return null; });
-
-        // Auto-post the systemisches Brett link into the new Talk room (idempotent).
-        try {
-          if (meeting && room && await claimBrettLinkPost(meeting.id)) {
-            const brettDomain = process.env.BRETT_DOMAIN || 'brett.localhost';
-            const url = `https://${brettDomain}/?room=${encodeURIComponent(room.token)}`;
-            await sendChatMessage(room.token, `🎯 Systemisches Brett für diese Session: ${url}`);
-          }
-        } catch (err) {
-          locals.requestLogger.error({ err }, '[brett] auto-post failed (non-fatal):');
-        }
-
-        // Rechnungswesen Stufe 3, T6 (AE7): Beim Annehmen entsteht KEINE Rechnung mehr.
-        // Die Buchung wird als freigegeben vermerkt; ist der Termin vorbei und nicht
-        // abgesagt, wird er zum offenen Posten in der Akte (billing-posten).
-        await pool.query(
-          `UPDATE inbox_items SET payload = payload || $1::jsonb WHERE id = $2`,
-          [JSON.stringify({ freigegebenAm: new Date().toISOString(), klientId: customer.id, ...entscheidung(calEvent?.uid ?? null) }), id],
-        ).catch(err => locals.requestLogger.error({ err }, '[approve_booking] Failed to mark booking as approved:'));
-        statusParts.push('Wird nach dem Termin als offener Posten in der Akte abgerechnet');
-
-        await updateInboxItemStatus(id, 'actioned', session.preferred_username);
-        return new Response(JSON.stringify({ success: true, details: statusParts }), {
+        return new Response(JSON.stringify({ success: true, details: ergebnis.details }), {
           headers: { 'Content-Type': 'application/json' },
         });
       }

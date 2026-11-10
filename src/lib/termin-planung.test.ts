@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { serienTage, ueberschneiden, pruefeSerie, pruefeTage, leseFeiertage, bundesweiteFeiertage, feiertageFuerLand, istEchterTag, monatsRaster, zeitListe } from './termin-planung';
+import { serienTage, ueberschneiden, pruefeSerie, pruefeTage, leseFeiertage, bundesweiteFeiertage, feiertageFuerLand, istEchterTag, monatsRaster, zeitListe, woechentlichBis } from './termin-planung';
 
 describe('Serien', () => {
   it('findet die richtigen Wochentage, auch über die Zeitumstellung', () => {
@@ -36,6 +36,11 @@ describe('Kalender', () => {
     expect(w.flat().filter(Boolean)).toHaveLength(30);
     expect(w.every((z) => z.length === 7)).toBe(true);
     expect(monatsRaster(2028, 2).flat().filter(Boolean)).toHaveLength(29);
+  });
+  it('setzt gewählte Tage wöchentlich fort', () => {
+    expect(woechentlichBis(['2026-11-10'], '2026-11-24')).toEqual(['2026-11-10', '2026-11-17', '2026-11-24']);
+    expect(woechentlichBis(['2026-11-10', '2026-11-12'], '2026-11-18')).toEqual(['2026-11-10', '2026-11-12', '2026-11-17']);
+    expect(woechentlichBis(['2026-11-10'], '2026-11-01')).toEqual(['2026-11-10']);
   });
   it('liefert Uhrzeiten zum Scrollen', () => {
     const z = zeitListe(6, 22, 15);

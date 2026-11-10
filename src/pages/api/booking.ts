@@ -9,6 +9,8 @@ import {
 } from '../../lib/appointment-requests';
 import { appendNotifyLog, notifyEntryFromResult, readNotifyLog, sendNotify } from '../../lib/appointment-notify';
 import { sendAdminNotification } from '../../lib/notifications';
+import { terminAnnehmen, type BuchungsDaten } from '../../lib/termin-annehmen';
+import { ladeErstgespraech, ortFuerBuchung, ERSTGESPRAECH_VORGABE } from '../../lib/buchungs-einstellungen';
 import { isSlotInAnyWindow, isSlotWhitelisted, claimSlot } from '../../lib/website-db';
 import { berlinDayKey } from '../../lib/caldav-cache';
 import { getEffectiveLeistungen } from '../../lib/content';
@@ -36,7 +38,7 @@ export const POST: APIRoute = async ({ request , locals }) => {
     });
   }
   try {
-    const { name, email, phone, type, message, slotStart, slotEnd, slotDisplay, date, serviceKey, projectId, leistungKey, agbAkzeptiert, idempotencyKey: bodyKey } = await request.json();
+    const { name, email, phone, type, message, slotStart, slotEnd, slotDisplay, date, serviceKey, projectId, leistungKey, agbAkzeptiert, ort: ortWunsch, idempotencyKey: bodyKey } = await request.json();
 
     // Rechnungswesen Stufe 3, T9 (K21): Ohne bestätigte AGB (mit Absageregel) keine Buchung.
     if (!agbBestaetigt(agbAkzeptiert)) {
@@ -83,6 +85,14 @@ export const POST: APIRoute = async ({ request , locals }) => {
     }
 
     const isCallback = type === 'callback';
+    const erstgespraech = await ladeErstgespraech(BRAND).catch(() => ERSTGESPRAECH_VORGABE);
+    const ort = type === 'erstgespraech' ? ortFuerBuchung(erstgespraech, ortWunsch) : null;
+    if (ort === undefined) {
+      return new Response(
+        JSON.stringify({ error: 'Bitte wählen Sie online oder vor Ort.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (!name?.trim() || !email?.trim()) {
       return new Response(
@@ -212,6 +222,7 @@ export const POST: APIRoute = async ({ request , locals }) => {
       slotStart: slotStart ?? null, slotEnd: slotEnd ?? null,
       slotDisplay: slotDisplay ?? null, date: date ?? null,
       serviceKey: serviceKey ?? null, serviceSnapshot,
+      ort,
       message: message ?? null,
       projectId: projectId ?? null, leistungKey: leistungKey ?? null,
       agbAkzeptiertAm: new Date().toISOString(),
@@ -224,6 +235,36 @@ export const POST: APIRoute = async ({ request , locals }) => {
       payload: requestPayload,
       isTestData: isE2ETestRequest(request),
     });
+
+    // Erstgespräch sofort buchen, wenn das unter Buchungsregeln eingeschaltet ist (10.11.2026).
+    // Klappt es nicht (Kalender nicht erreichbar), bleibt es eine normale Anfrage.
+    if (type === 'erstgespraech' && slotStart && slotEnd && erstgespraech.sofort) {
+      const ergebnis = await terminAnnehmen({
+        id: created.id, p: requestPayload as unknown as BuchungsDaten, request, log: locals.requestLogger, akteur: 'online-buchung', kalenderPflicht: true,
+      });
+      if (ergebnis.art === 'belegt') {
+        await pool.query(
+          `UPDATE inbox_items SET payload = payload || $1::jsonb, status = 'actioned', actioned_at = now() WHERE id = $2`,
+          [JSON.stringify({ state: 'abgelehnt', outcome: 'abgelehnt', abgelehnt: true, cancelNote: 'Termin war inzwischen vergeben.' }), created.id],
+        ).catch((err) => locals.requestLogger.warn({ err }, 'Booking conflict mark failed'));
+        return new Response(
+          JSON.stringify({ error: 'Dieser Termin wurde gerade vergeben. Bitte wählen Sie einen anderen.' }),
+          { status: 409, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (ergebnis.art === 'ok') {
+        await sendAdminNotification({
+          type: 'booking',
+          subject: `[Gebucht: ${typeLabel}] ${name} am ${dateFormatted}, ${slotDisplay ?? ''}`,
+          text: `Neue Buchung auf ${BRAND_NAME}, bereits bestätigt.\n\nName: ${name}\nE-Mail: ${email}\nTermin: ${dateFormatted}, ${slotDisplay ?? ''}${ort ? `\nOrt: ${ort === 'vor-ort' ? 'Vor Ort' : 'Online'}` : ''}`,
+          replyTo: email,
+        }, request);
+        return new Response(
+          JSON.stringify({ success: true, requestToken, state: 'bestaetigt' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     // Receipt mail to the guest via the notify lib (dedupe + retry + log).
     const guest = toAppointmentRequest({ id: created.id, brand: created.brand ?? null, payload: requestPayload });

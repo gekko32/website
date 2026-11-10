@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { monatsRaster, WOCHENTAGE_KURZ, MONATSNAMEN } from '../lib/termin-planung';
   import { onMount } from 'svelte';
 
   interface TimeSlot {
@@ -21,8 +22,10 @@
     serviceKey?: string;
     /** Dauer des kostenlosen Erstgesprächs in Minuten (mentolder 45, sonst 30). */
     erstgespraechMin?: number;
+    /** Art steht fest: keine Auswahl von Art und Leistung, direkt der Kalender (10.11.2026). */
+    festerTyp?: boolean;
   }
-  let { initialDate = '', initialStart = '', initialEnd = '', initialType, serviceKey, erstgespraechMin = 30 }: Props = $props();
+  let { initialDate = '', initialStart = '', initialEnd = '', initialType, serviceKey, erstgespraechMin = 30, festerTyp = false }: Props = $props();
 
   let name = $state('');
   let email = $state('');
@@ -48,12 +51,24 @@
   let selectedLeistungKey = $state('');
   let leistungenLoaded = $state(false);
   let absageRegel = $state<{ ausfallFrist: string; ausfallHoehe: string } | null>(null);
+  let angebot = $state({ online: true, vorOrt: true, sofort: false });
+  let ort = $state('');
+  let kalMonat = $state('');
+  const tageMitTermin = $derived(new Set(days.map((d) => d.date)));
+  const monate = $derived([...new Set(days.map((d) => d.date.slice(0, 7)))]);
+  const kalRaster = $derived(kalMonat ? monatsRaster(Number(kalMonat.slice(0, 4)), Number(kalMonat.slice(5, 7))) : []);
+  const istErstgespraech = $derived(festerTyp && bookingType === 'erstgespraech');
+  const ortWaehlbar = $derived(istErstgespraech && angebot.online && angebot.vorOrt);
+  $effect(() => { if (monate.length > 0 && !monate.includes(kalMonat)) kalMonat = monate[0]; });
 
   onMount(async () => {
     // Stufe 3, T9 (K21): Absageregel aus den Einstellungen anzeigen.
     fetch('/api/buchungsregeln')
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d && typeof d.ausfallFrist === 'string') absageRegel = d; })
+      .then((d) => {
+        if (d && typeof d.ausfallFrist === 'string') absageRegel = d;
+        if (d?.erstgespraech) angebot = d.erstgespraech;
+      })
       .catch(() => { /* Regel fehlt → nur AGB-Link */ });
     try {
       const res = await fetch('/api/leistungen');
@@ -77,7 +92,7 @@
 
   let isCallback = $derived(bookingType === 'callback');
   // Step 2 (leistung) is considered "done" when leistung is selected or none available
-  let leistungSelected = $derived(selectedLeistungKey !== '' || (leistungenLoaded && leistungenOptions.length === 0));
+  let leistungSelected = $derived(festerTyp || selectedLeistungKey !== '' || (leistungenLoaded && leistungenOptions.length === 0));
   let showSlotSelection = $derived(!isCallback && leistungSelected);
   let showContactForm = $derived(isCallback || selectedSlot !== null);
   let currentDaySlots = $derived(days.find((d) => d.date === selectedDate));
@@ -171,15 +186,17 @@
           date: selectedDate,
           serviceKey: serviceKey ?? null,
           projectId: selectedProjectId || undefined,
-          leistungKey: selectedLeistungKey || undefined,
+          leistungKey: selectedLeistungKey || (istErstgespraech ? leistungenOptions.find((l) => l.key.includes('erstgespraech'))?.key : undefined) || undefined,
           agbAkzeptiert: agbAccepted,
+          ort: ort || undefined,
         }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        result = { success: true, message: 'Vielen Dank! Ihre Terminanfrage wurde eingereicht. Sie erhalten eine Bestätigung per E-Mail, sobald der Termin bestätigt wurde.' };
+        if (data.state === 'bestaetigt') result = { success: true, message: 'Ihr Termin ist gebucht. Sie erhalten gleich eine Bestätigung per E-Mail.' };
+        else result = { success: true, message: 'Vielen Dank! Ihre Terminanfrage wurde eingereicht. Sie erhalten eine Bestätigung per E-Mail, sobald der Termin bestätigt wurde.' };
         name = '';
         email = '';
         phone = '';
@@ -211,6 +228,7 @@
 <div class="bf-root">
 
   <!-- Step 1: Booking type segment control -->
+  {#if !festerTyp}
   <div class="bf-section">
     <p class="bf-step-label">Art des Termins</p>
     <div class="bf-type-row">
@@ -227,8 +245,10 @@
     </div>
   </div>
 
+  {/if}
+
   <!-- Step 2: Leistung -->
-  {#if !isCallback && leistungenOptions.length > 0}
+  {#if !festerTyp && !isCallback && leistungenOptions.length > 0}
     <div class="bf-section">
       <p class="bf-step-label">Gewünschte Leistung</p>
       <div class="bf-leistung-row">
@@ -262,6 +282,26 @@
       {:else if days.length === 0}
         <p class="bf-hint bf-hint--center">Derzeit sind keine freien Termine verfügbar. Bitte kontaktieren Sie uns direkt.</p>
       {:else}
+        {#if festerTyp}
+          <div class="bf-kal">
+            <div class="bf-kal-kopf">
+              <button type="button" class="bf-kal-pfeil" aria-label="Voriger Monat" disabled={monate.indexOf(kalMonat) <= 0} onclick={() => (kalMonat = monate[monate.indexOf(kalMonat) - 1])}>‹</button>
+              <strong>{kalMonat ? `${MONATSNAMEN[Number(kalMonat.slice(5, 7)) - 1]} ${kalMonat.slice(0, 4)}` : ''}</strong>
+              <button type="button" class="bf-kal-pfeil" aria-label="Nächster Monat" disabled={monate.indexOf(kalMonat) >= monate.length - 1} onclick={() => (kalMonat = monate[monate.indexOf(kalMonat) + 1])}>›</button>
+            </div>
+            <div class="bf-kal-raster bf-kal-wt">{#each WOCHENTAGE_KURZ as w (w)}<span>{w}</span>{/each}</div>
+            {#each kalRaster as woche, n (n)}
+              <div class="bf-kal-raster">
+                {#each woche as t, s (s)}
+                  {#if t}
+                    <button type="button" class="bf-kal-tag" class:is-active={selectedDate === t} disabled={!tageMitTermin.has(t)} onclick={() => (selectedDate = t)}>{Number(t.slice(8))}</button>
+                  {:else}<span></span>{/if}
+                {/each}
+              </div>
+            {/each}
+            <p class="bf-hint">Hell hervorgehobene Tage haben freie Termine.</p>
+          </div>
+        {:else}
         <!-- Date strip -->
         <div class="bf-date-strip">
           {#each days as day}
@@ -276,6 +316,7 @@
             </button>
           {/each}
         </div>
+        {/if}
 
         <!-- Slot pills -->
         {#if currentDaySlots}
@@ -334,14 +375,15 @@
             required={isCallback} placeholder="+49 …" class="bf-input" />
           {#if isCallback}<p class="bf-hint">Wir rufen Sie unter dieser Nummer zurück.</p>{/if}
         </div>
+        {#if ortWaehlbar}
         <div class="bf-field">
-          <label class="bf-label">Format</label>
+          <span class="bf-label">Wo möchten Sie sprechen? <span class="bf-req">*</span></span>
           <div class="bf-format-group" role="radiogroup">
-            <input type="radio" id="bf-f-online" name="bf-format" value="online" /><label for="bf-f-online">Online</label>
-            <input type="radio" id="bf-f-vor-ort" name="bf-format" value="vor-ort" /><label for="bf-f-vor-ort">Vor Ort</label>
-            <input type="radio" id="bf-f-egal" name="bf-format" value="egal" checked /><label for="bf-f-egal">Egal</label>
+            <input type="radio" id="bf-f-online" name="bf-format" value="online" bind:group={ort} required /><label for="bf-f-online">Online</label>
+            <input type="radio" id="bf-f-vor-ort" name="bf-format" value="vor-ort" bind:group={ort} /><label for="bf-f-vor-ort">Vor Ort</label>
           </div>
         </div>
+        {/if}
       </div>
 
       <div class="bf-field">
@@ -380,19 +422,21 @@
 
       <div class="bf-submit-area">
         <button type="submit" disabled={submitting || !agbAccepted} class="bf-btn">
-          {#if submitting}Wird gesendet…{:else}Termin vorschlagen →{/if}
+          {#if submitting}Wird gesendet…{:else if istErstgespraech && angebot.sofort}Termin buchen →{:else if isCallback}Rückruf anfragen →{:else}Termin anfragen →{/if}
         </button>
         <p class="bf-submit-note">
           Mit dem Absenden bestätigen Sie die <a href="/datenschutz">Datenschutzerklärung</a>.
         </p>
       </div>
 
-      {#if result}
-        <div class="bf-result" class:is-success={result.success} class:is-error={!result.success}>
-          {result.message}
-        </div>
-      {/if}
     </form>
+  {/if}
+
+  <!-- Außerhalb des Formulars: Nach dem Erfolg ist das Formular ausgeblendet (10.11.2026). -->
+  {#if result}
+    <div class="bf-result" class:is-success={result.success} class:is-error={!result.success}>
+      {result.message}
+    </div>
   {/if}
 
 </div>
@@ -441,6 +485,15 @@
   .bf-leistung-sub { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--mute); margin-top: 4px; display: block; }
 
   /* Date strip */
+  .bf-kal { max-width: 380px; }
+  .bf-kal-kopf { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .bf-kal-pfeil { width: 40px; height: 40px; background: none; border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font-size: 20px; cursor: pointer; }
+  .bf-kal-pfeil:disabled { opacity: 0.3; cursor: default; }
+  .bf-kal-raster { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-bottom: 4px; text-align: center; }
+  .bf-kal-wt span { font-size: 12px; color: var(--mute); padding: 4px 0; }
+  .bf-kal-tag { height: 42px; border-radius: 8px; border: 1px solid var(--brass); background: rgba(200, 169, 110, 0.14); color: var(--fg); cursor: pointer; font-size: 14px; }
+  .bf-kal-tag:disabled { border-color: transparent; background: none; color: var(--mute); opacity: 0.45; cursor: default; }
+  .bf-kal-tag.is-active { background: var(--brass); color: var(--ink-900); font-weight: 700; }
   .bf-date-strip {
     display: flex; gap: 8px; overflow-x: auto;
     padding-bottom: 4px; margin-bottom: 24px;
