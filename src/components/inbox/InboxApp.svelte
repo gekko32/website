@@ -44,6 +44,8 @@
   let threadLoading   = $state(false);
   let replyBody       = $state('');
   let agbAnhaengen    = $state(false);
+  let kundenNachricht = $state('');
+  let nachrichtFuer: unknown = null;
   let replySending    = $state(false);
   let bugNote         = $state('');
 
@@ -181,6 +183,11 @@
       try { pointerFine = window.matchMedia('(pointer: fine)').matches; }
       catch { pointerFine = true; }
     }
+  });
+
+  // Der persönliche Text gehört zu genau einer Anfrage.
+  $effect(() => {
+    if (selectedId !== nachrichtFuer) { nachrichtFuer = selectedId; kundenNachricht = ''; }
   });
 
   // When the selected item changes, hydrate type-specific async state.
@@ -376,7 +383,7 @@
     switch (it.type) {
       case 'registration':     await postAction(it, 'approve_registration'); break;
       case 'booking':
-        await postAction(it, 'approve_booking', undefined, { agbAnhaengen });
+        if (await postAction(it, 'approve_booking', kundenNachricht.trim() || undefined, { agbAnhaengen })) kundenNachricht = '';
         agbAnhaengen = false;
         break;
       case 'contact':          await postAction(it, 'archive_contact');     break;
@@ -405,7 +412,9 @@
     const it = selected;
     if (!it || busy) return;
     if (it.type === 'registration') await postAction(it, 'decline_registration');
-    else if (it.type === 'booking') await postAction(it, 'decline_booking');
+    else if (it.type === 'booking') {
+      if (await postAction(it, 'decline_booking', kundenNachricht.trim() || undefined)) kundenNachricht = '';
+    }
   }
 
   // Hard-delete escape hatch. Visible on EVERY row regardless of status
@@ -540,6 +549,8 @@
         bugNote={bugNote}
         agbAnhaengen={agbAnhaengen}
         onAgbChange={(v) => { agbAnhaengen = v; }}
+        {kundenNachricht}
+        onKundenNachricht={(v) => { kundenNachricht = v; }}
         showMobileBack={mobileView === 'detail'}
         bindReplyTextarea={(el) => { replyTextarea = el; }}
         onPrev={() => moveSelection(-1)}

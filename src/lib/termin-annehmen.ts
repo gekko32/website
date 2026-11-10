@@ -34,6 +34,7 @@ export async function terminAnnehmen(o: {
   log: Protokoll;
   akteur: string | null;
   agbAnhaengen?: boolean;
+  nachricht?: string;
   /** Bei der Sofortbuchung darf nichts bestätigt werden, was nicht im Kalender steht. */
   kalenderPflicht?: boolean;
 }): Promise<AnnahmeErgebnis> {
@@ -100,6 +101,7 @@ export async function terminAnnehmen(o: {
         meetingUrl: room?.url ?? null,
         verwaltenUrl: p.token ? `${basisUrl}/anfrage/${p.token}` : null,
         agbAngehaengt: !!anhang,
+        nachricht: o.nachricht,
       }),
       attachments: anhang,
     }, request);

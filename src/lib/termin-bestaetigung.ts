@@ -11,6 +11,8 @@ export interface BestaetigungDaten {
   meetingUrl?: string | null;
   verwaltenUrl?: string | null;
   agbAngehaengt?: boolean;
+  /** Freiwilliger persönlicher Text aus dem Postfach. */
+  nachricht?: string | null;
 }
 
 function esc(s: string): string {
@@ -20,6 +22,7 @@ function esc(s: string): string {
 export function bestaetigungsMail(d: BestaetigungDaten): { subject: string; text: string; html: string } {
   const zeilen = [
     `Hallo ${d.name},`, '', 'Ihr Termin wurde bestätigt!', '',
+    ...(d.nachricht ? [d.nachricht, ''] : []),
     `  Typ:     ${d.typeLabel}`, `  Datum:   ${d.datum}`, `  Uhrzeit: ${d.uhrzeit}`,
   ];
   if (d.ort) zeilen.push(`  Ort:     ${d.ort}`);
@@ -40,6 +43,7 @@ export function bestaetigungsMail(d: BestaetigungDaten): { subject: string; text
     subject: `Termin bestätigt: ${d.typeLabel} am ${d.datum}`,
     text: zeilen.join('\n'),
     html: `<p>Hallo ${esc(d.name)},</p><p><strong>Ihr Termin wurde bestätigt!</strong></p>`
+      + (d.nachricht ? `<p>${esc(d.nachricht).replace(/\n/g, '<br>')}</p>` : '')
       + `<table style="border-collapse:collapse;margin:16px 0">${zeile('Typ', d.typeLabel)}${zeile('Datum', d.datum)}${zeile('Uhrzeit', d.uhrzeit)}${d.ort ? zeile('Ort', d.ort) : ''}</table>`
       + `${knopf}${verwalten}${agb}<p>Mit freundlichen Grüßen<br>${esc(d.marke)}</p>`,
   };

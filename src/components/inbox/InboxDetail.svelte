@@ -17,6 +17,8 @@
     bugNote: string;
     agbAnhaengen?: boolean;
     onAgbChange?: (v: boolean) => void;
+    kundenNachricht?: string;
+    onKundenNachricht?: (v: string) => void;
     /** When true a "← Zurück" button is rendered at the top (mobile detail view). */
     showMobileBack?: boolean;
     bindReplyTextarea?: (el: HTMLTextAreaElement | null) => void;
@@ -39,6 +41,8 @@
     showMobileBack = false,
     agbAnhaengen = false,
     onAgbChange,
+    kundenNachricht = '',
+    onKundenNachricht,
     bindReplyTextarea,
     onPrev, onNext, onPrimary, onSecondary, onDelete,
     onReplyChange, onSendReply, onBugNoteChange,
@@ -253,6 +257,21 @@
             <input type="checkbox" checked={agbAnhaengen} onchange={(e) => onAgbChange?.(e.currentTarget.checked)} />
             AGB als PDF an die Bestätigung anhängen
           </label>
+          <div class="bug-note">
+            <label class="bug-note-label" for={`inbox-kunden-nachricht-${item.id}`}>
+              Persönliche Nachricht an den Kunden (freiwillig) <span class="bug-note-counter">{kundenNachricht.length}/2000</span>
+            </label>
+            <textarea
+              id={`inbox-kunden-nachricht-${item.id}`}
+              class="bug-note-input"
+              data-testid="inbox-kunden-nachricht"
+              rows="3"
+              maxlength="2000"
+              placeholder="Steht in der Mail, egal ob Sie bestätigen oder ablehnen."
+              value={kundenNachricht}
+              oninput={(e) => onKundenNachricht?.(e.currentTarget.value)}
+            ></textarea>
+          </div>
         {/if}
 
       {:else if item.type === 'contact'}
