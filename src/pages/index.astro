@@ -322,7 +322,7 @@ const geschichten = getGeschichten(BRAND_ID);
         secondaryHref={`tel:${(stammdaten?.phone ?? '').replace(/\s+/g, '')}`}
       />
       <p class="naechster-termin">
-        <NextSlotIsland client:idle label="Nächster freier Termin für ein Erstgespräch:" buchenHref="/kontakt?mode=termin" durationMin={45} />
+        <NextSlotIsland client:idle label="Nächster freier Termin für ein Erstgespräch:" buchenHref="/kontakt?mode=termin" durationMin={45} leistung="erstgespraech-kostenlos" />
       </p>
 
     </Fragment>

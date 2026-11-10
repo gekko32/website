@@ -17,6 +17,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Einzelne Tage aus dem Kalender oder eine Serie nach Wochentagen.
     const fehler = Array.isArray(e.tage) ? pruefeTage(e) : pruefeSerie(e);
     if (fehler) return antwort({ error: fehler }, 400);
+    const leistungen: string[] = Array.isArray(e.leistungen) ? [...new Set<string>(e.leistungen.filter((k: unknown) => typeof k === 'string' && k !== ''))] : [];
     const tage: string[] = Array.isArray(e.tage) ? [...new Set<string>(e.tage)].sort() : serienTage(e.von, e.bis, e.wochentage);
 
     if (e.entfernen === true) {
@@ -28,7 +29,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     let uebersprungen = 0;
     for (const tag of tage) {
       if (vorhanden.some((w) => w.date === tag && ueberschneiden(w, e))) { uebersprungen++; continue; }
-      await addFreeTimeWindow(BRAND, tag, e.winStart, e.winEnd);
+      await addFreeTimeWindow(BRAND, tag, e.winStart, e.winEnd, leistungen);
       angelegt++;
     }
     return antwort({ angelegt, uebersprungen });

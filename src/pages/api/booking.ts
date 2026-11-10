@@ -155,7 +155,7 @@ export const POST: APIRoute = async ({ request , locals }) => {
     if (!isCallback && slotStart && slotEnd) {
       let valid = false;
       try {
-        valid = await isSlotInAnyWindow(BRAND, new Date(slotStart), new Date(slotEnd));
+        valid = await isSlotInAnyWindow(BRAND, new Date(slotStart), new Date(slotEnd), leistungKey ?? null);
       } catch {
         // DB/table unavailable — treat slot as not whitelisted → 409 below
       }

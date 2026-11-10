@@ -70,6 +70,12 @@ export function monatsRaster(jahr: number, monat: number): (string | null)[][] {
   return wochen;
 }
 
+/** Gilt ein Zeitraum für diese Leistung? Leere Liste heißt: für alle. */
+export function zeitraumGiltFuer(leistungen: string[] | undefined, leistung: string | null | undefined): boolean {
+  if (!leistung || !leistungen || leistungen.length === 0) return true;
+  return leistungen.includes(leistung);
+}
+
 /** Ergänzt die Tage um denselben Wochentag in jeder folgenden Woche, bis einschließlich `bis`. */
 export function woechentlichBis(tage: string[], bis: string): string[] {
   const alle = new Set<string>();

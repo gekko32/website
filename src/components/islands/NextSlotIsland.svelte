@@ -15,6 +15,7 @@
   export let label = 'Nächster Termin:';
   export let buchenHref = '';
   export let durationMin: number | null = null;
+  export let leistung = '';
 
   let next: DaySlot | null = null;
   let loaded = false;
@@ -23,7 +24,10 @@
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 4_000);
     try {
-      const res = await fetch(durationMin ? `/api/calendar/slots?durationMin=${durationMin}` : '/api/calendar/slots', { signal: ctl.signal });
+      const q = new URLSearchParams();
+      if (durationMin) q.set('durationMin', String(durationMin));
+      if (leistung) q.set('leistung', leistung);
+      const res = await fetch(`/api/calendar/slots${q.size ? '?' + q.toString() : ''}`, { signal: ctl.signal });
       if (res.ok) {
         const body = await res.json() as DaySlot[];
         next = body.find((d) => d.slots?.some((s) => s.available !== false)) ?? null;

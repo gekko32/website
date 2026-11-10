@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { serienTage, ueberschneiden, pruefeSerie, pruefeTage, leseFeiertage, bundesweiteFeiertage, feiertageFuerLand, istEchterTag, monatsRaster, zeitListe, woechentlichBis } from './termin-planung';
+import { serienTage, ueberschneiden, pruefeSerie, pruefeTage, leseFeiertage, bundesweiteFeiertage, feiertageFuerLand, istEchterTag, monatsRaster, zeitListe, woechentlichBis, zeitraumGiltFuer } from './termin-planung';
 
 describe('Serien', () => {
   it('findet die richtigen Wochentage, auch über die Zeitumstellung', () => {
@@ -36,6 +36,12 @@ describe('Kalender', () => {
     expect(w.flat().filter(Boolean)).toHaveLength(30);
     expect(w.every((z) => z.length === 7)).toBe(true);
     expect(monatsRaster(2028, 2).flat().filter(Boolean)).toHaveLength(29);
+  });
+  it('ordnet Zeiträume Leistungen zu', () => {
+    expect(zeitraumGiltFuer([], 'a')).toBe(true);
+    expect(zeitraumGiltFuer(['a', 'b'], 'b')).toBe(true);
+    expect(zeitraumGiltFuer(['a'], 'b')).toBe(false);
+    expect(zeitraumGiltFuer(['a'], null)).toBe(true);
   });
   it('setzt gewählte Tage wöchentlich fort', () => {
     expect(woechentlichBis(['2026-11-10'], '2026-11-24')).toEqual(['2026-11-10', '2026-11-17', '2026-11-24']);

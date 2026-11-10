@@ -3,13 +3,21 @@
   // Tage antippen, Uhrzeiten durchscrollen, eintragen.
   import { monatsRaster, zeitListe, woechentlichBis, WOCHENTAGE_KURZ, MONATSNAMEN } from '../../lib/termin-planung';
 
-  interface Fenster { id: string; date: string; winStart: string; winEnd: string }
+  interface Fenster { id: string; date: string; winStart: string; winEnd: string; leistungen?: string[] }
 
-  let { heute, feiertage = [], urlaub = [] }: {
+  let { heute, feiertage = [], urlaub = [], leistungen = [] }: {
     heute: string;
     feiertage?: string[];
     urlaub?: { start: string; end: string }[];
+    leistungen?: { key: string; name: string }[];
   } = $props();
+
+  const FARBEN = ['#7fb3d5', '#a8d5a2', '#e8a87c', '#c39bd3', '#76d7c4', '#f1948a', '#b8c480', '#85a9e0'];
+  const farbeVon = (key: string) => FARBEN[Math.max(0, leistungen.findIndex((l) => l.key === key)) % FARBEN.length];
+  const nameVon = (key: string) => leistungen.find((l) => l.key === key)?.name ?? key;
+  /** Farbe eines Zeitraums: gold, wenn er für alle gilt. */
+  const farbeFenster = (f: Fenster | undefined) => (f?.leistungen?.length ? farbeVon(f.leistungen[0]) : 'rgba(200, 169, 110, 0.75)');
+  const textFenster = (f: Fenster) => (f.leistungen?.length ? f.leistungen.map(nameVon).join(', ') : 'Alle Leistungen');
 
   const ZEITEN = zeitListe(6, 22, 15);
   const [startJahr, startMonat] = heute.split('-').map(Number);
@@ -23,6 +31,8 @@
   let bis = $state('12:00');
   let meldung = $state('');
   let woechentlich = $state(false);
+  let fuerAlle = $state(true);
+  let gewaehlteLeistungen = $state<string[]>([]);
   let serieBis = $state(tagInWochen(heute, 12));
   let beschaeftigt = $state(false);
 
@@ -82,7 +92,7 @@
     try {
       const r = await fetch('/api/admin/time-windows/serie', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tage: zielTage, winStart: von, winEnd: bis, entfernen }),
+        body: JSON.stringify({ tage: zielTage, winStart: von, winEnd: bis, entfernen, leistungen: fuerAlle ? [] : gewaehlteLeistungen }),
       });
       const d = await r.json();
       if (!r.ok) { meldung = d.error ?? 'Fehler beim Speichern.'; return; }
@@ -152,7 +162,7 @@
           <div class="mini-raster">
             {#each monatsRaster(jahr, i + 1).flat() as t, n (n)}
               {#if t}
-                <button type="button" class:hat={jeTag.has(t)} class:zu={gesperrt(t)} class:heute={t === heute} class:gew={auswahl.includes(t)}
+                <button type="button" style:--art={farbeFenster((jeTag.get(t) ?? [])[0])} class:hat={jeTag.has(t)} class:zu={gesperrt(t)} class:heute={t === heute} class:gew={auswahl.includes(t)}
                   disabled={!waehlbar(t)} aria-pressed={auswahl.includes(t)} aria-label={tagDeutsch(t)} onclick={() => tagUmschalten(t)}>{tagNummer(t)}</button>
               {:else}
                 <span></span>
@@ -174,7 +184,7 @@
             {#each woche as t, s (s)}
               {#if t}
                 {@const liste = jeTag.get(t) ?? []}
-                <button type="button" class="tag" class:gew={auswahl.includes(t)} class:hat={liste.length > 0} class:zu={gesperrt(t)} class:heute={t === heute}
+                <button type="button" class="tag" style:--art={farbeFenster(liste[0])} class:gew={auswahl.includes(t)} class:hat={liste.length > 0} class:zu={gesperrt(t)} class:heute={t === heute}
                   disabled={!waehlbar(t)} aria-pressed={auswahl.includes(t)} onclick={() => tagUmschalten(t)}>
                   <span class="nr">{tagNummer(t)}</span>
                   {#if gesperrt(t)}<span class="info">frei</span>
@@ -186,7 +196,7 @@
             {/each}
           </div>
         {/each}
-        <p class="legende"><i class="p hat"></i> Zeit eingetragen <i class="p zu"></i> Urlaub oder Feiertag <i class="p gew"></i> ausgewählt</p>
+        <p class="legende">{#each leistungen.filter((l) => fenster.some((f) => f.leistungen?.includes(l.key))) as l (l.key)}<i class="p" style:background={farbeVon(l.key)}></i> {l.name} {/each}<i class="p hat"></i> Für alle Leistungen <i class="p zu"></i> Urlaub oder Feiertag <i class="p gew"></i> ausgewählt</p>
       </div>
 
   {/if}
@@ -207,8 +217,22 @@
           {@render zeitRad('Von', von, vonSetzen, null)}
           {@render zeitRad('Bis', bis, (z) => (bis = z), von)}
         </div>
+        {#if leistungen.length > 0}
+          <div class="gilt">
+            <span class="rad-titel">Gilt für</span>
+            <label><input type="radio" name="gilt" checked={fuerAlle} onchange={() => (fuerAlle = true)} /> Alle Leistungen</label>
+            <label><input type="radio" name="gilt" checked={!fuerAlle} onchange={() => (fuerAlle = false)} /> Bestimmte Leistungen</label>
+            {#if !fuerAlle}
+              <div class="gilt-liste">
+                {#each leistungen as l (l.key)}
+                  <label><input type="checkbox" bind:group={gewaehlteLeistungen} value={l.key} /> <i class="p" style:background={farbeVon(l.key)}></i> {l.name}</label>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
         <div class="knoepfe">
-          <button type="button" class="haupt" disabled={zahlTage === 0 || beschaeftigt} onclick={() => senden(false)}>{von} bis {bis} eintragen</button>
+          <button type="button" class="haupt" disabled={zahlTage === 0 || beschaeftigt || (!fuerAlle && gewaehlteLeistungen.length === 0)} onclick={() => senden(false)}>{von} bis {bis} eintragen</button>
           <button type="button" class="neben" disabled={zahlTage === 0 || beschaeftigt} onclick={() => senden(true)}>Genau diese Zeit entfernen</button>
         </div>
         {#if meldung}<p class="meldung" role="status">{meldung}</p>{/if}
@@ -216,7 +240,7 @@
           <div class="zeile">
             <span>{tagDeutsch(t)}</span>
             {#each jeTag.get(t) ?? [] as f (f.id)}
-              <span class="chip">{f.winStart}–{f.winEnd}<button type="button" aria-label={`${f.winStart} bis ${f.winEnd} entfernen`} onclick={() => einzelnEntfernen(f.id)}>✕</button></span>
+              <span class="chip" style:border-left-color={farbeFenster(f)} title={textFenster(f)}>{f.winStart}–{f.winEnd} · {textFenster(f)}<button type="button" aria-label={`${f.winStart} bis ${f.winEnd} entfernen`} onclick={() => einzelnEntfernen(f.id)}>✕</button></span>
             {/each}
           </div>
         {/each}
@@ -239,7 +263,7 @@
   .tag:disabled { opacity: 0.35; }
   .nr { font-size: 14px; }
   .info { font-size: 10px; line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
-  .tag.hat { background: rgba(200, 169, 110, 0.14); border-color: rgba(200, 169, 110, 0.5); }
+  .tag.hat { background: color-mix(in srgb, var(--art) 22%, transparent); border-color: var(--art); }
   .tag.zu { background: rgba(208, 106, 92, 0.12); opacity: 0.6; }
   .tag.heute .nr { text-decoration: underline; font-weight: 700; }
   .tag.gew { background: var(--brass, #c8a96e); color: var(--ink-900, #0e1116); border-color: var(--brass, #c8a96e); }
@@ -261,7 +285,11 @@
   .haupt:disabled, .neben:disabled { opacity: 0.4; }
   .meldung { font-size: 13px; color: var(--brass, #c8a96e); margin: 10px 0 0; }
   .zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; }
-  .chip { background: rgba(200, 169, 110, 0.14); border-radius: 6px; padding: 3px 4px 3px 8px; font-variant-numeric: tabular-nums; }
+  .gilt { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 12px; font-size: 13px; }
+  .gilt .rad-titel { width: 100%; }
+  .gilt label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+  .gilt-liste { width: 100%; display: flex; flex-direction: column; gap: 6px; padding-left: 4px; }
+  .chip { border-left: 3px solid transparent; background: rgba(200, 169, 110, 0.14); border-radius: 6px; padding: 3px 4px 3px 8px; font-variant-numeric: tabular-nums; }
   .chip button { padding: 2px 6px; color: var(--mute, #9aa4b2); }
   .links { min-width: 0; }
   .wiederholen { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-bottom: 10px; font-size: 13px; }
@@ -272,7 +300,7 @@
   .mini-raster { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; font-size: 11px; text-align: center; }
   .mini-raster button { padding: 3px 0; border-radius: 3px; font-size: 11px; -webkit-tap-highlight-color: transparent; }
   .mini-raster button:disabled { opacity: 0.35; }
-  .mini-raster .hat { background: rgba(200, 169, 110, 0.45); }
+  .mini-raster .hat { background: color-mix(in srgb, var(--art) 55%, transparent); }
   .mini-raster .zu { background: rgba(208, 106, 92, 0.3); }
   .mini-raster .heute { outline: 1px solid var(--brass, #c8a96e); }
   .mini-raster .gew { background: var(--brass, #c8a96e); color: var(--ink-900, #0e1116); font-weight: 700; }
