@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
 import { publishContent } from '../../../../lib/content-publish';
-import { publishResultToResponse } from '../../../../lib/content-publish-handler';
+import { publishResultToResponse, readBody } from '../../../../lib/content-publish-handler';
 import type { HomepageContent } from '../../../../content-schema';
 
 const BRAND = process.env.BRAND || 'mentolder';
@@ -42,14 +42,12 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
   const editor = session.email ?? session.name ?? 'unknown';
 
   if (request.headers.get('content-type')?.includes('application/json')) {
-    let body: { payload: HomepageContent; baseSha?: string };
-    try {
-      body = await request.json() as typeof body;
-    } catch {
-      return jsonResponse(400, { error: 'Invalid JSON' });
-    }
-    const baseSha = typeof body.baseSha === 'string' && body.baseSha ? body.baseSha : null;
-    return publishAndRespond(BRAND, body.payload, editor, baseSha, locals.requestLogger);
+    // Nimmt `{ payload, baseSha }` und die Daten direkt an. Der Admin-Bereich
+    // schickt sie direkt; vorher kam payload hier leer an und ergab 422.
+    const body = await readBody(request);
+    if (!body) return jsonResponse(400, { error: 'Invalid JSON' });
+    const baseSha = body.baseSha ?? null;
+    return publishAndRespond(BRAND, body.payload as HomepageContent, editor, baseSha, locals.requestLogger);
   }
 
   // Legacy form-encoded path — convert form fields to a HomepageContent

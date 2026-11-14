@@ -45,7 +45,7 @@ function jsonResponse(status: number, body: unknown): Response {
  * Read+parse the JSON body. Accepts `{ payload, baseSha }` (preferred) or
  * a raw value (treated as `payload` with `baseSha` = null).
  */
-async function readBody(request: Request): Promise<AdminSaveBody | null> {
+export async function readBody(request: Request): Promise<AdminSaveBody | null> {
   try {
     const raw = await request.json() as unknown;
     if (raw && typeof raw === 'object' && 'payload' in (raw as Record<string, unknown>)) {

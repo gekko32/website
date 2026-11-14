@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getSession, isAdmin } from '../../../../lib/auth';
 import { publishContent } from '../../../../lib/content-publish';
-import { publishResultToResponse } from '../../../../lib/content-publish-handler';
+import { publishResultToResponse, readBody } from '../../../../lib/content-publish-handler';
 import type { KontaktContent } from '../../../../content-schema';
 
 const BRAND = process.env.BRAND || 'mentolder';
@@ -19,16 +19,14 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
   const editor = session.email ?? session.name ?? 'unknown';
 
   if (request.headers.get('content-type')?.includes('application/json')) {
-    let body: { payload: KontaktContent; baseSha?: string };
-    try {
-      body = await request.json() as typeof body;
-    } catch {
-      return jsonResponse(400, { error: 'Invalid JSON' });
-    }
-    const baseSha = typeof body.baseSha === 'string' && body.baseSha ? body.baseSha : null;
+    // Nimmt `{ payload, baseSha }` und die Daten direkt an. Der Admin-Bereich
+    // schickt sie direkt; vorher kam payload hier leer an und ergab 422.
+    const body = await readBody(request);
+    if (!body) return jsonResponse(400, { error: 'Invalid JSON' });
+    const baseSha = body.baseSha ?? null;
     try {
       const result = await publishContent({
-        brand: BRAND, domain: 'kontakt', payload: body.payload, baseSha, editor,
+        brand: BRAND, domain: 'kontakt', payload: body.payload as KontaktContent, baseSha, editor,
       });
       return publishResultToResponse(result);
     } catch (e) {
