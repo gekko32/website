@@ -62,28 +62,17 @@
 
   <div class="p-4 bg-dark-light rounded-xl border border-gold/20">
     <p class="text-xs font-mono uppercase tracking-widest text-gold mb-3">Zentrale Elemente – wirken auf allen Seiten</p>
-    <p class="text-xs text-muted">Diese Felder steuern Footer und Header-Standort auf <strong class="text-light">jeder</strong> Seite. Eine Änderung hier wirkt überall gleichzeitig.</p>
+    <p class="text-xs text-muted">Die Region wirkt auf <strong class="text-light">jeder</strong> Seite (Fußzeile) und auf der Kontaktseite.</p>
   </div>
 
   <div class={sectionCls}>
-    <h3 class="text-xl font-bold text-light font-serif">Footer – Kontaktdaten</h3>
-    <p class="text-xs text-muted -mt-2">Erscheinen im Footer und im Header-Standort auf jeder Seite.</p>
-    <div class="grid grid-cols-2 gap-4">
-      <div><label class={labelCls}>E-Mail</label><input type="email" bind:value={data.footerEmail} class={inputCls} placeholder="kontakt@beispiel.de" /></div>
-      <div><label class={labelCls}>Telefon</label><input type="text" bind:value={data.footerPhone} class={inputCls} placeholder="+49 …" /></div>
-    </div>
+    <h3 class="text-xl font-bold text-light font-serif">Einsatzgebiet</h3>
     <div>
-      <label class={labelCls}>Standort / Region (Header-Anzeige &amp; Footer-Kontaktspalte)</label>
+      <label class={labelCls}>Standort / Region</label>
       <input type="text" bind:value={data.footerCity} class={inputCls} placeholder="Lüneburg, Hamburg und Umgebung" />
-      <p class="text-xs text-muted mt-1">Wird im Header rechts angezeigt: "{data.footerCity || 'Lüneburg, Hamburg und Umgebung'} &middot; DE" und im Footer-Standort.</p>
+      <p class="text-xs text-muted mt-1">Steht in der Fußzeile („Gestaltet in {data.footerCity || 'Lüneburg, Hamburg und Umgebung'} &middot; DE“) und auf der Kontaktseite. Die Geschäftsadresse bleibt in den Stammdaten.</p>
     </div>
-    <div>
-      <label class={labelCls}>Footer-Tagline (Brand-Untertitel)</label>
-      <input type="text" bind:value={data.footerTagline} class={inputCls} placeholder="Digital Coaching & Führungskräfte-Beratung" />
-    </div>
-    <div>
-      <p class="text-xs text-muted">Die Copyright-Zeile pflegst du im Bereich <strong class="text-light">Fußzeile</strong>.</p>
-    </div>
+    <p class="text-xs text-muted">E-Mail und Telefon pflegst du im Bereich <strong class="text-light">Stammdaten</strong>, die Copyright-Zeile im Bereich <strong class="text-light">Fußzeile</strong>.</p>
   </div>
 
   <div class={sectionCls}>
