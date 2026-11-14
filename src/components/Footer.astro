@@ -14,9 +14,13 @@ const effectiveFooter = await getEffectiveFooter().catch(() => null);
 // static config as final fallback
 const footerEmail   = stammdaten?.email     || kontaktOverride?.footerEmail?.trim()   || config.contact.email;
 const footerPhone   = stammdaten?.phone     || kontaktOverride?.footerPhone?.trim()   || (config.contact.phone && config.contact.phone !== '***' ? config.contact.phone : '');
-const footerCity    = stammdaten?.city      || kontaktOverride?.footerCity?.trim()    || config.contact.city;
+// Stadt: wie kontakt.astro (K192) nennt mentolder das Einsatzgebiet aus dem Bereich
+// Kontakt, nicht den Firmensitz aus den Stammdaten (sonst stand hier nur „Hamburg“).
+const BRAND_ID = process.env.BRAND_ID ?? process.env.BRAND ?? 'mentolder';
+const region = BRAND_ID === 'mentolder' ? kontaktOverride?.footerCity?.trim() : '';
+const footerCity    = region || stammdaten?.city || kontaktOverride?.footerCity?.trim() || config.contact.city;
 const footerTagline = config.legal.tagline  || kontaktOverride?.footerTagline?.trim() || '';
-const gestaltetsIn  = stammdaten?.city      || kontaktOverride?.footerCity?.trim()    || config.contact.city || 'Lüneburg';
+const gestaltetsIn  = region || stammdaten?.city || kontaktOverride?.footerCity?.trim() || config.contact.city || 'Lüneburg';
 
 // Copyright: effective footer config (DB) wins; legacy kontaktOverride; static config; hardcoded fallback
 // footerCopyright is persisted alongside KontaktContent but not part of its declared type
