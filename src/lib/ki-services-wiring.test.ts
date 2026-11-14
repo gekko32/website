@@ -11,7 +11,7 @@ const read = (rel: string) => readFileSync(join(here, rel), 'utf8');
 
 const CASES = [
   { file: 'claude.ts', usage: 'SOURCE.websiteLlm', literal: "getProviderConfig('website-llm'" },
-  { file: 'ticket-triage.ts', usage: 'SOURCE.ticketTriage', literal: "getProviderConfig('ticket-triage'" },
+  { file: 'sdlc/ticket-triage.ts', usage: 'SOURCE.ticketTriage', literal: "getProviderConfig('ticket-triage'" },
   { file: 'assistant/llm.ts', usage: 'SOURCE.assistantChat', literal: "getProviderConfig('assistant-chat'" },
 ];
 
@@ -30,25 +30,25 @@ const readPage = (rel: string) => readFileSync(joinPath(pagesRoot, rel), 'utf8')
 
 describe('classify.ts — Source-String kommt aus der Registry (Anti-Drift)', () => {
   it('classify.ts importiert SOURCE aus ki-services', () => {
-    const src = readPage('api/admin/tickets/[id]/classify.ts');
+    const src = readPage('sdlc/api/tickets/[id]/classify.ts');
     expect(src).toContain("from '");
     expect(src).toContain('SOURCE');
   });
 
   it('classify.ts nutzt SOURCE.ticketTriage statt String-Literal', () => {
-    const src = readPage('api/admin/tickets/[id]/classify.ts');
+    const src = readPage('sdlc/api/tickets/[id]/classify.ts');
     expect(src).toContain('SOURCE.ticketTriage');
     expect(src).not.toContain("getProviderConfig('ticket-triage'");
   });
 
   it('classify.ts enthält keine hardcoded claude-haiku Modell-ID', () => {
-    const src = readPage('api/admin/tickets/[id]/classify.ts');
+    const src = readPage('sdlc/api/tickets/[id]/classify.ts');
     expect(src).not.toContain('claude-haiku-4-5-20251001');
     expect(src).not.toContain('claude-haiku-4-5');
   });
 
   it('classify.ts hat keinen hardcoded ANTHROPIC_API_KEY Guard mehr', () => {
-    const src = readPage('api/admin/tickets/[id]/classify.ts');
+    const src = readPage('sdlc/api/tickets/[id]/classify.ts');
     expect(src).not.toContain("process.env.ANTHROPIC_API_KEY");
     expect(src).not.toContain('ANTHROPIC_API_KEY not configured');
   });

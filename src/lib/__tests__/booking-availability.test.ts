@@ -180,7 +180,9 @@ describe('berlin helpers', () => {
   });
 
   it('encodes the lead rule: same-day rejected, next-day allowed', () => {
-    const now = new Date();
+    // feste Uhrzeit (12:00 Berlin): mit new Date() schlug der Test zwischen 23 und 24 Uhr fehl,
+    // weil "jetzt + 1 h" dann schon der nächste Tag ist
+    const now = new Date('2026-07-10T10:00:00Z');
     const sameDay = new Date(now.getTime() + 3600000);
     const nextDay = new Date(now.getTime() + 36 * 3600000);
     expect(berlinDayKey(sameDay) <= berlinDayKey(now)).toBe(true);

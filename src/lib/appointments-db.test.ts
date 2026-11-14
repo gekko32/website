@@ -65,6 +65,13 @@ vi.mock('pg', () => {
     returns: DataType.text,
     implementation: toCharImpl,
   });
+  // isSlotInAnyWindow filtert mit cardinality(leistungen) = 0 (Fenster ohne Leistung = für alle).
+  mem.public.registerFunction({
+    name: 'cardinality',
+    args: [mem.public.getType(DataType.text).asArray()],
+    returns: DataType.integer,
+    implementation: (a: unknown[] | null) => (a == null ? null : a.length),
+  });
 
   mem.public.none(`
     CREATE TABLE public.brands (
@@ -162,6 +169,9 @@ vi.mock('pg', () => {
       win_start  TIME NOT NULL,
       win_end    TIME NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      -- seit #7 (Freie Zeiten Leistungen zuordnen); im Code per ADD COLUMN IF NOT EXISTS,
+      -- das hier mit dem ganzen CREATE-Statement verschluckt wird (PRESEEDED_TABLES)
+      leistungen TEXT[] NOT NULL DEFAULT '{}',
       PRIMARY KEY (id)
     );
   `);
@@ -562,5 +572,22 @@ describe('free time windows', () => {
     const slotStart = new Date('2026-07-10T13:00:00');
     const slotEnd = new Date('2026-07-10T14:00:00');
     expect(await isSlotInAnyWindow('mentolder', slotStart, slotEnd)).toBe(false);
+  });
+
+  // #7: Fenster mit Leistungen gilt nur für diese, Fenster ohne Leistungen für alle.
+  it('isSlotInAnyWindow beachtet die Leistungen eines Fensters', async () => {
+    await addFreeTimeWindow('mentolder', '2026-07-10', '09:00', '12:00', ['coaching']);
+    const slotStart = new Date('2026-07-10T07:30:00Z');
+    const slotEnd = new Date('2026-07-10T08:30:00Z');
+    expect(await isSlotInAnyWindow('mentolder', slotStart, slotEnd, 'coaching')).toBe(true);
+    expect(await isSlotInAnyWindow('mentolder', slotStart, slotEnd, 'beratung')).toBe(false);
+    expect(await isSlotInAnyWindow('mentolder', slotStart, slotEnd, null)).toBe(true);
+  });
+
+  it('isSlotInAnyWindow: Fenster ohne Leistungen gilt für jede Leistung', async () => {
+    await addFreeTimeWindow('mentolder', '2026-07-10', '09:00', '12:00');
+    const slotStart = new Date('2026-07-10T07:30:00Z');
+    const slotEnd = new Date('2026-07-10T08:30:00Z');
+    expect(await isSlotInAnyWindow('mentolder', slotStart, slotEnd, 'beratung')).toBe(true);
   });
 });
