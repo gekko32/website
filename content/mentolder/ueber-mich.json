@@ -1,45 +1,30 @@
 {
-  "pageHeadline": "Von der Polizei Hamburg zu mentolder",
-  "subheadline": "Über mich",
+  "pageHeadline": "Von der Polizei Hamburg in die digitale Begleitung",
+  "subheadline": "Über mich:",
   "introParagraphs": [
-    "Nach 40 Jahren bei der Polizei Hamburg (1980–2020), einen großen Teil davon in Führungsverantwortung, habe ich 2023 einen neuen Weg eingeschlagen.",
-    "Gelernt habe ich in diesen Jahren vor allem: Menschen führen heißt, Menschen zu verstehen, Geduld zu haben und Wissen so weiterzugeben, dass es ankommt."
+    "Nach über 30 Jahren bei der Polizei Hamburg – davon viele Jahre in Führungspositionen – habe ich 2023 einen neuen Weg eingeschlagen.",
+    "Was ich in all den Jahren gelernt habe? Menschen führen bedeutet vor allem: Menschen verstehen, Geduld haben, und Wissen so vermitteln, dass es ankommt."
   ],
   "sections": [
     {
-      "title": "Warum Technik und Menschen zusammengehören",
-      "content": "Ich habe oft erlebt, dass Technik gekauft wurde, bevor jemand geklärt hatte, wie die Arbeit eigentlich läuft. Mein Weg war immer derselbe: zuhören, aufzeichnen, die Beteiligten an einen Tisch holen. Erst dann kam die Technik."
+      "title": "Warum 50+ digital?",
+      "content": "Als ich im Altenheim ein halbes Jahr lang ein Digital Café verantwortlich mitgestaltet habe, merkte ich: Hier kann ich genau diese Fähigkeiten einsetzen."
     },
     {
-      "title": "Warum Coaching?",
-      "content": "Viele Jahre in Führungsverantwortung bedeuten auch: Ich kenne beide Seiten, die der Führungskraft und die der Geführten."
+      "title": "Warum Führungskräfte-Coaching?",
+      "content": "30+ Jahre Führungserfahrung bedeutet auch: Ich kenne beide Seiten."
     }
   ],
   "milestones": [
     {
-      "year": "1980–2020",
+      "year": "1980-2023",
       "title": "Polizei Hamburg",
-      "desc": "40 Dienstjahre, einen großen Teil davon in Führungsverantwortung."
+      "desc": "Über 30 Jahre in Führungspositionen."
     },
     {
-      "year": "1996–2001",
-      "title": "EDV-Beauftragter",
-      "desc": "Brückenbauer zwischen Fachleuten und IT."
-    },
-    {
-      "year": "2001–2007",
-      "title": "Digitalfunk",
-      "desc": "Fachkoordinator beim Aufbau des digitalen Funknetzes für Polizei und Feuerwehr in Hamburg."
-    },
-    {
-      "year": "ab 2007",
-      "title": "Videotechnik",
-      "desc": "Leiter der Videotechnik in der IT, ab 2012 zusätzlich Weiterentwicklung des Ticketsystems."
-    },
-    {
-      "year": "2017",
-      "title": "G20-Gipfel",
-      "desc": "Gesichtserkennung bei der Auswertung des Videomaterials."
+      "year": "ca. 2016/2017",
+      "title": "KI-Pionier",
+      "desc": "Erste deutsche Polizeibehörde mit KI/Gesichtserkennung."
     },
     {
       "year": "2023",
@@ -47,22 +32,22 @@
       "desc": "6 Monate Digital Café im Altenheim."
     },
     {
-      "year": "seit 2023",
-      "title": "Selbstständig mit mentolder",
-      "desc": "Digitale Prozessberatung, KI-gestützte Lösungen und Coaching."
+      "year": "Seit 2024",
+      "title": "Selbständig",
+      "desc": "Coach und Digitaler Begleiter."
     }
   ],
   "notDoing": [
     {
-      "title": "Keine Technik um der Technik willen",
-      "text": "Erst klären wir, wie Ihre Arbeit zusammenhängt. Dann setze ich um, auch mit KI. Was sie liefert, prüfe ich, bevor Sie sich darauf verlassen."
+      "title": "Keine technische Umsetzung",
+      "text": "Ich berate, entwickle Strategien und begleite Change-Prozesse."
     },
     {
       "title": "Keine Online-Kurse",
       "text": "Ich glaube an persönliche Begleitung statt standardisierte, skalierbare Produkte."
     }
   ],
-  "privateText": "Ich lebe in der Nähe von Lüneburg, bin verheiratet, habe zwei erwachsene Kinder. In meiner Freizeit bin ich viel zu Fuß unterwegs.",
+  "privateText": "Ich lebe in {city}, bin verheiratet, habe zwei erwachsene Kinder. In meiner Freizeit bin ich viel zu Fuß unterwegs.",
   "warumdieserName": {
     "title": "Warum dieser Name",
     "text": "Als ich „mentolder“ kreiert habe, war die Idee simpel: Mentor trifft Older – Erfahrung, die begleitet."
