@@ -3,8 +3,8 @@
 
   let { initialData }: { initialData: KontaktContent } = $props();
   let data = $state(JSON.parse(JSON.stringify(initialData)));
-  // footerCopyright ist nicht im KontaktContent-Typ, aber wir laden/speichern es extra
-  let footerCopyright = $state((initialData as KontaktContent & { footerCopyright?: string }).footerCopyright ?? '');
+  // Die Copyright-Zeile wird im Bereich Fußzeile gepflegt (footer.json). Ein Feld
+  // hier wurde vom Kontakt-Schema beim Speichern verworfen und wirkte nie.
   let saving = $state(false); let msg = $state(''); let msgOk = $state(true);
   let prUrl = $state('');
 
@@ -14,17 +14,16 @@
     const draft = localStorage.getItem(DRAFT_KEY);
     if (draft) {
       try {
-        const parsed = JSON.parse(draft) as { data: KontaktContent; footerCopyright: string };
+        const parsed = JSON.parse(draft) as { data: KontaktContent };
         if (parsed && typeof parsed === 'object' && parsed.data) {
           data = parsed.data;
-          footerCopyright = parsed.footerCopyright ?? '';
         }
       } catch { /* ignore corrupt drafts */ }
     }
   }
   $effect(() => {
     if (typeof window === 'undefined') return;
-    try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ data, footerCopyright })); } catch { /* quota */ }
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ data })); } catch { /* quota */ }
   });
 
   async function save() {
@@ -33,7 +32,7 @@
       const res = await fetch('/api/admin/kontakt/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, footerCopyright }),
+        body: JSON.stringify({ payload: data }),
       });
       const json = await res.json();
       if (res.ok) {
@@ -83,9 +82,7 @@
       <input type="text" bind:value={data.footerTagline} class={inputCls} placeholder="Digital Coaching & Führungskräfte-Beratung" />
     </div>
     <div>
-      <label class={labelCls}>Copyright-Zeile</label>
-      <input type="text" bind:value={footerCopyright} class={inputCls} placeholder="© 2026 mentolder — Alle Rechte vorbehalten" />
-      <p class="text-xs text-muted mt-1">Leer lassen für automatisches Format: © {new Date().getFullYear()} mentolder — Alle Rechte vorbehalten</p>
+      <p class="text-xs text-muted">Die Copyright-Zeile pflegst du im Bereich <strong class="text-light">Fußzeile</strong>.</p>
     </div>
   </div>
 

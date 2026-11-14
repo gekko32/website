@@ -8,7 +8,6 @@ export const kontaktSchema: SectionSchema = {
     { key: 'footerPhone', label: 'Telefon', type: 'text' },
     { key: 'footerCity', label: 'Stadt / Region', type: 'text', validation: { required: true } },
     { key: 'footerTagline', label: 'Tagline', type: 'text' },
-    { key: 'footerCopyright', label: 'Copyright-Zeile', type: 'text' },
     { key: 'intro', label: 'Einleitung', type: 'textarea' },
     { key: 'sidebarTitle', label: 'Sidebar-Titel', type: 'text' },
     { key: 'sidebarText', label: 'Sidebar-Text', type: 'textarea' },
