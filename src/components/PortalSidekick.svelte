@@ -304,7 +304,7 @@
             <h3>Orchestrierungs-Globals</h3>
             
             <div class="control-readonly">
-              <p>Token-Budget {settings.contextBudget.toLocaleString()} · Spawn {settings.spawnHarness ? 'an' : 'aus'} · Lavish {settings.lavishDelegation ? 'an' : 'aus'}</p>
+              <p>Token-Budget {settings.contextBudget.toLocaleString('de-DE')} · Spawn {settings.spawnHarness ? 'an' : 'aus'} · Lavish {settings.lavishDelegation ? 'an' : 'aus'}</p>
               <a class="control-link" href="/admin/cockpit?tab=control">Im Steuerung-Tab bearbeiten</a>
             </div>
 

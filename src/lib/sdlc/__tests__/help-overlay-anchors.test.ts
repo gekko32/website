@@ -16,7 +16,9 @@ const COMPONENTS_DIR = fileURLToPath(
   new URL('../../../components/leitstand', import.meta.url),
 );
 
-function keyForFile(rel: string): string {
+function keyForFile(relRaw: string): string {
+  // Windows liefert relative Pfade mit "\" – vor dem Zerlegen vereinheitlichen.
+  const rel = relRaw.replace(/\\/g, '/');
   const base = rel.split('/').pop()!.replace(/\.svelte$/, '');
   const kebab = base.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
   return !rel.includes('/') && kebab.startsWith('leitstand-') ? kebab.slice(10) : kebab;

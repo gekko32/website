@@ -76,7 +76,7 @@ describe('PortalSidekick — agent-settings view', () => {
     
     // Check for title and setting labels
     expect(await findByText('Agenten-Einstellungen')).toBeTruthy();
-    expect(await findByText(/Token-Budget 180,000/)).toBeTruthy();
+    expect(await findByText(/Token-Budget 180\.000/)).toBeTruthy();
     expect(await findByText(/Spawn aus/)).toBeTruthy();
     expect(await findByText(/Lavish aus/)).toBeTruthy();
     expect(await findByText('Master Kill-Switch (Alle Agenten)')).toBeTruthy();
