@@ -14,6 +14,9 @@ const TERMINAL_HOST = process.env.TERMINAL_HOST ?? 'terminal.localhost';
 const brettDomain = process.env.BRETT_DOMAIN ?? 'brett.localhost';
 const brettProto = brettDomain.includes('localhost') ? 'http' : 'https';
 const BRETT_URL = `${brettProto}://${brettDomain}/?admin=1`;
+// Funk und Audioguide (A72): FUNK_DOMAIN, sonst aus der Brett-Domain abgeleitet (brett.x → funk.x).
+const funkDomain = process.env.FUNK_DOMAIN ?? brettDomain.replace(/^brett\./, 'funk.');
+const FUNK_URL = `${funkDomain.includes('localhost') ? 'http' : 'https'}://${funkDomain}`;
 import PortalSidekick from '../components/PortalSidekick.svelte';
 import SessionExpiryWarning from '../components/SessionExpiryWarning.svelte';
 import { countPendingByType } from '../lib/messaging-db';
@@ -125,7 +128,7 @@ const brandWord = config.meta.siteTitle.replace(/\.de$/i, '').toLowerCase();
           </div>
         </a>
       </div>
-      <AdminSidebarNav brandWord={brandWord} isKore={isKore} inboxPending={inboxPending} brettUrl={BRETT_URL} path={path} />
+      <AdminSidebarNav brandWord={brandWord} isKore={isKore} inboxPending={inboxPending} brettUrl={BRETT_URL} funkUrl={FUNK_URL} path={path} />
 
       <div style="padding:12px 16px; border-top:1px solid var(--admin-border); display:flex; flex-direction:column; gap:4px;">
         <!-- User badge -->

@@ -30,6 +30,8 @@ export interface NavOptions {
   inboxPending: number;
   /** Absolute URL des Systembretts (brandabhängig, daher Parameter). */
   brettUrl: string;
+  /** Basis-URL von Funk und Audioguide (z. B. https://funk.mentolder.de), ohne Schlüssel (A72). */
+  funkUrl: string;
 }
 
 /**
@@ -41,7 +43,7 @@ export interface NavOptions {
  * bei BUILD_TARGET=prod aus dem Route-Manifest entfernt. Erreichbar sind sie über die
  * lokale SDLC-Console.
  */
-export function buildNavSections({ inboxPending, brettUrl }: NavOptions): NavSection[] {
+export function buildNavSections({ inboxPending, brettUrl, funkUrl }: NavOptions): NavSection[] {
   return [
     {
       items: [
@@ -121,6 +123,9 @@ export function buildNavSections({ inboxPending, brettUrl }: NavOptions): NavSec
       items: [
         { href: '/admin/assets', label: 'Assets', icon: 'palette' },
         { href: brettUrl, label: 'Systembrett', icon: 'brett', external: true },
+        // A72 (22.11.2026): zwei getrennte Funktionen; Anmeldung über Pocket ID am Vorschalter von funk.
+        { href: `${funkUrl}/guide/verwalten`, label: 'Audioguide', icon: 'headphones', external: true },
+        { href: `${funkUrl}/senden`, label: 'Funk senden', icon: 'broadcast', external: true },
       ],
     },
     {

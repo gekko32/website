@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { buildNavSections, type NavItem, type NavSection } from './nav-items';
 import { resolveRedirect } from '../../middleware/redirect-map';
 
-const OPTS = { inboxPending: 3, brettUrl: 'https://brett.example.invalid' };
+const OPTS = { inboxPending: 3, brettUrl: 'https://brett.example.invalid', funkUrl: 'https://funk.example.invalid' };
 
 /** Folgt der Redirect-Kette bis zum Endziel. Ein Eintrag kann über mehrere Sprünge
  *  in /sdlc/ landen; eine einstufige Prüfung würde das übersehen. */
@@ -76,13 +76,14 @@ describe('Admin-Sidebar — Gliederung', () => {
     expect(labels).not.toContain('Infrastruktur');
   });
 
-  it('enthält genau die siebzehn freigegebenen Einträge', () => {
+  it('enthält genau die neunzehn freigegebenen Einträge', () => {
     const hrefs = allItems(buildNavSections(OPTS)).map((i) => i.href);
 
     // Zwölf seit 19.10.2026, dazu „Leistungen“ und „Offene Posten“ (Rechnungswesen Stufe 3, 20.10.2026),
     // „Angebote“ (K85) und „Änderungsprotokoll“ (K97, beide 24.10.2026).
     // „Mahnungen“ (K163, Handtest 01.11.2026). „3D Generator“ entfernt (08.11.2026), „Termine“ neu (09.11.2026).
-    expect(hrefs).toHaveLength(17);
+    // „Audioguide“ und „Funk senden“ (A72, 22.11.2026).
+    expect(hrefs).toHaveLength(19);
     expect(hrefs).toContain('/admin/mahnungen');
     expect(hrefs).toContain('/admin/protokoll');
     expect(hrefs).toContain('/admin/leistungen');
@@ -104,5 +105,14 @@ describe('Admin-Sidebar — Gliederung', () => {
     const items = allItems(buildNavSections(OPTS));
     expect(items.find((i) => i.href === '/admin/inbox')?.badge).toBe(3);
     expect(items.find((i) => i.external)?.href).toBe(OPTS.brettUrl);
+  });
+
+  it('führt Audioguide und Funk getrennt unter Werkzeuge, ohne Schlüssel (A72 K1, K4)', () => {
+    const werkzeuge = buildNavSections(OPTS).find((s) => s.label === 'Werkzeuge')!.items;
+    const audioguide = werkzeuge.find((i) => i.label === 'Audioguide');
+    const funk = werkzeuge.find((i) => i.label === 'Funk senden');
+    expect(audioguide).toMatchObject({ href: 'https://funk.example.invalid/guide/verwalten', external: true });
+    expect(funk).toMatchObject({ href: 'https://funk.example.invalid/senden', external: true });
+    for (const i of [audioguide!, funk!]) expect(i.href).not.toMatch(/[?&]k=|token/i);
   });
 });
